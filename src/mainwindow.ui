@@ -1,0 +1,1405 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1041</width>
+    <height>824</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <property name="leftMargin">
+     <number>0</number>
+    </property>
+    <property name="topMargin">
+     <number>0</number>
+    </property>
+    <property name="rightMargin">
+     <number>0</number>
+    </property>
+    <property name="bottomMargin">
+     <number>0</number>
+    </property>
+    <item>
+     <widget class="QFrame" name="frame">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="frameShape">
+       <enum>QFrame::StyledPanel</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Raised</enum>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="AspectContainer" name="fractalAspectWidget" native="true">
+         <layout class="QHBoxLayout" name="horizontalLayout_8">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item>
+           <widget class="SizeGraphicsView" name="fractalView">
+            <property name="frameShape">
+             <enum>QFrame::NoFrame</enum>
+            </property>
+            <property name="lineWidth">
+             <number>0</number>
+            </property>
+            <property name="verticalScrollBarPolicy">
+             <enum>Qt::ScrollBarAlwaysOff</enum>
+            </property>
+            <property name="horizontalScrollBarPolicy">
+             <enum>Qt::ScrollBarAlwaysOff</enum>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1041</width>
+     <height>23</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>&amp;File</string>
+    </property>
+    <addaction name="action_SaveImageAs"/>
+    <addaction name="separator"/>
+    <addaction name="action_SaveParams"/>
+    <addaction name="action_LoadParams"/>
+    <addaction name="separator"/>
+    <addaction name="action_SavePalette"/>
+    <addaction name="action_LoadPalette"/>
+   </widget>
+   <widget class="QMenu" name="menuF_ractal">
+    <property name="title">
+     <string>F&amp;ractal</string>
+    </property>
+    <widget class="QMenu" name="menu_Precision">
+     <property name="title">
+      <string>&amp;Precision</string>
+     </property>
+     <addaction name="action_AutoPrec"/>
+     <addaction name="action_IncPrec"/>
+     <addaction name="action_DecPrec"/>
+    </widget>
+    <widget class="QMenu" name="menuFormula">
+     <property name="title">
+      <string>&amp;Formula</string>
+     </property>
+     <addaction name="action_FormulaStandard"/>
+     <addaction name="action_FormulaLambda"/>
+     <addaction name="action_FormulaSpider"/>
+     <addaction name="action_FormulaTricorn"/>
+     <addaction name="action_FormulaShip"/>
+     <addaction name="action_FormulaMix"/>
+     <addaction name="action_FormulaSqTwiceA"/>
+     <addaction name="action_FormulaSqTwiceB"/>
+    </widget>
+    <widget class="QMenu" name="menuPower">
+     <property name="title">
+      <string>&amp;Power</string>
+     </property>
+     <addaction name="action_FD2"/>
+     <addaction name="action_FD3"/>
+     <addaction name="action_FD4"/>
+     <addaction name="action_FD5"/>
+     <addaction name="action_FD6"/>
+     <addaction name="action_FD7"/>
+    </widget>
+    <widget class="QMenu" name="menuChoose_parameter_q">
+     <property name="title">
+      <string>Choose parameter q</string>
+     </property>
+     <addaction name="action_q_1"/>
+     <addaction name="action_q_m1"/>
+     <addaction name="action_q_2"/>
+    </widget>
+    <addaction name="menu_Precision"/>
+    <addaction name="menuFormula"/>
+    <addaction name="menuPower"/>
+    <addaction name="menuChoose_parameter_q"/>
+   </widget>
+   <widget class="QMenu" name="menu_Colouring">
+    <property name="title">
+     <string>&amp;Colouring</string>
+    </property>
+    <widget class="QMenu" name="menuStructure_modifier">
+     <property name="title">
+      <string>&amp;Structure modifier</string>
+     </property>
+     <addaction name="action_StructLight"/>
+     <addaction name="action_StructDark"/>
+     <addaction name="action_StructBoth"/>
+    </widget>
+    <widget class="QMenu" name="menuNarrow_black_white">
+     <property name="title">
+      <string>Narrow black/white</string>
+     </property>
+     <addaction name="action_NarrowB"/>
+     <addaction name="action_NarrowW"/>
+     <addaction name="action_NFactor2"/>
+     <addaction name="action_NFactor4"/>
+    </widget>
+    <addaction name="menuNarrow_black_white"/>
+    <addaction name="menuStructure_modifier"/>
+    <addaction name="action_EAngle"/>
+    <addaction name="separator"/>
+    <addaction name="action_GradEditor"/>
+    <addaction name="separator"/>
+    <addaction name="action_Precompute"/>
+   </widget>
+   <widget class="QMenu" name="menu_Help">
+    <property name="title">
+     <string>&amp;Help</string>
+    </property>
+    <addaction name="action_About"/>
+    <addaction name="action_AboutQt"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuF_ractal"/>
+   <addaction name="menu_Colouring"/>
+   <addaction name="menu_Help"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QDockWidget" name="controlsDock">
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
+   <property name="windowTitle">
+    <string>Controls</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents">
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <property name="spacing">
+      <number>3</number>
+     </property>
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QWidget" name="widget" native="true">
+       <layout class="QHBoxLayout" name="horizontalLayout_4">
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
+         <number>2</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="label_2">
+          <property name="text">
+           <string>Prec:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="precSpinBox">
+          <property name="stepType">
+           <enum>QAbstractSpinBox::DefaultStepType</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QWidget" name="widget_2" native="true">
+       <layout class="QHBoxLayout" name="horizontalLayout_5">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="label_3">
+          <property name="text">
+           <string>Power:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="powerSpinBox">
+          <property name="stepType">
+           <enum>QAbstractSpinBox::DefaultStepType</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="typeComboBox">
+       <property name="currentIndex">
+        <number>0</number>
+       </property>
+       <item>
+        <property name="text">
+         <string>Mandel</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Julia</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>M + preview</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="colourBox">
+       <property name="title">
+        <string>Colour</string>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_3">
+        <property name="spacing">
+         <number>2</number>
+        </property>
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
+         <number>2</number>
+        </property>
+        <item>
+         <widget class="QWidget" name="widget" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_3">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="label">
+             <property name="text">
+              <string>Width</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="widthSpinBox">
+             <property name="stepType">
+              <enum>QAbstractSpinBox::DefaultStepType</enum>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSlider" name="colStepSlider">
+          <property name="maximum">
+           <number>30</number>
+          </property>
+          <property name="pageStep">
+           <number>1</number>
+          </property>
+          <property name="value">
+           <number>0</number>
+          </property>
+          <property name="tracking">
+           <bool>false</bool>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QWidget" name="widget_5" native="true">
+          <layout class="QVBoxLayout" name="verticalLayout_8">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QComboBox" name="gradComboBox">
+             <property name="currentIndex">
+              <number>3</number>
+             </property>
+             <item>
+              <property name="text">
+               <string>BW</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>BCW</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>BCWC</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Pal. A</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Pal. B</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Pal. C</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Pal. D</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Pal. E</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Pal. F</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Custom</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="incolComboBox">
+             <property name="currentIndex">
+              <number>0</number>
+             </property>
+             <item>
+              <property name="text">
+               <string>Black</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>White</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="structureGroup">
+       <property name="title">
+        <string>Structure</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="checked">
+        <bool>false</bool>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_10">
+        <property name="spacing">
+         <number>2</number>
+        </property>
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
+         <number>2</number>
+        </property>
+        <item>
+         <widget class="QSlider" name="structureSlider">
+          <property name="minimum">
+           <number>2</number>
+          </property>
+          <property name="maximum">
+           <number>15</number>
+          </property>
+          <property name="pageStep">
+           <number>4</number>
+          </property>
+          <property name="value">
+           <number>8</number>
+          </property>
+          <property name="tracking">
+           <bool>false</bool>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="iterGroup">
+       <property name="title">
+        <string>Iter result</string>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_4">
+        <property name="spacing">
+         <number>2</number>
+        </property>
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
+         <number>2</number>
+        </property>
+        <item>
+         <widget class="QComboBox" name="modifyComboBox">
+          <property name="currentIndex">
+           <number>2</number>
+          </property>
+          <item>
+           <property name="text">
+            <string>Normal</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Log</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Sqrt</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Cbrt</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>4th root</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="subCheckBox">
+          <property name="text">
+           <string>Sub. min.</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="demBox">
+       <property name="title">
+        <string>DEM</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="checked">
+        <bool>false</bool>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_9">
+        <property name="spacing">
+         <number>2</number>
+        </property>
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QWidget" name="widget_7" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_11">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="label_4">
+             <property name="text">
+              <string>Width</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="demParamSpinBox">
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>2.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.500000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="aspectBox">
+       <property name="title">
+        <string>Aspect</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="checked">
+        <bool>false</bool>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_7">
+        <property name="spacing">
+         <number>2</number>
+        </property>
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
+         <number>2</number>
+        </property>
+        <item>
+         <widget class="QWidget" name="widget_3" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_6">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="aspectComboBox">
+          <property name="currentIndex">
+           <number>0</number>
+          </property>
+          <item>
+           <property name="text">
+            <string>Square</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>4x3</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>3x4</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>16x9</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>16x10</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>ISO A h</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>ISO A v</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Custom</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item>
+         <widget class="QWidget" name="widget_4" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_7">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="groupBox_4">
+       <property name="title">
+        <string>Supersample</string>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_5">
+        <property name="leftMargin">
+         <number>2</number>
+        </property>
+        <property name="topMargin">
+         <number>2</number>
+        </property>
+        <property name="rightMargin">
+         <number>2</number>
+        </property>
+        <property name="bottomMargin">
+         <number>2</number>
+        </property>
+        <item>
+         <widget class="QSpinBox" name="sampleSpinBox">
+          <property name="maximum">
+           <number>2</number>
+          </property>
+          <property name="stepType">
+           <enum>QAbstractSpinBox::DefaultStepType</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <spacer name="verticalSpacer">
+       <property name="orientation">
+        <enum>Qt::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="zoomGroup">
+       <property name="title">
+        <string>Zoom</string>
+       </property>
+       <layout class="QGridLayout" name="gridLayout">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <property name="spacing">
+         <number>2</number>
+        </property>
+        <item row="1" column="0">
+         <widget class="QWidget" name="widget_6" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_10">
+           <property name="spacing">
+            <number>2</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QToolButton" name="zinButton">
+             <property name="text">
+              <string>+</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="zoutButton">
+             <property name="text">
+              <string>-</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="zoomSpinBox">
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>1.100000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>5.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.500000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.500000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="storeButton">
+       <property name="text">
+        <string>Store</string>
+       </property>
+       <property name="checkable">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pauseButton">
+       <property name="text">
+        <string>Pause</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="resetButton">
+       <property name="text">
+        <string>Reset</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="previewDock">
+   <property name="features">
+    <set>QDockWidget::DockWidgetFloatable|QDockWidget::DockWidgetMovable</set>
+   </property>
+   <property name="windowTitle">
+    <string>Julia preview</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_2">
+    <layout class="QVBoxLayout" name="verticalLayout_6">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="AspectContainer" name="previewAspectWidget" native="true">
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="SizeGraphicsView" name="previewView">
+          <property name="frameShape">
+           <enum>QFrame::NoFrame</enum>
+          </property>
+          <property name="lineWidth">
+           <number>0</number>
+          </property>
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarAlwaysOff</enum>
+          </property>
+          <property name="horizontalScrollBarPolicy">
+           <enum>Qt::ScrollBarAlwaysOff</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="storedDock">
+   <property name="windowTitle">
+    <string>Stored parameters</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_3">
+    <layout class="QHBoxLayout" name="horizontalLayout_9">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="SizeGraphicsView" name="storedView">
+       <property name="frameShape">
+        <enum>QFrame::NoFrame</enum>
+       </property>
+       <property name="lineWidth">
+        <number>0</number>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <action name="action_Mandelbrot">
+   <property name="text">
+    <string>&amp;Mandelbrot</string>
+   </property>
+   <property name="shortcut">
+    <string>M</string>
+   </property>
+  </action>
+  <action name="action_Julia">
+   <property name="text">
+    <string>&amp;Julia</string>
+   </property>
+   <property name="shortcut">
+    <string>J</string>
+   </property>
+  </action>
+  <action name="action_MJpreview">
+   <property name="text">
+    <string>Mandelbrot + &amp;Preview</string>
+   </property>
+   <property name="toolTip">
+    <string>M + preview</string>
+   </property>
+   <property name="shortcut">
+    <string>P</string>
+   </property>
+  </action>
+  <action name="action_AutoPrec">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Automatically increase</string>
+   </property>
+   <property name="toolTip">
+    <string>Automatically increase precision when zooming in</string>
+   </property>
+  </action>
+  <action name="action_IncPrec">
+   <property name="text">
+    <string>&amp;Increase</string>
+   </property>
+   <property name="shortcut">
+    <string>+</string>
+   </property>
+  </action>
+  <action name="action_DecPrec">
+   <property name="text">
+    <string>&amp;Decrease</string>
+   </property>
+   <property name="shortcut">
+    <string>-</string>
+   </property>
+  </action>
+  <action name="action_NarrowB">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Narrow &amp;blacks</string>
+   </property>
+   <property name="toolTip">
+    <string>Portions of gradients that include black are narrower than other colours.</string>
+   </property>
+  </action>
+  <action name="actionz_z_c">
+   <property name="text">
+    <string>z ↦ z² + c</string>
+   </property>
+  </action>
+  <action name="action_FD2">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Power n=2</string>
+   </property>
+   <property name="shortcut">
+    <string>2</string>
+   </property>
+  </action>
+  <action name="action_FD3">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Power n=3</string>
+   </property>
+   <property name="shortcut">
+    <string>3</string>
+   </property>
+  </action>
+  <action name="action_FD4">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Power n=4</string>
+   </property>
+   <property name="shortcut">
+    <string>4</string>
+   </property>
+  </action>
+  <action name="action_FD5">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Power n=5</string>
+   </property>
+   <property name="shortcut">
+    <string>5</string>
+   </property>
+  </action>
+  <action name="action_FD6">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Power n=6</string>
+   </property>
+   <property name="shortcut">
+    <string>6</string>
+   </property>
+  </action>
+  <action name="action_FD7">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Power n=7</string>
+   </property>
+   <property name="shortcut">
+    <string>7</string>
+   </property>
+  </action>
+  <action name="action_SaveImageAs">
+   <property name="text">
+    <string>Save image &amp;as PNG...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="action_SaveParams">
+   <property name="text">
+    <string>&amp;Save parameters...</string>
+   </property>
+  </action>
+  <action name="action_LoadParams">
+   <property name="text">
+    <string>&amp;Load parameters...</string>
+   </property>
+  </action>
+  <action name="action_Precompute">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Use more &amp;memory for speedup</string>
+   </property>
+  </action>
+  <action name="action_StructLight">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Lighten</string>
+   </property>
+  </action>
+  <action name="action_StructDark">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Darken</string>
+   </property>
+  </action>
+  <action name="action_StructBoth">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Both</string>
+   </property>
+  </action>
+  <action name="action_EAngle">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show escape &amp;angle</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+A</string>
+   </property>
+  </action>
+  <action name="action_GradEditor">
+   <property name="text">
+    <string>Gradient &amp;editor</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+E</string>
+   </property>
+  </action>
+  <action name="action_SavePalette">
+   <property name="text">
+    <string>Save custom palette...</string>
+   </property>
+  </action>
+  <action name="action_LoadPalette">
+   <property name="text">
+    <string>Load custom palette...</string>
+   </property>
+  </action>
+  <action name="action_FormulaLambda">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Family z ↦ c(zⁿ - nz) &quot;Lambda&quot;</string>
+   </property>
+  </action>
+  <action name="action_FormulaSpider">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Spider</string>
+   </property>
+  </action>
+  <action name="action_FormulaTricorn">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Tricorn</string>
+   </property>
+   <property name="toolTip">
+    <string>Tricorn</string>
+   </property>
+  </action>
+  <action name="action_FormulaStandard">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Standard z ↦ zⁿ + c</string>
+   </property>
+  </action>
+  <action name="action_NarrowW">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Narrow &amp;whites</string>
+   </property>
+   <property name="toolTip">
+    <string>Portions of gradients that include white are narrower than other colours.</string>
+   </property>
+  </action>
+  <action name="action_FormulaMix">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Family z ↦ c(z³ - 3z -2) + q &quot;Mixture&quot;</string>
+   </property>
+   <property name="toolTip">
+    <string>Mixture</string>
+   </property>
+  </action>
+  <action name="action_NFactor2">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Factor 2</string>
+   </property>
+  </action>
+  <action name="action_NFactor4">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Factor 4</string>
+   </property>
+  </action>
+  <action name="action_About">
+   <property name="text">
+    <string>&amp;About...</string>
+   </property>
+  </action>
+  <action name="action_AboutQt">
+   <property name="text">
+    <string>About &amp;Qt...</string>
+   </property>
+  </action>
+  <action name="action_FormulaShip">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Burning Ship</string>
+   </property>
+   <property name="toolTip">
+    <string>Burning Ship</string>
+   </property>
+  </action>
+  <action name="action_q_1">
+   <property name="text">
+    <string>q=1</string>
+   </property>
+  </action>
+  <action name="action_q_m1">
+   <property name="text">
+    <string>q=-1</string>
+   </property>
+  </action>
+  <action name="action_q_2">
+   <property name="text">
+    <string>q=2</string>
+   </property>
+  </action>
+  <action name="action_FormulaSqTwiceA">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Family z ↦ (zⁿ + c)²  &quot;Square twice A&quot;</string>
+   </property>
+   <property name="toolTip">
+    <string>Square twice</string>
+   </property>
+  </action>
+  <action name="action_FormulaSqTwiceB">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Family z ↦ (z² + c)ⁿ  &quot;Square twice B&quot;</string>
+   </property>
+   <property name="toolTip">
+    <string>Square twice B</string>
+   </property>
+  </action>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>SizeGraphicsView</class>
+   <extends>QGraphicsView</extends>
+   <header>util-widgets.h</header>
+  </customwidget>
+  <customwidget>
+   <class>AspectContainer</class>
+   <extends>QWidget</extends>
+   <header>util-widgets.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>
