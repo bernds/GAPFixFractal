@@ -54,12 +54,12 @@ QDataStream &operator<< (QDataStream &s, const frac_params &fp)
 	s << (qint32)1;
 	s << fp.julia;
 	s << fp.fm;
-	s << QVector<uint32_t> (fp.center_x.begin (), fp.center_x.end ());
-	s << QVector<uint32_t> (fp.center_y.begin (), fp.center_y.end ());
-	s << QVector<uint32_t> (fp.width.begin (), fp.width.end ());
-	s << QVector<uint32_t> (fp.param_p.begin (), fp.param_p.end ());
-	s << QVector<uint32_t> (fp.param_q.begin (), fp.param_q.end ());
-	s << QVector<uint32_t> (fp.critpoint.begin (), fp.critpoint.end ());
+	s << QVector<uint32_t>::fromStdVector (fp.center_x);
+	s << QVector<uint32_t>::fromStdVector (fp.center_y);
+	s << QVector<uint32_t>::fromStdVector (fp.width);
+	s << QVector<uint32_t>::fromStdVector (fp.param_p);
+	s << QVector<uint32_t>::fromStdVector (fp.param_q);
+	s << QVector<uint32_t>::fromStdVector (fp.critpoint);
 	s << fp.nwords << fp.power << fp.maxiter;
 	return s;
 }
@@ -72,12 +72,12 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 	s >> fp.fm;
 	QVector<uint32_t> vcx, vcy, vwidth, vparam, vparamq, vcrit;
 	s >> vcx >> vcy >> vwidth >> vparam >> vparamq >> vcrit;
-	fp.center_x = vpvec (vcx.begin (), vcx.end ());
-	fp.center_y = vpvec (vcy.begin (), vcy.end ());
-	fp.width = vpvec (vwidth.begin (), vwidth.end ());
-	fp.param_p = vpvec (vparam.begin (), vparam.end ());
-	fp.param_q = vpvec (vparamq.begin (), vparamq.end ());
-	fp.critpoint = vpvec (vcrit.begin (), vcrit.end ());
+	fp.center_x = vcx.toStdVector ();
+	fp.center_y = vcy.toStdVector ();
+	fp.width = vwidth.toStdVector ();
+	fp.param_p = vparam.toStdVector ();
+	fp.param_q = vparamq.toStdVector ();
+	fp.critpoint = vcrit.toStdVector ();
 	s >> fp.nwords >> fp.power >> fp.maxiter;
 	return s;
 }
