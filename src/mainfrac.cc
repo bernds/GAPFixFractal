@@ -53,7 +53,7 @@ QDataStream &operator<< (QDataStream &s, const frac_params &fp)
 {
 	s << (qint32)1;
 	s << fp.julia;
-	s << fp.fm;
+	s << (qint32)fp.fm;
 	s << QVector<uint32_t>::fromStdVector (fp.center_x);
 	s << QVector<uint32_t>::fromStdVector (fp.center_y);
 	s << QVector<uint32_t>::fromStdVector (fp.width);
@@ -67,9 +67,11 @@ QDataStream &operator<< (QDataStream &s, const frac_params &fp)
 QDataStream &operator>> (QDataStream &s, frac_params &fp)
 {
 	qint32 version;
+	qint32 fm;
 	s >> version;
 	s >> fp.julia;
-	s >> fp.fm;
+	s >> fm;
+	fp.fm = (formula)fm;
 	QVector<uint32_t> vcx, vcy, vwidth, vparam, vparamq, vcrit;
 	s >> vcx >> vcy >> vwidth >> vparam >> vparamq >> vcrit;
 	fp.center_x = vcx.toStdVector ();
