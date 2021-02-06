@@ -18,6 +18,7 @@
 #include <QDataStream>
 #include <QRunnable>
 #include <QThreadPool>
+#include <QElapsedTimer>
 
 #include "gpuhandler.h"
 #include "formulas.h"

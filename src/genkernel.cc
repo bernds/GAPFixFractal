@@ -3,6 +3,7 @@
 #include <vector>
 #include <cstring>
 #include <memory>
+#include <array>
 
 #include <iostream>
 

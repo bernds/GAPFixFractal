@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
+#include <algorithm>
 
 inline unsigned popcnt (uint64_t val)
 {
