@@ -51,8 +51,8 @@ There are some prerequisites for building and running this program:
 ## Limitations
 
 Among the things currently known to need improvement are:
-- The DEM algorithm fails after a few zoom steps, apparently due to
-  overflows.  Might need an improvement over plain fix point math.
+- The DEM algorithm works better than in the initial release (thanks Claude!),
+  but still has issues rendering Julia sets near the origin point.
 - There are also overflow issues at higher power variants that lead
   to some banding in color gradients which are supposed to be smooth.
 - The "Spider" formula doesn't produce quite the same images seen

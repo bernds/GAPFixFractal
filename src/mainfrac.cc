@@ -974,19 +974,20 @@ public:
 				double imzder = fd->pic_zder[idx * 2 + 1];
 				rezder *= rezder;
 				imzder *= imzder;
-				double dist = log (re2 + im2) * sqrt (re2 + im2) / sqrt (rezder + imzder);
-				v = dist / dstep;
+
+				double divisor = sqrt (rezder + imzder);
+				double dist = divisor == 0 ? rp.dem_param + 1 : log (re2 + im2) * sqrt (re2 + im2) / divisor;
 				outcolor++;
-				if (v > rp.dem_param) {
+				if (dist > rp.dem_param) {
 					r += 0xFF;
 					g += 0xFF;
 					b += 0xFF;
 					return;
 				}
-				v /= rp.dem_param;
-				r += v * 0xFF;
-				g += v * 0xFF;
-				b += v * 0xFF;
+				dist /= rp.dem_param;
+				r += dist * 0xFF;
+				g += dist * 0xFF;
+				b += dist * 0xFF;
 				return;
 			}
 
@@ -1208,6 +1209,7 @@ void MainWindow::autoprec (frac_desc &fd)
 	if (!ui->action_AutoPrec->isChecked ())
 		return;
 
+	bool dem = ui->demBox->isChecked ();
 	int w = ui->fractalView->width ();
 	int h = ui->fractalView->height ();
 	vpvec step = div1 (fd.width, std::max (w, h));
@@ -1215,7 +1217,7 @@ void MainWindow::autoprec (frac_desc &fd)
 	while (i-- > 0)
 		if (step[i] != 0)
 			break;
-	if (i > 0 && step[i] < 32)
+	if (i > 0 && step[i] < (dem ? 128 : 32))
 		i--;
 	int required = max_nwords - i;
 	if (required > m_nwords) {
@@ -1467,7 +1469,8 @@ void MainWindow::update_settings (bool reset)
 	if (reset) {
 		reset_coords (m_fd_mandel);
 		reset_coords (m_fd_julia);
-	}
+	} else
+		autoprec (current_fd ());
 	restart_computation ();
 }
 

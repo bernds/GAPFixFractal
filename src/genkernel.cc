@@ -919,8 +919,8 @@ void gen_inner_standard (int size, int stepsize, int power, bool julia, bool dem
 		nrder = make_shared<addsub_expr> ("add", nrder, nrder);
 		nider = make_shared<addsub_expr> ("add", nider, nider);
 		if (!julia) {
-			auto const1 = make_shared<const_expr<1>> (size);
-			nrder = make_shared<addsub_expr> ("add", nrder, const1);
+			nrder = make_shared<addsub_expr> ("add", nrder,
+							  make_shared<ldg_expr> ("%dem_step", size));
 		}
 		gen_store (&*zderr_reg, nrder);
 		gen_store (&*zderi_reg, nider);
@@ -1211,10 +1211,11 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 
 	if (dem) {
 		result += QString (R"(
-	.reg.u64	%ar_zderim;
+	.reg.u64	%ar_zderim, %dem_step;
 	add.u64		%ar_zder, %ar_zder, %addroff;
 	add.u64		%ar_zderim, %ar_zder, %1;
-)").arg (size * 4);
+	add.u64		%dem_step, %ar_step, %2;
+)").arg (size * 4).arg (stepsize * 4 - size * 4);
 	}
 
 	result += R"(
@@ -1233,7 +1234,7 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	auto const0 = make_shared<const_expr<0>> (size);
 	auto const1 = make_shared<const_expr<1>> (size);
 	if (dem) {
-		gen_store ("%ar_zder", const1);
+		gen_store ("%ar_zder", make_shared<ldg_expr> ("%dem_step", size));
 		gen_store ("%ar_zderim", const0);
 	}
 
