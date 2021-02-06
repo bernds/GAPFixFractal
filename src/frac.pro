@@ -43,12 +43,15 @@ INSTALLS += target
 
 unix {
   CUDA_DIR = $$system(which nvcc | sed 's,/bin/nvcc,,')
-
-  INCLUDEPATH += $$CUDA_DIR/include
-  QMAKE_LIBDIR += $$CUDA_DIR/lib
-
-  LIBS += -lcuda
 }
+win32 {
+  CUDA_DIR=$$(CUDA_PATH)
+}
+INCLUDEPATH += $$CUDA_DIR/include
+QMAKE_LIBDIR += $$CUDA_DIR/lib
+QMAKE_LIBDIR += $$CUDA_DIR/lib64
+QMAKE_LIBDIR += $$CUDA_DIR/lib/x64
+LIBS += -lcuda
 
 QT += widgets gui
 
