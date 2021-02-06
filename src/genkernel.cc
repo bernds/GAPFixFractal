@@ -1388,7 +1388,7 @@ skip:
 char *gen_mprec_funcs (formula f, int size, int stepsize, int power)
 {
 	QString result;
-	result += QString (R"(	.version	6.5
+	result += QString (R"(	.version	6.2
 	.target	sm_61
 	.address_size 64
 	// .extern .shared .align 4 .b8 shared[];
