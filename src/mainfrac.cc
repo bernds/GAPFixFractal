@@ -294,6 +294,15 @@ void MainWindow::start_threads ()
 	connect (this, &MainWindow::signal_render_preview, m_preview_renderer, &Renderer::slot_render);
 }
 
+static uint32_t encode_coord (int x, int y, int w, int h)
+{
+	uint16_t x1 = x;
+	uint16_t y1 = y;
+	x1 -= w / 2;
+	y1 -= h / 2;
+	return (uint32_t)y1 * 65536 + x1;
+}
+
 int GPU_handler::initial_setup (frac_desc *fd)
 {
 	int w = fd->pixel_width;
@@ -303,7 +312,7 @@ int GPU_handler::initial_setup (frac_desc *fd)
 	for (int y = 0; y < h; y += pstep)
 		for (int x = 0; x < w; x += pstep) {
 			fd->pixels_started.set_bit (y * w + x);
-			fd->host_coords[idx++] = y * 65536 + x;
+			fd->host_coords[idx++] = encode_coord (x, y, w, h);
 		}
 	return idx;
 }
@@ -354,7 +363,7 @@ int GPU_handler::continue_setup (frac_desc *fd)
 						if (!ss_pixels.test_bit (y * w + x))
 							continue;
 						fd->pixels_started.set_bit (y * w + x);
-						fd->host_coords[idx] = y * 65536 + x;
+						fd->host_coords[idx] = encode_coord (x, y, w, h);
 						if (++idx == fd->n_threads)
 							return idx;
 					}
@@ -365,7 +374,7 @@ int GPU_handler::continue_setup (frac_desc *fd)
 			if (fd->pixels_started.test_bit (y * w + x))
 				continue;
 			fd->pixels_started.set_bit (y * w + x);
-			fd->host_coords[idx] = y * 65536 + x;
+			fd->host_coords[idx] = encode_coord (x, y, w, h);
 			if (++idx == fd->n_threads)
 				return idx;
 		}
@@ -459,11 +468,16 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		qint64 ms = std::max ((qint64)5, timer.elapsed ());
 		uint32_t j = 0;
 		int w = fd->pixel_width;
+		int h = fd->pixel_height;
 		int z_size = fd->nwords * 2;
 		for (uint32_t i = 0; i < maxidx; i++) {
 			uint32_t coord = fd->host_coords[i];
+			int32_t hcx = (int16_t)(coord & 65535);
+			int32_t hcy = (int16_t)(coord >> 16);
+			hcx += w / 2;
+			hcy += h / 2;
 			int result = fd->host_result[i];
-			int idx = (coord >> 16) * w + (coord & 65535);
+			int idx = hcy * w + hcx;
 			if (result != 0) {
 				fd->pic_result[idx] += result;
 				fd->pic_z[idx * 2] = fd->host_z[i * z_size + fd->nwords - 1];
@@ -539,12 +553,9 @@ void MainWindow::build_points (frac_desc &fd, int w, int h)
 {
 	vpvec step = div1 (fd.width, std::min (w, h) * fd.samples);
 	fd.step = step;
-	fd.left = sub (fd.center_x, mul1 (step, w * fd.samples / 2));
-	vpvec ycoord = sub(fd.center_y, mul1 (step, h * fd.samples / 2));
-	fd.top = ycoord;
 
-	memcpy (fd.host_origin, &fd.left[0], max_nwords * 4);
-	memcpy (fd.host_origin + max_nwords, &fd.top[0], max_nwords * 4);
+	memcpy (fd.host_origin, &fd.center_x[0], max_nwords * 4);
+	memcpy (fd.host_origin + max_nwords, &fd.center_y[0], max_nwords * 4);
 }
 
 /* The caller should invalidate all existing frac_desc structures before calling this.  */
@@ -1430,8 +1441,14 @@ void MainWindow::fractal_mouse_event (QMouseEvent *e)
 	bool shf = (e->modifiers () & Qt::ShiftModifier) != 0;
 	bool param = (e->modifiers () & Qt::ControlModifier) != 0;
 	// printf ("click %d %d\n", (int)p.x (), (int)p.y ());
-	vpvec a = add (fd.left, mul1 (fd.step, fd.samples * scene_pos.x ()));
-	vpvec b = add (fd.top, mul1 (fd.step, fd.samples * scene_pos.y ()));
+
+	int w = ui->fractalView->width ();
+	int h = ui->fractalView->height ();
+	vpvec left = sub (fd.center_x, mul1 (fd.step, w * fd.samples / 2));
+	vpvec top = sub (fd.center_y, mul1 (fd.step, h * fd.samples / 2));
+
+	vpvec a = add (left, mul1 (fd.step, fd.samples * scene_pos.x ()));
+	vpvec b = add (top, mul1 (fd.step, fd.samples * scene_pos.y ()));
 	if (param) {
 		memcpy (&m_fd_julia.param_p[0], &a[0], max_nwords * sizeof (uint32_t));
 		memcpy (&m_fd_julia.param_p[max_nwords], &b[0], max_nwords * sizeof (uint32_t));

@@ -663,31 +663,34 @@ void gen_store (reg_expr *dst, shared_ptr<expr> ex)
 
 void gen_coord_muladd (QString &result, int dstsize, int srcsize)
 {
-	result += R"(.func coord_muladd (.reg.u64 %dst, .reg.u64 %src_step, .reg.u64 %src_base, .reg.u32 %srcc)
-{
-)";
+	result += ".func coord_muladd (.reg.u64 %dst, .reg.u64 %src_step, .reg.u64 %src_base, .reg.u32 %srcc)\n{\n";
+	result += "\t.reg.pred\t%neg;\n";
+	result += "\tsetp.lt.s32\t%neg, %srcc, 0;\n";
+	result += "@%neg\tneg.s32\t%srcc, %srcc;\n";
 
 	QString last = "0";
-
+	QString last_carry = "0";
+	vector<QString> pieces;
 	for (int i = 0; i < srcsize; i++) {
 		QString t1 = QString ("%vala%1").arg (i);
-		QString t2 = QString ("%valb%1").arg (i);
 		QString res = QString ("%res%1").arg (i);
 		QString carry = QString ("%carry%1").arg (i);
-		result += QString ("\t.reg.u32 %1, %2, %3, %4;\n").arg (t1).arg (t2).arg (res).arg (carry);
+		result += QString ("\t.reg.u32 %1, %2, %3;\n").arg (t1, res, carry);
 		result += QString ("\tld.global.u32 %1, [%src_step + %2];\n").arg (t1).arg (i * 4);
-		result += QString ("\tld.global.u32 %1, [%src_base + %2];\n").arg (t2).arg (i * 4);
-		result += QString ("\tmad.lo.cc.u32 %1, %2, %srcc, %3;\n").arg (res).arg (t1).arg (t2);
-		result += QString ("\tmadc.hi.u32 %1, %2, %srcc, 0;\n").arg (carry).arg (t1);
-		if (i > 0) {
-			result += QString ("\tadd.cc.u32 %1, %1, %2;\n").arg (res).arg (last);
-			result += QString ("\taddc.cc.u32 %1, %1, 0;\n").arg (carry);
-		}
+		result += QString ("\tmad.lo.cc.u32 %1, %2, %srcc, %3;\n").arg (res, t1, last);
+		result += QString ("\tmadc.hi.u32 %1, %2, %srcc, 0;\n").arg (carry, t1);
 		last = carry;
-		if (i >= srcsize - dstsize) {
-			result += QString ("\tst.global.u32 [%dst + %1], %2;\n").arg ((i - srcsize + dstsize) * 4).arg (res);
-		}
+		pieces.push_back (res);
 		result += "\n";
+	}
+	for (int i = 0; i < srcsize; i++) {
+		QString t2 = QString ("%valb%1").arg (i);
+		result += QString ("\t.reg.u32\t%1;\n").arg (t2);
+		result += QString ("\tld.global.u32 %1, [%src_base + %2];\n").arg (t2).arg (i * 4);
+		auto res = pieces[i];
+		result += QString ("@%neg\tsub%3.cc.u32\t%1, %1, %2;\n@!%neg\tadd%3.cc.u32\t%1, %1, %2;\n").arg (t2, res, i == 0 ? "" : "c");
+		if (i >= srcsize - dstsize)
+			result += QString ("\tst.global.u32 [%dst + %1], %2;\n").arg ((i - srcsize + dstsize) * 4).arg (t2);
 	}
 	result += "}\n";
 }
@@ -1219,10 +1222,12 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	}
 
 	result += R"(
-	.reg.u32	%xpos, %ypos;
-	ld.global.u32	%xpos, [%ar_coords];
-	shr.u32		%ypos, %xpos, 16;
-	and.b32		%xpos, %xpos, 65535;
+	.reg.s32	%xpos, %ypos;
+	.reg.s16	%xplow;
+	ld.global.s32	%xpos, [%ar_coords];
+	shr.s32		%ypos, %xpos, 16;
+	cvt.s16.s32	%xplow, %xpos;
+	cvt.s32.s16	%xpos, %xplow;
 
 @%pinit bra		notfirst;
 	call		coord_muladd, (%ar_t, %ar_step, %ar_c, %xpos);

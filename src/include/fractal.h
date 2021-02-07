@@ -42,8 +42,7 @@ struct frac_desc : public frac_params
 	int n_completed = 0;
 	uint32_t start_idx;
 
-	/* Computed from center and width - those are independent of image size while these are not.  */
-	vpvec left, top, step;
+	vpvec step;
 
 	int32_t *pic_z;
 	int32_t *pic_zder;
