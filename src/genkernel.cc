@@ -23,10 +23,11 @@ class generator
 public:
 	QString m_code, m_regs;
 
-	QString gen_reg (const QString &type, QString nm = "reg")
+	QString gen_reg (const QString &type, QString nm = "reg", bool declare = true)
 	{
 		QString r = QString ("%%1%2").arg (nm).arg (m_tmp++);
-		m_regs += QString ("\t.reg.%1\t%2;\n").arg (type).arg (r);
+		if (declare)
+			m_regs += QString ("\t.reg.%1\t%2;\n").arg (type).arg (r);
 		return r;
 	}
 	void append_code (const QString &c)
@@ -116,10 +117,10 @@ public:
 class reg_expr : public expr
 {
 public:
-	reg_expr (int len, QString nm = "reg") : expr (len)
+	reg_expr (int len, QString nm = "reg", bool declare = true) : expr (len)
 	{
 		while (len-- > 0)
-			m_values.push_back (codegen->gen_reg ("u32", nm));
+			m_values.push_back (codegen->gen_reg ("u32", nm, declare));
 	}
 	QString next_piece () override
 	{
@@ -697,16 +698,42 @@ void gen_coord_muladd (QString &result, int dstsize, int srcsize)
 
 void gen_mul_func (QString &result, int size, bool sqr)
 {
-	if (sqr) {
-		result += R"(.func sqr_real (.reg.u64 %dst, .reg.u64 %srca)
-{
-)";
-	} else {
-		result += R"(.func mul_real (.reg.u64 %dst, .reg.u64 %srca, .reg.u64 %srcb)
-{
-)";
+#if 0
+	/* ??? This would be nice, but the multiple return values cause the following:
+	   ptxas fatal   : 'Compile only(-c)' requires ABI
+	   It's unclear how to avoid this.  */
+	generator cg;
+	codegen = &cg;
+	auto dst = make_shared<reg_expr> (size, "dst", false);
+	auto srca = make_shared<reg_expr> (size, "srca", false);
+	auto srcb = sqr ? srca : make_shared<reg_expr> (size, "srcb", false);
+	result += ".func (";
+	for (int i = 0; i < dst->length (); i++) {
+		if (i > 0)
+			result += ", ";
+		result += QString (".reg.u32 %1").arg (dst->get_piece (i));
 	}
+	if (sqr)
+		result += ") sqr_real (";
+	else
+		result += ") mul_real (";
+	for (int i = 0; i < srca->length (); i++) {
+		if (i > 0)
+			result += ", ";
+		result += QString (".reg.u32 %1").arg (srca->get_piece (i));
+	}
+	if (!sqr)
+		for (int i = 0; i < srcb->length (); i++) {
+			result += ", ";
+			result += QString (".reg.u32 %1").arg (srcb->get_piece (i));
+		}
+	result += ")\n{\n";
 
+	gen_store (&*dst, gen_mult (srca, srcb));
+	result += cg.code ();
+	codegen = nullptr;
+	result += "}\n";
+#else
 	result += "\t.reg.u32 %res_in, %carry_in, %carry, %carry2;\n";
 	result += "\tmov.u32 %carry, 0;\n";
 	result += "\tmov.u32 %carry2, 0;\n";
@@ -786,6 +813,7 @@ void gen_mul_func (QString &result, int size, bool sqr)
 		}
 	}
 	result += "}\n";
+#endif
 }
 
 template<typename... ARGS>
