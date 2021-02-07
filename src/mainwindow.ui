@@ -363,8 +363,11 @@
            </item>
            <item>
             <widget class="QSpinBox" name="widthSpinBox">
-             <property name="stepType">
-              <enum>QAbstractSpinBox::DefaultStepType</enum>
+             <property name="minimum">
+              <number>2</number>
+             </property>
+             <property name="value">
+              <number>3</number>
              </property>
             </widget>
            </item>

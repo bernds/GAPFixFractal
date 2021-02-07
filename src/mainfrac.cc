@@ -1184,7 +1184,7 @@ void MainWindow::set_render_params (render_params &p)
 	p.incol = ui->incolComboBox->currentIndex ();
 	p.mod_type = ui->modifyComboBox->currentIndex ();
 	int steps_spin = ui->widthSpinBox->value ();
-	p.steps = pow (steps_spin + 1, 1.5) - 2;
+	p.steps = (pow (steps_spin + 1, 1.3) - 2) / 2;
 	p.angle = ui->action_EAngle->isChecked ();
 	p.sub = ui->subCheckBox->isChecked ();
 	p.slider = ui->colStepSlider->value ();
