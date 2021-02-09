@@ -1681,6 +1681,7 @@ void MainWindow::zoom_in (bool)
 void MainWindow::update_fractal_type (int t)
 {
 	ui->previewDock->setVisible (t == 2);
+	ui->storePreviewButton->setEnabled (t == 2);
 	update_settings (false);
 }
 
@@ -1934,10 +1935,10 @@ void MainWindow::restore_params (const frac_params &p)
 	restart_computation ();
 }
 
-void MainWindow::store_params (bool)
+void MainWindow::store_params (bool preview)
 {
 	constexpr int tn_sz = 400;
-	auto fd = current_fd ();
+	auto fd = preview ? m_fd_julia : current_fd ();
 	QImage img = fd.julia ? m_img_julia : m_img_mandel;
 	QImage thumbnail = img.scaled (QSize (tn_sz, tn_sz), Qt::KeepAspectRatioByExpanding);
 	int w = thumbnail.width ();
@@ -2145,6 +2146,7 @@ MainWindow::MainWindow ()
 	reset_coords (m_fd_mandel);
 	reset_coords (m_fd_julia);
 
+	ui->storePreviewButton->setEnabled (ui->typeComboBox->currentIndex () == 2);
 	ui->previewDock->setVisible (ui->typeComboBox->currentIndex () == 2);
 	ui->storedDock->hide ();
 
@@ -2232,7 +2234,8 @@ MainWindow::MainWindow ()
 	connect (ui->resetButton, &QPushButton::clicked, this, &MainWindow::do_reset);
 	connect (ui->zinButton, &QPushButton::clicked, this, &MainWindow::zoom_in);
 	connect (ui->zoutButton, &QPushButton::clicked, this, &MainWindow::zoom_out);
-	connect (ui->storeButton, &QPushButton::clicked, this, &MainWindow::store_params);
+	connect (ui->storeButton, &QPushButton::clicked, [this] (bool) { store_params (false); });
+	connect (ui->storePreviewButton, &QPushButton::clicked, [this] (bool) { store_params (true); });
 
 	connect (ui->demBox, &QGroupBox::toggled, [this] (bool) { update_settings (false); });
 	connect (ui->demParamSpinBox, dchanged, [this] (bool) { update_views (); });
