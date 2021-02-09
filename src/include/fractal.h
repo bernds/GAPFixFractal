@@ -3,6 +3,7 @@
 
 #include <cuda.h>
 #include "bitarray.h"
+#include "fpvec.h"
 #include "formulas.h"
 
 // Describe the location of a fractal image.
@@ -32,8 +33,7 @@ struct frac_desc : public frac_params
 {
 	int n_pixels = 0;
 	int n_threads = 0;
-	int pixel_width;
-	int pixel_height;
+	int pixel_width, pixel_height;
 	int pixel_step;
 	int samples = 1;
 	bool dem = false;
@@ -64,6 +64,11 @@ struct frac_desc : public frac_params
 	double cmin, cmax;
 
 	int generation;
+
+	/* For rendering in several passes during batch export.  */
+	int xoff = 0;
+	int yoff = 0;
+	int full_height;
 
 	void resize (int max_nwords)
 	{

@@ -107,6 +107,7 @@
      <string>&amp;File</string>
     </property>
     <addaction name="action_SaveImageAs"/>
+    <addaction name="action_BatchRender"/>
     <addaction name="separator"/>
     <addaction name="action_SaveParams"/>
     <addaction name="action_LoadParams"/>
@@ -1397,6 +1398,11 @@
    </property>
    <property name="toolTip">
     <string>Square twice B</string>
+   </property>
+  </action>
+  <action name="action_BatchRender">
+   <property name="text">
+    <string>Batch export from stored params...</string>
    </property>
   </action>
  </widget>

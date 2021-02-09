@@ -43,7 +43,12 @@ struct render_params
 	bool angle;
 	bool dem;
 	double dem_param;
+	// Used for stored parameters, holds either the aspect set in the GUI,
+	// or, if that is disabled, the image dimensions.
 	double aspect;
+	// Minimum niter value, stored for batch rendering (which is done
+	// piecewise and therefor cannot compute it)
+	double minimum;
 };
 
 struct stored_params
@@ -75,8 +80,6 @@ class Renderer : public QObject
 	double m_minimum = 0;
 	int m_min_gen = -1;
 
-	void do_render (const render_params &rp, int w, int h, frac_desc *, QGraphicsView *, int);
-
 public:
 
 	// One big mutex around the drawing function
@@ -87,11 +90,13 @@ public:
 	bool queued = false;
 	render_params next_rp;
 	int render_width, render_height;
+	QImage result_image;
 
+	void do_render (const render_params &rp, int w, int h, int yoff, frac_desc *, QGraphicsView *, int);
 	void slot_render (frac_desc *, QGraphicsView *, int);
-
+	void set_minimum (double m, int gen) { m_minimum = m; m_min_gen = gen; }
 signals:
-	void signal_render_complete (QGraphicsView *, frac_desc *, QImage);
+	void signal_render_complete (QGraphicsView *, frac_desc *, QImage, double);
 };
 
 class MainWindow: public QMainWindow
@@ -115,6 +120,8 @@ class MainWindow: public QMainWindow
 	frac_desc m_fd_julia;
 
 	QImage m_img_mandel, m_img_julia;
+	// Minimum niter values, computed during rendering
+	double m_min_mandel = 0, m_min_julia = 0;
 
 	vector<stored_preview> m_stored;
 
@@ -155,7 +162,8 @@ class MainWindow: public QMainWindow
 	void perform_resizes ();
 
 	void build_points (frac_desc &, int w, int h);
-	void compute_fractal (frac_desc &, int nwords, int w, int h, int ss, bool preview);
+	void compute_fractal (frac_desc &, int nwords, int w, int h, int full_h,
+			      int ss, bool dem, bool preview, bool batch = false);
 	void render_fractal ();
 	void render_preview ();
 	bool abort_computation ();
@@ -186,7 +194,7 @@ class MainWindow: public QMainWindow
 	void set_render_params (render_params &);
         void slot_new_data (frac_desc *, int, bool);
 	void slot_kernel_complete ();
-	void slot_render_complete (QGraphicsView *view, frac_desc *, QImage);
+	void slot_render_complete (QGraphicsView *view, frac_desc *, QImage, double);
 
 	void layout_stored_params ();
 	void store_params (bool);
@@ -197,6 +205,7 @@ class MainWindow: public QMainWindow
 	void slot_load_params (bool);
 	void slot_save_palette (bool);
 	void slot_load_palette (bool);
+	void slot_batchrender (bool);
 
 	void gradient_edit (bool);
 
@@ -217,7 +226,7 @@ public:
 
 signals:
 	void signal_init_cuda (QString *err);
-	void signal_start_kernel (frac_desc *, int generation, int, int);
+	void signal_start_kernel (frac_desc *, int generation, int, int, bool);
 	void signal_alloc_mem (frac_desc *, int, int, int, int, QString *err);
 	void signal_invalidate (frac_desc *);
 	void signal_compile_kernel (int, int, int, int, QString *err);

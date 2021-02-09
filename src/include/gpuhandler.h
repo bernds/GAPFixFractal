@@ -22,6 +22,7 @@ class GPU_handler : public QObject
 	void free_cuda_data (frac_desc *);
 	int initial_setup (frac_desc *);
 	int continue_setup (frac_desc *);
+	int batch_setup (frac_desc *);
 
 	bit_array compute_ss_pixels (int, int, const bit_array &, const bit_array &);
 
@@ -41,7 +42,7 @@ public slots:
 		free_cuda_data (fd);
 		done_sem.release ();
 	}
-	void slot_start_kernel (frac_desc *, int generation, int max_nwords, int steps);
+	void slot_start_kernel (frac_desc *, int generation, int max_nwords, int steps, bool batch);
 	void slot_compile_kernel (int, int power, int nwords, int max_nwords, QString *);
 signals:
         void signal_new_data (frac_desc *, int generation, bool);

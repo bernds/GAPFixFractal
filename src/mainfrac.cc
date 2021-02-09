@@ -7,6 +7,7 @@
 
 #include <utility>
 
+#include <QProgressDialog>
 #include <QVector>
 #include <QFileDialog>
 #include <QSettings>
@@ -26,6 +27,7 @@
 #include "gradeditor.h"
 #include "colors.h"
 
+#include "batchrender.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
@@ -94,7 +96,11 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 void MainWindow::layout_stored_params ()
 {
 	QGraphicsView *view = ui->storedView;
-	if (!view->isVisible () || m_stored.size () == 0)
+	if (m_stored.size () == 0) {
+		ui->action_BatchRender->setEnabled (false);
+		return;
+	}
+	if (!view->isVisible ())
 		return;
 
 	int w = view->width ();
@@ -324,6 +330,28 @@ int GPU_handler::initial_setup (frac_desc *fd)
 	return idx;
 }
 
+int GPU_handler::batch_setup (frac_desc *fd)
+{
+	int idx = fd->start_idx;
+	if (idx == fd->n_threads)
+		return idx;
+	int w = fd->pixel_width;
+	int h = fd->pixel_height;
+	int pix_idx = fd->pixels_started.ffz (0);
+	int y0 = pix_idx / w;
+	int x0 = pix_idx % w;
+	for (int y = y0; y < h; y++) {
+		for (int x = x0; x < w; x++) {
+			fd->pixels_started.set_bit (y * w + x);
+			fd->host_coords[idx] = encode_coord (x, y + fd->yoff, w, fd->full_height);
+			if (++idx == fd->n_threads)
+				return idx;
+		}
+		x0 = 0;
+	}
+	return idx;
+}
+
 bit_array GPU_handler::compute_ss_pixels (int pstep, int w, const bit_array &done, const bit_array &started)
 {
 	bit_array ss = done;
@@ -388,7 +416,7 @@ int GPU_handler::continue_setup (frac_desc *fd)
 	return idx;
 }
 
-void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwords, int steps)
+void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwords, int steps, bool batch)
 {
 	{
 		QMutexLocker lock (&data_mutex);
@@ -420,7 +448,9 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		if (iter_scale_factor != 1)
 			printf ("scaling niter from %d to %d\n", steps, count);
 
-		if (fd->n_completed == 0 && fd->start_idx == 0)
+		if (batch)
+			maxidx = batch_setup (fd);
+		else if (fd->n_completed == 0 && fd->start_idx == 0)
 			// First-time setup
 			// This is an initial pass over fewer pixels to produce some image data quickly
 			maxidx = initial_setup (fd);
@@ -475,16 +505,16 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		qint64 ms = std::max ((qint64)5, timer.elapsed ());
 		uint32_t j = 0;
 		int w = fd->pixel_width;
-		int h = fd->pixel_height;
+		int full_h = fd->full_height;
 		int z_size = fd->nwords * 2;
 		for (uint32_t i = 0; i < maxidx; i++) {
 			uint32_t coord = fd->host_coords[i];
 			int32_t hcx = (int16_t)(coord & 65535);
 			int32_t hcy = (int16_t)(coord >> 16);
 			hcx += w / 2;
-			hcy += h / 2;
+			hcy += full_h / 2;
 			int result = fd->host_result[i];
-			int idx = hcy * w + hcx;
+			int idx = (hcy - fd->yoff) * w + hcx;
 			if (result != 0) {
 				fd->pic_result[idx] += result;
 				fd->pic_z[idx * 2] = fd->host_z[i * z_size + fd->nwords - 1];
@@ -540,7 +570,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			break;
 		}
 		data_available = true;
-		if (!processing_data) {
+		if (!processing_data && !batch) {
 			emit signal_new_data (fd, generation, !fail);
 		}
 		if (fd->n_completed == fd->n_pixels)
@@ -553,7 +583,10 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			iter_scale_factor = std::max (1.0, iter_scale_factor / 2);
 
 	}
-	emit signal_kernel_complete ();
+	if (batch)
+		done_sem.release ();
+	else
+		emit signal_kernel_complete ();
 }
 
 void MainWindow::build_points (frac_desc &fd, int w, int h)
@@ -658,7 +691,8 @@ void MainWindow::discard_fd_data (frac_desc &fd)
 	fd.n_pixels = 0;
 }
 
-void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int ss, bool preview)
+void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int full_h,
+				  int ss, bool isdem, bool preview, bool batch)
 {
 	QMutexLocker render_lock (&m_renderer->mutex);
 	QMutexLocker preview_lock (&m_preview_renderer->mutex);
@@ -668,7 +702,6 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 	// We need to ensure nthreads is always big enough to handle the initial_setup phase.
 	int nthreads = w * h;
 	int npixels = w * h * ss * ss;
-	bool isdem = ui->demBox->isChecked ();
 	if (fd.dem != isdem || fd.samples != ss
 	    || fd.n_pixels != npixels
 	    || fd.n_threads != nthreads
@@ -704,6 +737,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 		fd.pixels_started = bit_array (npixels);
 		fd.pic_iter_value = nullptr;
 	}
+	fd.full_height = full_h * ss;
 	fd.cmin = 10000;
 	fd.cmax = -10000;
 	fd.pixel_step = preview ? 1 : ss * 2;
@@ -719,7 +753,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 	if (fd.dem)
 		memset (fd.pic_zder, 0, 2 * npixels * sizeof (uint32_t));
 	fd.maxiter = preview ? iter_steps : maxiter;
-	build_points (fd, w, h);
+	build_points (fd, w, full_h);
 
 	QString errstr;
 	emit signal_alloc_mem (&fd, max_nwords, nwords, w, h, &errstr);
@@ -733,10 +767,10 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 	fd.generation = m_generation;
 	if (m_working)
 		abort ();
-	m_working = true;
+	m_working = !batch;
 	gpu_handler->processing_data = false;
 
-	emit signal_start_kernel (&fd, m_generation, max_nwords, iter_steps);
+	emit signal_start_kernel (&fd, m_generation, max_nwords, iter_steps, batch);
 }
 
 void GPU_handler::slot_alloc_mem (frac_desc *fd, int max_nwords, int nwords, int w, int h, QString *errstr)
@@ -1118,7 +1152,7 @@ public:
 	}
 };
 
-void Renderer::do_render (const render_params &rp, int w, int h, frac_desc *fd, QGraphicsView *view, int gen)
+void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_desc *fd, QGraphicsView *view, int gen)
 {
 	QMutexLocker lock (&mutex);
 
@@ -1151,9 +1185,8 @@ void Renderer::do_render (const render_params &rp, int w, int h, frac_desc *fd, 
 
 	QSemaphore completion_sem (0);
 
-	QImage img (w, h, QImage::Format_RGB32);
-	QRgb *data = (QRgb *)img.bits ();
-
+	QRgb *data = (QRgb *)result_image.bits ();
+	data += w * yoff;
 	int tc = std::max (1, m_pool.maxThreadCount ());
 	int lines_per_thread = std::max (20, (h + tc - 1) / tc);
 	int n_started = 0;
@@ -1168,7 +1201,8 @@ void Renderer::do_render (const render_params &rp, int w, int h, frac_desc *fd, 
 	completion_sem.acquire (n_started);
 	if (!any_found)
 		return;
-	emit signal_render_complete (view, fd, img);
+	if (view != nullptr)
+		emit signal_render_complete (view, fd, result_image, minimum);
 }
 
 void Renderer::slot_render (frac_desc *fd, QGraphicsView *view, int generation)
@@ -1180,16 +1214,19 @@ void Renderer::slot_render (frac_desc *fd, QGraphicsView *view, int generation)
 	int w = render_width;
 	int h = render_height;
 	queue_mutex.unlock ();
-	do_render (this_p, w, h, fd, view, generation);
+	result_image = QImage (w, h, QImage::Format_RGB32);
+	do_render (this_p, w, h, 0, fd, view, generation);
 }
 
-void MainWindow::slot_render_complete (QGraphicsView *view, frac_desc *fd, QImage img)
+void MainWindow::slot_render_complete (QGraphicsView *view, frac_desc *fd, QImage img, double minimum)
 {
-	if (fd->julia)
+	if (fd->julia) {
 		m_img_julia = img;
-	else
+		m_min_julia = minimum;
+	} else {
 		m_img_mandel = img;
-
+		m_min_mandel = minimum;
+	}
 	QPixmap pm = QPixmap::fromImage (img);
 	QGraphicsScene *canvas = view->scene ();
 	canvas->clear ();
@@ -1210,7 +1247,7 @@ void MainWindow::set_render_params (render_params &p)
 	p.sub = ui->subCheckBox->isChecked ();
 	p.slider = ui->colStepSlider->value ();
 	p.dem = ui->demBox->isChecked ();
-	p.dem_param = ui->demParamSpinBox->value ();
+	p.dem_param = std::min (2.0, ui->demParamSpinBox->value () * (1 << ui->sampleSpinBox->value ()));
 	p.aspect = chosen_aspect ();
 }
 
@@ -1277,7 +1314,8 @@ void MainWindow::render_fractal ()
 	m_canvas.setSceneRect (0, 0, w, h);
 	printf ("render_fractal size %d %d\n", w, h);
 
-	compute_fractal (fd, m_nwords, w, h, ui->sampleSpinBox->value (), false);
+	bool isdem = ui->demBox->isChecked ();
+	compute_fractal (fd, m_nwords, w, h, h, ui->sampleSpinBox->value (), isdem, false);
 }
 
 void MainWindow::render_preview ()
@@ -1294,7 +1332,8 @@ void MainWindow::render_preview ()
 	m_preview_canvas.setSceneRect (0, 0, w, h);
 	printf ("render_preview size %d %d\n", w, h);
 
-	compute_fractal (m_fd_julia, m_nwords, w, h, 0, true);
+	bool isdem = ui->demBox->isChecked ();
+	compute_fractal (m_fd_julia, m_nwords, w, h, h, 0, isdem, true);
 }
 
 void MainWindow::slot_new_data (frac_desc *fd, int generation, bool success)
@@ -1398,7 +1437,7 @@ void MainWindow::slot_kernel_complete ()
 
 		if (fd.n_completed < fd.n_pixels) {
 			m_working = true;
-			emit signal_start_kernel (&fd, m_generation, max_nwords, iter_steps);
+			emit signal_start_kernel (&fd, m_generation, max_nwords, iter_steps, false);
 		}
 	}
 
@@ -1952,6 +1991,7 @@ void MainWindow::store_params (bool preview)
 	stored_params newsp;
 	newsp.fp = preview ? m_fd_julia : current_fd ();
 	set_render_params (newsp.rp);
+	newsp.rp.minimum = newsp.fp.julia ? m_min_julia : m_min_mandel;
 	if (newsp.rp.aspect == 0)
 		newsp.rp.aspect = (double)ui->fractalView->width () / ui->fractalView->height ();
 	QImage img = newsp.fp.julia ? m_img_julia : m_img_mandel;
@@ -1965,6 +2005,7 @@ void MainWindow::store_params (bool preview)
 	}
 	m_stored.emplace_back (newsp, thumbnail);
 	if (m_stored.size () == 1) {
+		ui->action_BatchRender->setEnabled (true);
 		ui->storedDock->show ();
 	}
 	layout_stored_params ();
@@ -2095,6 +2136,122 @@ void MainWindow::gradient_edit (bool)
 	restart_computation ();
 }
 
+void MainWindow::slot_batchrender (bool)
+{
+	bool old_paused = m_paused;
+	m_paused = true;
+	abort_computation ();
+
+	BatchRenderDialog dlg (this);
+	if (!dlg.exec ())
+		return;
+
+	QProgressDialog pdlg (tr ("Rendering images..."), tr ("Abort"), 0, 100, this);
+	pdlg.setWindowModality (Qt::WindowModal);
+	pdlg.setMinimumDuration (0);
+
+	QString pattern = dlg.get_file_template ();
+	int count = 1;
+	int samples = dlg.get_samples ();
+	bool preserve = dlg.get_preserve_aspect ();
+	double progress = 0;
+	double pro_step = 100. / m_stored.size ();
+	printf ("pro_step %f\n", pro_step);
+	for (auto st: m_stored) {
+		QString v_str = QString::number (count++);
+		while (v_str.length () < 4)
+			v_str = "0" + v_str;
+		QString filename = pattern;
+		filename.replace (QRegExp ("%n"), v_str);
+		QString label = tr ("Working on file: ") + filename;
+		pdlg.setLabelText (label);
+
+		frac_params &fp = st.params.fp;
+		render_params &rp = st.params.rp;
+		int w = dlg.get_width ();
+		int h = dlg.get_height ();
+
+		double dlg_aspect = (double)w / h;
+		if (dlg_aspect != rp.aspect && (dlg_aspect > 1) != (rp.aspect > 1)) {
+			std::swap (w, h);
+			dlg_aspect = 1 / dlg_aspect;
+		}
+		if (preserve) {
+			if (dlg_aspect > rp.aspect)
+				w = rp.aspect * h;
+			else
+				h = w / rp.aspect;
+		}
+
+		QString errstr;
+		auto it = std::find (std::begin (formula_table), std::end (formula_table), fp.fm);
+		int fidx = it - std::begin (formula_table);
+		emit signal_compile_kernel (fidx, fp.power, fp.nwords, max_nwords, &errstr);
+		gpu_handler->done_sem.acquire ();
+		if (!errstr.isEmpty ()) {
+			QMessageBox::critical (this, PACKAGE, errstr);
+			close ();
+			return;
+		}
+		QFile f (filename);
+		if (f.exists () && !dlg.get_overwrite ()) {
+			QMessageBox::StandardButton choice;
+			choice = QMessageBox::warning (this, tr ("File exists"),
+						       tr ("A filename matching the pattern and current number already exists.  Overwrite?"),
+						       QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+			if (choice == QMessageBox::No)
+				break;
+		}
+
+		frac_desc temp_fd;
+		temp_fd.set (fp);
+		temp_fd.generation = 0;
+		int spixels = 1 << samples;
+		int batch_size = std::max (400, (int)((double)w * spixels * spixels / 1024));
+		int steps = (h + batch_size - 1) / batch_size;
+		batch_size = h / steps;
+
+		Renderer renderer;
+		renderer.queued = true;
+		renderer.next_rp = rp;
+		renderer.render_width = w;
+		renderer.result_image = QImage (w, h, QImage::Format_RGB32);
+
+		for (int y0 = 0; y0 < h; y0 += batch_size) {
+			pdlg.setValue (progress + pro_step * ((double)y0 / h));
+
+			temp_fd.yoff = y0 * (1 << samples);
+			int this_h = std::min (h - y0, batch_size);
+			compute_fractal (temp_fd, temp_fd.nwords, w, this_h, h, samples, rp.dem, false, true);
+			gpu_handler->done_sem.acquire ();
+			if (pdlg.wasCanceled ())
+				break;
+			renderer.render_height = this_h;
+			renderer.set_minimum (rp.minimum, temp_fd.generation);
+			renderer.do_render (rp, w, this_h, y0, &temp_fd, nullptr, temp_fd.generation);
+			if (pdlg.wasCanceled ())
+				break;
+		}
+
+		discard_fd_data (temp_fd);
+
+		if (pdlg.wasCanceled ())
+			break;
+
+		if (!renderer.result_image.save (&f)) {
+			QMessageBox::warning (this, tr ("Error while saving"),
+					      tr ("One of the files could not be saved.\nPlease verify the filename pattern is correct."));
+			break;
+		}
+		f.close ();
+		progress += pro_step;
+	}
+
+	m_paused = old_paused;
+	m_recompile = true;
+	restart_computation ();
+}
+
 void MainWindow::help_about ()
 {
 	QString txt = "<p>" PACKAGE "</p>";
@@ -2166,6 +2323,7 @@ MainWindow::MainWindow ()
 	ui->storePreviewButton->setEnabled (ui->typeComboBox->currentIndex () == 2);
 	ui->previewDock->setVisible (ui->typeComboBox->currentIndex () == 2);
 	ui->storedDock->hide ();
+	ui->action_BatchRender->setEnabled (false);
 
 	render_fractal ();
 
@@ -2305,6 +2463,7 @@ MainWindow::MainWindow ()
 	connect (ui->action_SavePalette, &QAction::triggered, this, &MainWindow::slot_save_palette);
 	connect (ui->action_LoadPalette, &QAction::triggered, this, &MainWindow::slot_load_palette);
 	connect (ui->action_GradEditor, &QAction::triggered, this, &MainWindow::gradient_edit);
+	connect (ui->action_BatchRender, &QAction::triggered, this, &MainWindow::slot_batchrender);
 
 	connect (ui->action_About, &QAction::triggered, [=] (bool) { help_about (); });
 	connect (ui->action_AboutQt, &QAction::triggered, [=] (bool) { QMessageBox::aboutQt (this); });
