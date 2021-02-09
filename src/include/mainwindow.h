@@ -8,6 +8,22 @@
 #include "fpvec.h"
 #include "fractal.h"
 
+// RAII wrapper around temporarily setting m_inhibit_updates in MainWindow
+class bool_changer
+{
+	bool &m_var;
+	bool m_old;
+
+public:
+	bool_changer (bool &var, bool set) : m_var (var), m_old (var)
+	{
+	}
+	~bool_changer ()
+	{
+		m_var = m_old;
+	}
+};
+
 namespace Ui
 {
 	class MainWindow;

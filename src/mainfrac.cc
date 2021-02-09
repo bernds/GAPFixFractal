@@ -731,6 +731,8 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 
 	m_generation++;
 	fd.generation = m_generation;
+	if (m_working)
+		abort ();
 	m_working = true;
 	gpu_handler->processing_data = false;
 
@@ -1241,6 +1243,8 @@ void MainWindow::autoprec (frac_desc &fd)
 	if (!ui->action_AutoPrec->isChecked ())
 		return;
 
+	bool_changer (m_inhibit_updates, true);
+
 	bool dem = ui->demBox->isChecked ();
 	int w = ui->fractalView->width ();
 	int h = ui->fractalView->height ();
@@ -1482,6 +1486,7 @@ void MainWindow::fractal_mouse_event (QMouseEvent *e)
 			fd.center_x = a;
 			fd.center_y = b;
 		}
+		abort_computation ();
 		fd.bounds_w = fd.bounds_h = 0;
 		fd.width = div1 (mul1 (fd.width, 2), 5);
 		autoprec (fd);
