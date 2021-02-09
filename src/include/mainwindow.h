@@ -57,6 +57,7 @@ struct render_params
 	int slider;
 	bool sub;
 	bool angle;
+	bool dem;
 	double dem_param;
 };
 

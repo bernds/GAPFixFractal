@@ -1001,7 +1001,7 @@ public:
 			if (rp.sub)
 				v -= minimum;
 
-			if (fd->dem) {
+			if (rp.dem) {
 				double re2 = fd->pic_z2[idx * 2];
 				double im2 = fd->pic_z2[idx * 2 + 1];
 				double rezder = fd->pic_zder[idx * 2];
@@ -1209,6 +1209,7 @@ void MainWindow::set_render_params (render_params &p)
 	p.angle = ui->action_EAngle->isChecked ();
 	p.sub = ui->subCheckBox->isChecked ();
 	p.slider = ui->colStepSlider->value ();
+	p.dem = ui->demBox->isChecked ();
 	p.dem_param = ui->demParamSpinBox->value ();
 }
 
