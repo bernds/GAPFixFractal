@@ -59,6 +59,7 @@ struct render_params
 	bool angle;
 	bool dem;
 	double dem_param;
+	double aspect;
 };
 
 class Renderer : public QObject
@@ -159,6 +160,7 @@ class MainWindow: public QMainWindow
 	// double iter_value_at (frac_desc &, int);
 	void update_display (QGraphicsView *);
 	void precompute_iter_value (frac_desc *);
+	double chosen_aspect ();
 	void update_aspect ();
 	void update_views (int = 0);
 	const QVector<uint32_t> &palette_from_index (int);

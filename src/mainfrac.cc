@@ -1211,6 +1211,7 @@ void MainWindow::set_render_params (render_params &p)
 	p.slider = ui->colStepSlider->value ();
 	p.dem = ui->demBox->isChecked ();
 	p.dem_param = ui->demParamSpinBox->value ();
+	p.aspect = chosen_aspect ();
 }
 
 void MainWindow::update_display (QGraphicsView *view)
@@ -1686,19 +1687,28 @@ void MainWindow::update_fractal_type (int t)
 	update_settings (false);
 }
 
+double MainWindow::chosen_aspect ()
+{
+	if (!ui->aspectBox->isChecked ())
+		return 0;
+	int idx = ui->aspectComboBox->currentIndex ();
+	return (idx == 0 ? 1
+		: idx == 1 ? 4 / 3.0
+		: idx == 2 ? 3 / 4.0
+		: idx == 3 ? 16 / 9.0
+		: idx == 4 ? 16 / 10.0
+		: idx == 5 ? M_SQRT2
+		: idx == 6 ? M_SQRT1_2
+		: 1);
+}
+
 void MainWindow::update_aspect ()
 {
-	bool enabled = ui->aspectBox->isChecked ();
-	int idx = ui->aspectComboBox->currentIndex ();
-	double aspect = (idx == 0 ? 1
-			 : idx == 1 ? 4 / 3.0
-			 : idx == 2 ? 3 / 4.0
-			 : idx == 3 ? 16 / 9.0
-			 : idx == 4 ? 16 / 10.0
-			 : idx == 5 ? M_SQRT2
-			 : idx == 6 ? M_SQRT1_2
-			 : 1);
-	ui->fractalAspectWidget->set_aspect (aspect, enabled);
+       double aspect = chosen_aspect ();
+       if (aspect == 0)
+               ui->fractalAspectWidget->set_aspect (1, false);
+       else
+               ui->fractalAspectWidget->set_aspect (aspect, true);
 }
 
 void MainWindow::slot_save_as (bool)
