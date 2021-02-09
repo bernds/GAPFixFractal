@@ -672,7 +672,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 	if (fd.dem != isdem || fd.samples != ss
 	    || fd.n_pixels != npixels
 	    || fd.n_threads != nthreads
-	    || fd.nwords != m_nwords)
+	    || fd.nwords != nwords)
 	{
 		discard_fd_data (fd);
 
@@ -681,7 +681,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 		fd.pixel_height = h * ss;
 		fd.n_pixels = npixels;
 		fd.n_threads = nthreads;
-		fd.nwords = m_nwords;
+		fd.nwords = nwords;
 		fd.samples = ss;
 
 		fd.host_origin = new uint32_t[max_nwords * 2];
