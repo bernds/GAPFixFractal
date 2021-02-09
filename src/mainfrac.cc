@@ -632,6 +632,32 @@ void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_
 	done_sem.release ();
 }
 
+void MainWindow::discard_fd_data (frac_desc &fd)
+{
+	// Do this always even if there is nothing to free.
+	// Calling invalidate and Waiting on done_sem also ensures that we are not within
+	// slot_start_kernel.
+	emit signal_invalidate (&fd);
+	gpu_handler->done_sem.acquire ();
+
+	if (fd.n_pixels == 0)
+		return;
+
+	delete[] fd.host_origin;
+	delete[] fd.host_z;
+	delete[] fd.host_zder;
+	delete[] fd.host_t;
+	delete[] fd.host_z2;
+	delete[] fd.host_result;
+	delete[] fd.host_coords;
+
+	delete[] fd.pic_z;
+	delete[] fd.pic_z2;
+	delete[] fd.pic_result;
+	delete[] fd.pic_iter_value;
+	fd.n_pixels = 0;
+}
+
 void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int ss, bool preview)
 {
 	QMutexLocker render_lock (&m_renderer->mutex);
@@ -648,23 +674,8 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 	    || fd.n_threads != nthreads
 	    || fd.nwords != m_nwords)
 	{
-		emit signal_invalidate (&fd);
-		gpu_handler->done_sem.acquire ();
+		discard_fd_data (fd);
 
-		if (fd.n_pixels != 0) {
-			delete[] fd.host_origin;
-			delete[] fd.host_z;
-			delete[] fd.host_zder;
-			delete[] fd.host_t;
-			delete[] fd.host_z2;
-			delete[] fd.host_result;
-			delete[] fd.host_coords;
-
-			delete[] fd.pic_z;
-			delete[] fd.pic_z2;
-			delete[] fd.pic_result;
-			delete[] fd.pic_iter_value;
-		}
 		fd.dem = isdem;
 		fd.pixel_width = w * ss;
 		fd.pixel_height = h * ss;
@@ -750,9 +761,8 @@ void GPU_handler::slot_alloc_mem (frac_desc *fd, int max_nwords, int nwords, int
 
 void GPU_handler::free_cuda_data (frac_desc *fd)
 {
-	if (fd->n_pixels == 0)
+	if (fd->n_pixels == 0 || fd->cu_ar_origin == 0)
 		return;
-	fd->n_pixels = 0;
 
 	cuMemFree (fd->cu_ar_origin);
 	cuMemFree (fd->cu_ar_z);
@@ -1352,8 +1362,6 @@ void MainWindow::do_compile ()
 		close ();
 		return;
 	}
-	m_fd_mandel.nwords = m_nwords;
-	m_fd_julia.nwords = m_nwords;
 	m_fd_mandel.power = power;
 	m_fd_julia.power = power;
 	m_fd_mandel.fm = m_formula;

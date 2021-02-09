@@ -151,6 +151,8 @@ class MainWindow: public QMainWindow
 	void reset_coords (frac_desc &);
 	void set_q (int, int);
 	frac_desc &current_fd ();
+	void discard_fd_data (frac_desc &);
+
 	void do_pause (bool);
 	void do_reset (bool);
 	void zoom_in (bool = false);
