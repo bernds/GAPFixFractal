@@ -676,6 +676,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 		fd.host_origin = new uint32_t[max_nwords * 2];
 		fd.host_t = new uint32_t[nwords * 2 * nthreads];
 		fd.host_z = new uint32_t[nwords * 2 * nthreads];
+		fd.host_zder = nullptr;
 		if (fd.dem)
 			fd.host_zder = new uint32_t[nwords * 2 * nthreads];
 		fd.host_z2 = new uint32_t[nwords * 2 * nthreads];
@@ -683,6 +684,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int s
 		fd.host_result = new uint32_t[nthreads];
 
 		fd.pic_z = new int32_t[2 * npixels];
+		fd.pic_zder = nullptr;
 		if (fd.dem)
 			fd.pic_zder = new int32_t[2 * npixels];
 		fd.pic_z2 = new uint32_t[2 * npixels];
