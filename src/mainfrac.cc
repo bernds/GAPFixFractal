@@ -49,6 +49,12 @@ inline void tryCuda (CUresult err)
 	}
 }
 
+// Old versions of Qt which we want to support don't have the recommended
+// range constructors, while the new version warns about the old style.
+// Shut it up.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 QDataStream &operator<< (QDataStream &s, const frac_params &fp)
 {
 	s << (qint32)1;
@@ -83,6 +89,7 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 	s >> fp.nwords >> fp.power >> fp.maxiter;
 	return s;
 }
+#pragma GCC diagnostic pop
 
 void MainWindow::layout_stored_params ()
 {
