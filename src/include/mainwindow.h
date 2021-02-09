@@ -32,22 +32,6 @@ namespace Ui
 class ClickablePixmap;
 class QActionGroup;
 
-struct stored_preview {
-	ClickablePixmap *pixmap {};
-	frac_params params;
-	QImage thumbnail;
-	int x = 0, y = 0;
-
-	stored_preview (const frac_params &p, QImage tn)
-		: params (p), thumbnail (tn)
-	{
-	}
-	stored_preview (const stored_preview &) = default;
-	stored_preview (stored_preview &&) = default;
-	stored_preview &operator= (const stored_preview &) = default;
-	stored_preview &operator= (stored_preview &&) = default;
-};
-
 struct render_params
 {
 	QVector<uint32_t> palette;
@@ -60,6 +44,28 @@ struct render_params
 	bool dem;
 	double dem_param;
 	double aspect;
+};
+
+struct stored_params
+{
+	frac_params fp;
+	render_params rp;
+};
+
+struct stored_preview {
+	ClickablePixmap *pixmap {};
+	stored_params params;
+	QImage thumbnail;
+	int x = 0, y = 0;
+
+	stored_preview (const stored_params &p, QImage tn)
+		: params (p), thumbnail (tn)
+	{
+	}
+	stored_preview (const stored_preview &) = default;
+	stored_preview (stored_preview &&) = default;
+	stored_preview &operator= (const stored_preview &) = default;
+	stored_preview &operator= (stored_preview &&) = default;
 };
 
 class Renderer : public QObject

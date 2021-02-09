@@ -208,7 +208,7 @@ void MainWindow::layout_stored_params ()
 		auto menu_callback = [this, &p, i] (QGraphicsSceneContextMenuEvent *e) -> bool
 		{
 			QMenu menu;
-			menu.addAction (tr ("Go here"), [this, &p] () { restore_params (p.params); });
+			menu.addAction (tr ("Go here"), [this, &p] () { restore_params (p.params.fp); });
 			menu.addAction (tr ("Forget"),
 					[this, i] () {
 						m_stored_canvas.clear ();
@@ -1949,19 +1949,24 @@ void MainWindow::restore_params (const frac_params &p)
 void MainWindow::store_params (bool preview)
 {
 	constexpr int tn_sz = 400;
-	auto fd = preview ? m_fd_julia : current_fd ();
-	QImage img = fd.julia ? m_img_julia : m_img_mandel;
+	stored_params newsp;
+	newsp.fp = preview ? m_fd_julia : current_fd ();
+	set_render_params (newsp.rp);
+	if (newsp.rp.aspect == 0)
+		newsp.rp.aspect = (double)ui->fractalView->width () / ui->fractalView->height ();
+	QImage img = newsp.fp.julia ? m_img_julia : m_img_mandel;
 	QImage thumbnail = img.scaled (QSize (tn_sz, tn_sz), Qt::KeepAspectRatioByExpanding);
 	int w = thumbnail.width ();
 	int h = thumbnail.height ();
 	if (w > tn_sz) {
 		thumbnail = thumbnail.copy (QRect ((w - tn_sz) / 2, 0, tn_sz, tn_sz));
 	} else if (h > tn_sz) {
-		thumbnail = thumbnail.copy (QRect (0, (h - tn_sz) / 2, tn_sz, tn_sz));
+	        thumbnail = thumbnail.copy (QRect (0, (h - tn_sz) / 2, tn_sz, tn_sz));
 	}
-	m_stored.emplace_back (fd, thumbnail);
-	if (m_stored.size () == 1)
+	m_stored.emplace_back (newsp, thumbnail);
+	if (m_stored.size () == 1) {
 		ui->storedDock->show ();
+	}
 	layout_stored_params ();
 }
 
@@ -2116,6 +2121,7 @@ MainWindow::MainWindow ()
 	start_threads ();
 
 	init_formula (formula::standard);
+	m_fd_mandel.fm = m_fd_julia.fm = m_formula;
 	m_fd_julia.julia = true;
 
 	m_fd_mandel.resize (max_nwords);
