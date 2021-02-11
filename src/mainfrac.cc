@@ -2333,6 +2333,9 @@ MainWindow::MainWindow ()
 	connect (ui->fractalView, &SizeGraphicsView::resized, [this] () { m_resized_fractal = true; m_resize_timer.start (500); });
 	connect (ui->previewView, &SizeGraphicsView::resized, [this] () { m_resized_preview = true; m_resize_timer.start (500); });
 	connect (ui->storedView, &SizeGraphicsView::resized, this, &MainWindow::layout_stored_params);
+	connect (ui->storedDock->toggleViewAction (), &QAction::toggled,
+		 [this] (bool on) { ui->storedDock->setVisible (on); if (on) layout_stored_params (); });
+
 	ui->previewAspectWidget->set_child (ui->previewView);
 	ui->fractalAspectWidget->set_child (ui->fractalView);
 
@@ -2374,6 +2377,8 @@ MainWindow::MainWindow ()
 	ui->action_StructDark->setChecked (true);
 	ui->action_FormulaStandard->setChecked (true);
 	ui->action_FD2->setChecked (true);
+
+	ui->menu_View->insertAction (nullptr, ui->storedDock->toggleViewAction ());
 
 	connect (ui->fractalView, &SizeGraphicsView::mouse_event, this, &MainWindow::fractal_mouse_event);
 	connect (ui->fractalView, &SizeGraphicsView::wheel_event, this, &MainWindow::fractal_wheel_event);
