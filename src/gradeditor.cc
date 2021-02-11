@@ -70,7 +70,12 @@ public:
 	{
 		if (srcp != dstp)
 			return false;
-		beginMoveRows (srcp, src, src + count - 1, dstp, dst);
+		// ??? Qt seems to pass us noop moves.
+		// printf ("move %d rows %d to %d\n", count, src, dst);
+		if (dst > src && src + count - 1 <= dst)
+			return true;
+		if (!beginMoveRows (srcp, src, src + count - 1, dstp, dst))
+			return false;
 		auto src_start_iter = m_entries.begin () + src;
 		auto src_end_iter = src_start_iter + count;
 		auto dst_iter = m_entries.begin () + dst;
