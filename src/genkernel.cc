@@ -696,6 +696,37 @@ void gen_coord_muladd (QString &result, int dstsize, int srcsize)
 	result += "}\n";
 }
 
+void gen_coord_mul (QString &result, int dstsize, int srcsize)
+{
+	result += ".func coord_mul (.reg.u64 %dst, .reg.u64 %src_step, .reg.u32 %srcc)\n{\n";
+	result += "\t.reg.pred\t%neg;\n";
+	result += "\tsetp.lt.s32\t%neg, %srcc, 0;\n";
+	result += "@%neg\tneg.s32\t%srcc, %srcc;\n";
+
+	QString last = "0";
+	QString last_carry = "0";
+	vector<QString> pieces;
+	for (int i = 0; i < srcsize; i++) {
+		QString t1 = QString ("%vala%1").arg (i);
+		QString res = QString ("%res%1").arg (i);
+		QString carry = QString ("%carry%1").arg (i);
+		result += QString ("\t.reg.u32 %1, %2, %3;\n").arg (t1, res, carry);
+		result += QString ("\tld.global.u32 %1, [%src_step + %2];\n").arg (t1).arg (i * 4);
+		result += QString ("\tmad.lo.cc.u32 %1, %2, %srcc, %3;\n").arg (res, t1, last);
+		result += QString ("\tmadc.hi.u32 %1, %2, %srcc, 0;\n").arg (carry, t1);
+		last = carry;
+		pieces.push_back (res);
+		result += "\n";
+	}
+	for (int i = 0; i < srcsize; i++) {
+		auto res = pieces[i];
+		result += QString ("@%neg\tsub%2.cc.u32\t%1, 0, %1;\n").arg (res, i == 0 ? "" : "c");
+		if (i >= srcsize - dstsize)
+			result += QString ("\tst.global.u32 [%dst + %1], %2;\n").arg ((i - srcsize + dstsize) * 4).arg (res);
+	}
+	result += "}\n";
+}
+
 void gen_mul_func (QString &result, int size, bool sqr)
 {
 #if 0
@@ -1222,13 +1253,13 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 		nm += "_dem";
 	if (dem) {
 		gen_kernel_header (result, nm,
-				   "u64", "ar_c", "u64", "ar_z", "u64", "ar_z2",
+				   "u64", "ar_z", "u64", "ar_z2",
 				   "u64", "ar_coords", "u64", "ar_step", "u64", "ar_t",
 				   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init",
 				   "u64", "ar_zder");
 	} else {
 		gen_kernel_header (result, nm,
-				   "u64", "ar_c", "u64", "ar_z", "u64", "ar_z2",
+				   "u64", "ar_z", "u64", "ar_z2",
 				   "u64", "ar_coords", "u64", "ar_step", "u64", "ar_t",
 				   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init");
 	}
@@ -1257,13 +1288,12 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	add.u64		%ar_z2, %ar_z2, %addroff;
 	add.u64		%ar_t, %ar_t, %addroff;
 
-	.reg.u64	%ar_cim, %ar_zim, %ar_z2im, %ar_tim;
-	add.u64		%ar_cim, %ar_c, %3;
+	.reg.u64	%ar_zim, %ar_z2im, %ar_tim;
 	add.u64		%ar_zim, %ar_z, %1;
 	add.u64		%ar_z2im, %ar_z2, %1;
 	add.u64		%ar_tim, %ar_t, %1;
 )";
-	result += kernel_init.arg (size * 4).arg (size * 2).arg (stepsize * 4);
+	result += kernel_init.arg (size * 4).arg (size * 2);
 
 	if (dem) {
 		result += QString (R"(
@@ -1283,11 +1313,36 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	cvt.s32.s16	%xpos, %xplow;
 
 @%pinit bra		notfirst;
-	call		coord_muladd, (%ar_t, %ar_step, %ar_c, %xpos);
-	call		coord_muladd, (%ar_tim, %ar_step, %ar_cim, %ypos);
+	call		coord_mul, (%ar_t, %ar_step, %xpos);
+	call		coord_mul, (%ar_tim, %ar_step, %ypos);
 )";
 	generator cg;
 	codegen = &cg;
+
+	auto incoord_x = make_shared<ldg_expr> ("%ar_t", size);
+	auto incoord_y = make_shared<ldg_expr> ("%ar_tim", size);
+	auto originx = make_shared<ldc_expr> (QString ("const_origin_x + %1")
+					      .arg (stepsize * 4 - size * 4), size);
+	auto originy = make_shared<ldc_expr> (QString ("const_origin_y + %1")
+					      .arg (stepsize * 4 - size * 4), size);
+	auto mat00 = make_shared<ldc_expr> (QString ("const_matrix00 + %1")
+					    .arg (stepsize * 4 - size * 4), size);
+	auto mat01 = make_shared<ldc_expr> (QString ("const_matrix01 + %1")
+					    .arg (stepsize * 4 - size * 4), size);
+	auto mat10 = make_shared<ldc_expr> (QString ("const_matrix10 + %1")
+					    .arg (stepsize * 4 - size * 4), size);
+	auto mat11 = make_shared<ldc_expr> (QString ("const_matrix11 + %1")
+					    .arg (stepsize * 4 - size * 4), size);
+
+	auto coord_x1 = make_shared<addsub_expr> ("add", gen_mult (incoord_x, mat00), gen_mult (incoord_y, mat01));
+	auto coord_y1 = make_shared<addsub_expr> ("add", gen_mult (incoord_x, mat10), gen_mult (incoord_y, mat11));
+	auto coord_x = make_shared<addsub_expr> ("add", originx, coord_x1);
+	auto coord_y = make_shared<addsub_expr> ("add", originy, coord_y1);
+
+	coord_x->calculate_full ();
+	coord_y->calculate_full ();
+	gen_store ("%ar_t", coord_x);
+	gen_store ("%ar_tim", coord_y);
 
 	auto const0 = make_shared<const_expr<0>> (size);
 	auto const1 = make_shared<const_expr<1>> (size);
@@ -1303,13 +1358,11 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 						    .arg (2 * stepsize * 4 - size * 4), size);
 		gen_store ("%ar_z", critr);
 		gen_store ("%ar_zim", criti);
-		result += cg.code ();
 	} else {
-		result += R"(
-	call		coord_muladd, (%ar_z, %ar_step, %ar_c, %xpos);
-	call		coord_muladd, (%ar_zim, %ar_step, %ar_cim, %ypos);
-)";
+		gen_store ("%ar_z", coord_x);
+		gen_store ("%ar_zim", coord_y);
 	}
+	result += cg.code ();
 
 	result += "notfirst:\n";
 
@@ -1459,10 +1512,14 @@ char *gen_mprec_funcs (formula f, int size, int stepsize, int power)
 	.target	sm_61
 	.address_size 64
 	// .extern .shared .align 4 .b8 shared[];
+	.const .align 4 .u32 const_origin_x[%1];
+	.const .align 4 .u32 const_origin_y[%1];
 	.const .align 4 .u32 const_param_p[%1];
 	.const .align 4 .u32 const_param_q[%1];
-	.const .align 4 .u32 const_rot_sin[%1];
-	.const .align 4 .u32 const_rot_cos[%1];
+	.const .align 4 .u32 const_matrix00[%1];
+	.const .align 4 .u32 const_matrix01[%1];
+	.const .align 4 .u32 const_matrix10[%1];
+	.const .align 4 .u32 const_matrix11[%1];
 	.const .align 4 .u32 const_critpoint[%1];
 )").arg (stepsize * 2);
 
@@ -1471,6 +1528,7 @@ char *gen_mprec_funcs (formula f, int size, int stepsize, int power)
 	gen_mul_func (result, size, true);
 #endif
 	gen_coord_muladd (result, size, stepsize);
+	gen_coord_mul (result, size, stepsize);
 
 	gen_kernel (f, result, size, stepsize, power, true, false);
 	gen_kernel (f, result, size, stepsize, power, false, false);

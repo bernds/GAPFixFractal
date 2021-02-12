@@ -440,17 +440,33 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		abort ();
 
 	bool init_fail = false;
-	init_fail |= cuMemcpyHtoD (fd->cu_ar_origin, &fd->host_origin[0], 4 * max_nwords * 2) != CUDA_SUCCESS;
 	init_fail |= cuMemcpyHtoD (fd->cu_ar_step, &fd->step[0], 4 * max_nwords) != CUDA_SUCCESS;
 
-	CUdeviceptr param_p, param_q, critpoint;
+	CUdeviceptr originx, originy, param_p, param_q, critpoint, matrix00, matrix01, matrix10, matrix11;
 	size_t bytes;
+	init_fail |= cuModuleGetGlobal(&originx, &bytes, m_module, "const_origin_x") != CUDA_SUCCESS;
+	init_fail |= cuMemcpyHtoD (originx, &fd->center_x[0], 4 * max_nwords) != CUDA_SUCCESS;
+	init_fail |= cuModuleGetGlobal(&originy, &bytes, m_module, "const_origin_y") != CUDA_SUCCESS;
+	init_fail |= cuMemcpyHtoD (originy, &fd->center_y[0], 4 * max_nwords) != CUDA_SUCCESS;
+
 	init_fail |= cuModuleGetGlobal(&param_p, &bytes, m_module, "const_param_p") != CUDA_SUCCESS;
 	init_fail |= cuMemcpyHtoD (param_p, &fd->param_p[0], 4 * max_nwords * 2) != CUDA_SUCCESS;
 	init_fail |= cuModuleGetGlobal(&param_q, &bytes, m_module, "const_param_q") != CUDA_SUCCESS;
 	init_fail |= cuMemcpyHtoD (param_q, &fd->param_q[0], 4 * max_nwords * 2) != CUDA_SUCCESS;
 	init_fail |= cuModuleGetGlobal(&critpoint, &bytes, m_module, "const_critpoint") != CUDA_SUCCESS;
 	init_fail |= cuMemcpyHtoD (critpoint, &fd->critpoint[0], 4 * max_nwords * 2) != CUDA_SUCCESS;
+
+	init_fail |= cuModuleGetGlobal(&matrix00, &bytes, m_module, "const_matrix00") != CUDA_SUCCESS;
+	init_fail |= cuMemcpyHtoD (matrix00, &fd->matrix[0][0][0], 4 * max_nwords) != CUDA_SUCCESS;
+	init_fail |= cuModuleGetGlobal(&matrix01, &bytes, m_module, "const_matrix01") != CUDA_SUCCESS;
+	init_fail |= cuMemcpyHtoD (matrix01, &fd->matrix[0][1][0], 4 * max_nwords) != CUDA_SUCCESS;
+	init_fail |= cuModuleGetGlobal(&matrix10, &bytes, m_module, "const_matrix10") != CUDA_SUCCESS;
+	init_fail |= cuMemcpyHtoD (matrix10, &fd->matrix[1][0][0], 4 * max_nwords) != CUDA_SUCCESS;
+	init_fail |= cuModuleGetGlobal(&matrix11, &bytes, m_module, "const_matrix11") != CUDA_SUCCESS;
+	init_fail |= cuMemcpyHtoD (matrix11, &fd->matrix[1][1][0], 4 * max_nwords) != CUDA_SUCCESS;
+
+	if (init_fail)
+		printf ("init fail\n");
 
 	double iter_scale_factor = 1;
 
@@ -477,7 +493,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		tryCuda (cuMemcpyHtoD (fd->cu_ar_coords, fd->host_coords, 4 * maxidx));
 
 		void *args[] = {
-			&fd->cu_ar_origin, &fd->cu_ar_z, &fd->cu_ar_z2,
+			&fd->cu_ar_z, &fd->cu_ar_z2,
 			&fd->cu_ar_coords, &fd->cu_ar_step, &fd->cu_ar_tmp,
 			&maxidx, &fd->cu_ar_result, &count, &fd->start_idx,
 			&fd->cu_ar_zder
@@ -607,9 +623,68 @@ void MainWindow::build_points (frac_desc &fd, int w, int h)
 {
 	vpvec step = div1 (fd.width, std::min (w, h) * fd.samples);
 	fd.step = step;
+}
 
-	memcpy (fd.host_origin, &fd.center_x[0], max_nwords * 4);
-	memcpy (fd.host_origin + max_nwords, &fd.center_y[0], max_nwords * 4);
+static double sin_deg (int angle)
+{
+	switch (angle) {
+	case 30: case 150:
+		return 0.5;
+	case 45: case 135:
+		return M_SQRT1_2;
+	case 90:
+		return 1;
+	case 270:
+		return -1;
+	case 225: case 315:
+		return -M_SQRT1_2;
+	case 210: case 330:
+		return -0.5;
+	}
+	return sin (angle * M_PI / 180);
+}
+
+static double cos_deg (int angle)
+{
+	switch (angle) {
+	case 60: case 300:
+		return 0.5;
+	case 45: case 315:
+		return M_SQRT1_2;
+	case 90: case 270:
+		return 0;
+	case 135: case 225:
+		return -M_SQRT1_2;
+	case 120: case 240:
+		return -0.5;
+	}
+	return cos (angle * M_PI / 180);
+}
+
+void MainWindow::set_rotation (frac_desc &fd, int angle)
+{
+	angle %= 360;
+	fd.rotation_angle = angle;
+	double shear = (double)ui->shearSlider->value () / 50;
+	double scale = 1 + (double)ui->scaleSlider->value () / 20;
+	int shidx = ui->shearComboBox->currentIndex ();
+	int scidx = ui->scaleComboBox->currentIndex ();
+	double c = cos_deg (angle);
+	double s = sin_deg (angle);
+	double xshear = shidx == 1 ? shear : 0;
+	double yshear = shidx == 2 ? shear : 0;
+	double xscale = scidx == 1 ? scale : 1;
+	double yscale = scidx == 2 ? scale : 1;
+
+	set (fd.matrix[0][0], (c - s * yshear) * xscale);
+	set (fd.matrix[0][1], (c * xshear - s) * yscale);
+	set (fd.matrix[1][0], (s + c * yshear) * xscale);
+	set (fd.matrix[1][1], (s * xshear + c) * yscale);
+}
+
+void MainWindow::inc_rotation (frac_desc &fd, int angle)
+{
+	set_rotation (fd, fd.rotation_angle + angle);
 }
 
 /* The caller should invalidate all existing frac_desc structures before calling this.  */
@@ -690,7 +765,6 @@ void MainWindow::discard_fd_data (frac_desc &fd)
 	if (fd.n_pixels == 0)
 		return;
 
-	delete[] fd.host_origin;
 	delete[] fd.host_z;
 	delete[] fd.host_zder;
 	delete[] fd.host_t;
@@ -731,7 +805,6 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 		fd.nwords = nwords;
 		fd.samples = ss;
 
-		fd.host_origin = new uint32_t[max_nwords * 2];
 		fd.host_t = new uint32_t[nwords * 2 * nthreads];
 		fd.host_z = new uint32_t[nwords * 2 * nthreads];
 		fd.host_zder = nullptr;
@@ -1639,6 +1712,13 @@ void MainWindow::reset_coords (frac_desc &fd)
 		fd.center_x[max_nwords - 1] = 0xffffffff;
 	}
 	adjust_width_for_bounds (fd);
+
+	bool_changer (m_inhibit_updates, true);
+	ui->scaleComboBox->setCurrentIndex (0);
+	ui->shearComboBox->setCurrentIndex (0);
+	ui->shearSlider->setValue (0);
+	ui->scaleSlider->setValue (1);
+	set_rotation (fd, 0);
 }
 
 void MainWindow::set_q (int qr, int qi)
@@ -1702,7 +1782,7 @@ void MainWindow::formula_chosen (formula f, int power)
 void MainWindow::do_reset (bool)
 {
 	reset_coords (current_fd ());
-
+	set_rotation (current_fd (), 0);
 	m_reinit_render = true;
 	restart_computation ();
 }
@@ -2311,7 +2391,8 @@ MainWindow::MainWindow ()
 	m_fd_mandel.resize (max_nwords);
 	m_fd_julia.resize (max_nwords);
 
-	vpvec zero (max_nwords, 0);
+	set_rotation (m_fd_mandel, 0);
+	set_rotation (m_fd_julia, 0);
 
 	// Old code that used to speed things up a little by precomputing smooth iter_values
 	// Could potentially still be useful, but not as much as before.
@@ -2475,6 +2556,22 @@ MainWindow::MainWindow ()
 	connect (ui->action_DecPrec, &QAction::triggered,
 		 [this] (bool) { ui->precSpinBox->stepBy (-1); });
 
+	connect (ui->action_Rotate0, &QAction::triggered,
+		 [this] (bool) { set_rotation (current_fd (), 0); update_settings (false); });
+	connect (ui->action_Rotate30, &QAction::triggered,
+		 [this] (bool) { inc_rotation (current_fd (), 30); update_settings (false); });
+	connect (ui->action_Rotate45, &QAction::triggered,
+		 [this] (bool) { inc_rotation (current_fd (), 45); update_settings (false); });
+	connect (ui->action_Rotate90, &QAction::triggered,
+		 [this] (bool) { inc_rotation (current_fd (), 90); update_settings (false); });
+	connect (ui->shearComboBox, cic,
+		 [this] (bool) { inc_rotation (current_fd (), 0); update_settings (false); });
+	connect (ui->shearSlider, &QSlider::valueChanged,
+		 [this] (bool) { inc_rotation (current_fd (), 0); update_settings (false); });
+	connect (ui->scaleComboBox, cic,
+		 [this] (bool) { inc_rotation (current_fd (), 0); update_settings (false); });
+	connect (ui->scaleSlider, &QSlider::valueChanged,
+		 [this] (bool) { inc_rotation (current_fd (), 0); update_settings (false); });
 	connect (ui->action_q_1, &QAction::triggered, [this] (bool) { set_q (1, 0); update_settings (true); });
 	connect (ui->action_q_m1, &QAction::triggered, [this] (bool) { set_q (-1, 0); update_settings (true); });
 	connect (ui->action_q_2, &QAction::triggered, [this] (bool) { set_q (2, 0); update_settings (true); });

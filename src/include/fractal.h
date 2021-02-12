@@ -15,6 +15,7 @@ struct frac_params
 
 	vpvec center_x, center_y;
 	vpvec width;
+	vpvec matrix[2][2];
 
 	vpvec param_p, param_q, critpoint;
 
@@ -43,6 +44,8 @@ struct frac_desc : public frac_params
 	uint32_t start_idx;
 
 	vpvec step;
+	/* Updated by the GUI and used to compute the actual rotation matrix.  */
+	int rotation_angle = 0;
 
 	int32_t *pic_z;
 	int32_t *pic_zder;
@@ -51,7 +54,7 @@ struct frac_desc : public frac_params
 
 	double *pic_iter_value;
 
-	uint32_t *host_origin, *host_t, *host_z, *host_zder, *host_z2, *host_coords, *host_result;
+	uint32_t *host_t, *host_z, *host_zder, *host_z2, *host_coords, *host_result;
 	CUdeviceptr cu_ar_origin = 0;
 	CUdeviceptr cu_ar_z = 0;
 	CUdeviceptr cu_ar_z2 = 0;
@@ -75,6 +78,10 @@ struct frac_desc : public frac_params
 		center_x.resize (max_nwords);
 		center_y.resize (max_nwords);
 
+		matrix[0][0].resize (max_nwords);
+		matrix[0][1].resize (max_nwords);
+		matrix[1][0].resize (max_nwords);
+		matrix[1][1].resize (max_nwords);
 		width.resize (max_nwords);
 		step.resize (max_nwords);
 		param_p.resize (max_nwords * 2);

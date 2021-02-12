@@ -17,6 +17,7 @@ class bool_changer
 public:
 	bool_changer (bool &var, bool set) : m_var (var), m_old (var)
 	{
+		m_var = set;
 	}
 	~bool_changer ()
 	{
@@ -162,6 +163,8 @@ class MainWindow: public QMainWindow
 
 	void perform_resizes ();
 
+	void inc_rotation (frac_desc &, int);
+	void set_rotation (frac_desc &, int);
 	void build_points (frac_desc &, int w, int h);
 	void compute_fractal (frac_desc &, int nwords, int w, int h, int full_h,
 			      int ss, bool dem, bool preview, bool batch = false);
