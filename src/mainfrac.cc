@@ -33,7 +33,11 @@
 
 #define PACKAGE "GAPFixFractal"
 
-const formula formula_table[] = { formula::standard, formula::lambda, formula::spider, formula::tricorn, formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b, formula::testing };
+const formula formula_table[] = {
+	formula::standard, formula::lambda, formula::spider, formula::tricorn,
+	formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b,
+	formula::altship1, formula::altship2, formula::testing
+};
 
 constexpr int default_power = 2;
 
@@ -92,6 +96,16 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 	return s;
 }
 #pragma GCC diagnostic pop
+
+static int power_from_fp (frac_params &fp)
+{
+	int power = fp.power;
+	if (fp.fm == formula::altship1)
+		power *= 2;
+	else if (fp.fm == formula::altship2)
+		power *= 4;
+	return power;
+}
 
 void MainWindow::layout_stored_params ()
 {
@@ -970,7 +984,7 @@ static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double ni
 	return primary;
 }
 
-inline double iter_value_at (frac_desc *fd, int idx)
+inline double iter_value_at (frac_desc *fd, int idx, int power)
 {
 	double v = fd->pic_result[idx];
 	if (v == 0)
@@ -981,7 +995,7 @@ inline double iter_value_at (frac_desc *fd, int idx)
 	re2 *= re2;
 	im2 *= im2;
 	double radius = 100;
-	double correction = log (0.5 * log ((double)re2 + im2) / log (radius)) / log (fd->power);
+	double correction = log (0.5 * log ((double)re2 + im2) / log (radius)) / log (power);
 	fd->cmin = std::min (fd->cmin, correction);
 	fd->cmax = std::max (fd->cmax, correction);
 	return v + 5 - correction;
@@ -996,7 +1010,7 @@ void MainWindow::precompute_iter_value (frac_desc *fd)
 	for (int i = 0; i < fd->n_pixels; i++) {
 		if (!fd->pic_pixels_done.test_bit (i))
 			continue;
-		double v = iter_value_at (fd, i);
+		double v = iter_value_at (fd, i, fd->power);
 		if (v > 0 && (minimum == 0 || v < minimum))
 			minimum = v;
 		fd->pic_iter_value[i] = v;
@@ -1017,6 +1031,7 @@ class runner : public QRunnable
 	double minimum;
 	QRgb *data;
 	double dstep;
+	int power;
 
 public:
 	runner (QSemaphore *sem, std::atomic<bool> *succ_in, const render_params &rp_in,
@@ -1029,7 +1044,7 @@ public:
 
 	void compute_color (size_t idx, int &r, int &g, int &b, int &outcolor)
 	{
-		double v = /* precomputed ? precomputed[idx] : */ iter_value_at (fd, idx);
+		double v = /* precomputed ? precomputed[idx] : */ iter_value_at (fd, idx, power);
 		double v1 = v;
 		if (v != 0) {
 			if (rp.sub)
@@ -1091,6 +1106,7 @@ public:
 		uint32_t in_color = rp.incol == 0 ? 0 : 0xFFFFFF;
 		uint32_t in_color1 = in_color & 0xFF;
 		int sample_steps = fd->samples;
+		power = power_from_fp (*fd);
 		int ss2 = sample_steps * sample_steps;
 		dstep = to_double (fd->step);
 		if (dstep == 0)
@@ -1166,6 +1182,8 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 		rp.sub = false;
 #endif
 
+	int power = power_from_fp (*fd);
+
 	// printf ("dstep %f\n", dstep);
 	double minimum = m_minimum;
 	if (rp.sub && gen != m_min_gen) {
@@ -1173,7 +1191,7 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 		for (int i = 0; i < fd->n_pixels; i++) {
 			if (!fd->pic_pixels_done.test_bit (i))
 				continue;
-			double v = iter_value_at (fd, i);
+			double v = iter_value_at (fd, i, power);
 			if (v > 0 && (minimum == 0 || v < minimum))
 				minimum = v;
 		}
@@ -1671,7 +1689,7 @@ void MainWindow::formula_chosen (formula f, int power)
 		ui->demBox->setChecked (false);
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
 				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
-				      || f == formula::testing);
+				      || f == formula::altship1 || f == formula::altship2 || f == formula::testing);
 
 	ui->action_q_1->setEnabled (f == formula::mix);
 	ui->action_q_m1->setEnabled (f == formula::mix);
@@ -1962,6 +1980,8 @@ void MainWindow::restore_params (const frac_params &p)
 	m_formula = p.fm;
 	QAction *fa = (m_formula == formula::tricorn ? ui->action_FormulaTricorn
 		       : m_formula == formula::ship ? ui->action_FormulaShip
+		       : m_formula == formula::altship1 ? ui->action_FormulaShip1
+		       : m_formula == formula::altship2 ? ui->action_FormulaShip2
 		       : m_formula == formula::lambda ? ui->action_FormulaLambda
 		       : m_formula == formula::spider ? ui->action_FormulaSpider
 		       : m_formula == formula::mix ? ui->action_FormulaMix
@@ -2382,6 +2402,8 @@ MainWindow::MainWindow ()
 	m_formula_group->addAction (ui->action_FormulaStandard);
 	m_formula_group->addAction (ui->action_FormulaTricorn);
 	m_formula_group->addAction (ui->action_FormulaShip);
+	m_formula_group->addAction (ui->action_FormulaShip1);
+	m_formula_group->addAction (ui->action_FormulaShip2);
 	m_formula_group->addAction (ui->action_FormulaLambda);
 	m_formula_group->addAction (ui->action_FormulaSpider);
 	m_formula_group->addAction (ui->action_FormulaMix);
@@ -2473,6 +2495,10 @@ MainWindow::MainWindow ()
 		 [this] (bool) { formula_chosen (formula::tricorn, 2); });
 	connect (ui->action_FormulaShip, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::ship, 2); });
+	connect (ui->action_FormulaShip1, &QAction::triggered,
+		 [this] (bool) { formula_chosen (formula::altship1, 2); });
+	connect (ui->action_FormulaShip2, &QAction::triggered,
+		 [this] (bool) { formula_chosen (formula::altship2, 2); });
 	connect (ui->action_FormulaMix, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::mix, 3); });
 	connect (ui->action_FormulaSqTwiceA, &QAction::triggered,

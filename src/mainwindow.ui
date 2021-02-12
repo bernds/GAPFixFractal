@@ -136,6 +136,8 @@
      <addaction name="action_FormulaSpider"/>
      <addaction name="action_FormulaTricorn"/>
      <addaction name="action_FormulaShip"/>
+     <addaction name="action_FormulaShip1"/>
+     <addaction name="action_FormulaShip2"/>
      <addaction name="action_FormulaMix"/>
      <addaction name="action_FormulaSqTwiceA"/>
      <addaction name="action_FormulaSqTwiceB"/>
@@ -1483,6 +1485,28 @@
   <action name="action_FormulaTest">
    <property name="text">
     <string>Testing</string>
+   </property>
+  </action>
+  <action name="action_FormulaShip1">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Burning Ship variant 1</string>
+   </property>
+   <property name="toolTip">
+    <string>Burning Ship variant 1</string>
+   </property>
+  </action>
+  <action name="action_FormulaShip2">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Burning Ship variant 2</string>
+   </property>
+   <property name="toolTip">
+    <string>Burning Ship variant 2</string>
    </property>
   </action>
  </widget>

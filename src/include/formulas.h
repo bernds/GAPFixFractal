@@ -5,7 +5,7 @@
 // tried out without affecting the order of the others and thereby saves
 enum class formula
 {
-	testing, standard, lambda, tricorn, spider, ship, mix, sqtwice_a, sqtwice_b
+	testing, standard, lambda, tricorn, spider, ship, mix, sqtwice_a, sqtwice_b, altship1, altship2
 };
 
 extern const formula formula_table[];
