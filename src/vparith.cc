@@ -28,10 +28,11 @@ void set (vpvec &v, double d)
 {
 	size_t sz = v.size ();
 	vpvec val (sz);
-	val[sz - 1] = floor (d);
 	while (sz-- > 1) {
-		double newv = (d - floor (d)) * 2 * (1 << 31);
-		val[sz - 1] = floor (newv);
+		double newv_f = floor (d);
+		val[sz] = newv_f;
+		d -= newv_f;
+		d = d * 4 * (1 << 30);
 	}
 	v = val;
 }
