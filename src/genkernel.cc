@@ -921,17 +921,10 @@ get_power (array<shared_ptr<expr>, 20> &powers_re, array<shared_ptr<expr>, 20> &
 	return { pr, pi };
 }
 
-void gen_inner_standard (int size, int stepsize, int power, bool julia, bool dem,
-			 shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-			 shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-			 shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg,
-			 shared_ptr<reg_expr> zderr_reg, shared_ptr<reg_expr> zderi_reg)
+std::pair<shared_ptr<expr>, shared_ptr<expr>>
+emit_addc (bool julia, shared_ptr<expr> pr, shared_ptr<expr> pi,
+	   shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg, int size, int stepsize)
 {
-	array<shared_ptr<expr>, 20> powers_re;
-	array<shared_ptr<expr>, 20> powers_im;
-	build_powers (powers_re, powers_im, zr_reg, zi_reg, z2r_reg, z2i_reg, power);
-	auto [pr, pi] = get_power (powers_re, powers_im, power);
-
 	shared_ptr<addsub_expr> newzr, newzi;
 	if (julia) {
 		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
@@ -944,6 +937,21 @@ void gen_inner_standard (int size, int stepsize, int power, bool julia, bool dem
 		newzr = make_shared<addsub_expr> ("add", pr, cr_reg);
 		newzi = make_shared<addsub_expr> ("add", pi, ci_reg);
 	}
+	return { newzr, newzi };
+}
+
+void gen_inner_standard (int size, int stepsize, int power, bool julia, bool dem,
+			 shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
+			 shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
+			 shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg,
+			 shared_ptr<reg_expr> zderr_reg, shared_ptr<reg_expr> zderi_reg)
+{
+	array<shared_ptr<expr>, 20> powers_re;
+	array<shared_ptr<expr>, 20> powers_im;
+	build_powers (powers_re, powers_im, zr_reg, zi_reg, z2r_reg, z2i_reg, power);
+	auto [pr, pi] = get_power (powers_re, powers_im, power);
+
+	auto [newzr, newzi] = emit_addc (julia, pr, pi, cr_reg, ci_reg, size, stepsize);
 	if (dem) {
 		shared_ptr<expr> nrder = nullptr, nider = nullptr;
 		emit_complex_mult (zr_reg, zi_reg, zderr_reg, zderi_reg, &nrder, &nider);
@@ -977,19 +985,8 @@ void gen_inner_ship (int size, int stepsize, int power, bool julia,
 	gen_store (&*zi_reg, zai);
 	build_powers (powers_re, powers_im, zr_reg, zi_reg, z2r_reg, z2i_reg, power);
 	auto [pr, pi] = get_power (powers_re, powers_im, power);
+	auto [newzr, newzi] = emit_addc (julia, pr, pi, cr_reg, ci_reg, size, stepsize);
 
-	shared_ptr<addsub_expr> newzr, newzi;
-	if (julia) {
-		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (stepsize * 4 - size * 4), size);
-		newzr = make_shared<addsub_expr> ("add", pr, parmr);
-		auto parmi = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (2 * stepsize * 4 - size * 4), size);
-		newzi = make_shared<addsub_expr> ("add", pi, parmi);
-	} else {
-		newzr = make_shared<addsub_expr> ("add", pr, cr_reg);
-		newzi = make_shared<addsub_expr> ("add", pi, ci_reg);
-	}
 	gen_store (&*zr_reg, newzr);
 	gen_store (&*zi_reg, newzi);
 	gen_store (&*z2r_reg, gen_mult (newzr, newzr));
@@ -1007,19 +1004,8 @@ void gen_inner_tricorn (int size, int stepsize, int power, bool julia,
 	array<shared_ptr<expr>, 20> powers_re, powers_im;
 	build_powers (powers_re, powers_im, zr_reg, zi_reg, z2r_reg, z2i_reg, power);
 	auto [pr, pi] = get_power (powers_re, powers_im, power);
+	auto [newzr, newzi] = emit_addc (julia, pr, pi, cr_reg, ci_reg, size, stepsize);
 
-	shared_ptr<addsub_expr> newzr, newzi;
-	if (julia) {
-		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (stepsize * 4 - size * 4), size);
-		newzr = make_shared<addsub_expr> ("add", pr, parmr);
-		auto parmi = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (2 * stepsize * 4 - size * 4), size);
-		newzi = make_shared<addsub_expr> ("add", pi, parmi);
-	} else {
-		newzr = make_shared<addsub_expr> ("add", pr, cr_reg);
-		newzi = make_shared<addsub_expr> ("add", pi, ci_reg);
-	}
 	auto const0 = make_shared<const_expr<0>> (size);
 	gen_store (&*zr_reg, newzr);
 	gen_store (&*zi_reg, make_shared<addsub_expr> ("sub", const0, newzi));
@@ -1068,19 +1054,7 @@ void gen_inner_sqtwice_a (int size, int stepsize, int power, bool julia,
 	array<shared_ptr<expr>, 20> powers_re, powers_im;
 	build_powers (powers_re, powers_im, zr_reg, zi_reg, z2r_reg, z2i_reg, power);
 	auto [pr, pi] = get_power (powers_re, powers_im, power);
-
-	shared_ptr<expr> newzr, newzi;
-	if (julia) {
-		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (stepsize * 4 - size * 4), size);
-		newzr = make_shared<addsub_expr> ("add", pr, parmr);
-		auto parmi = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (2 * stepsize * 4 - size * 4), size);
-		newzi = make_shared<addsub_expr> ("add", pi, parmi);
-	} else {
-		newzr = make_shared<addsub_expr> ("add", pr, cr_reg);
-		newzi = make_shared<addsub_expr> ("add", pi, ci_reg);
-	}
+	auto [newzr, newzi] = emit_addc (julia, pr, pi, cr_reg, ci_reg, size, stepsize);
 	emit_complex_mult (newzr, newzi, newzr, newzi, &newzr, &newzi);
 
 	gen_store (&*zr_reg, newzr);
@@ -1098,20 +1072,7 @@ void gen_inner_sqtwice_b (int size, int stepsize, int power, bool julia,
 	array<shared_ptr<expr>, 20> powers_re, powers_im;
 	build_powers (powers_re, powers_im, zr_reg, zi_reg, z2r_reg, z2i_reg, 2);
 	auto [pr, pi] = get_power (powers_re, powers_im, 2);
-
-	shared_ptr<expr> newzr, newzi;
-	if (julia) {
-		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (stepsize * 4 - size * 4), size);
-		newzr = make_shared<addsub_expr> ("add", pr, parmr);
-		auto parmi = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (2 * stepsize * 4 - size * 4), size);
-		newzi = make_shared<addsub_expr> ("add", pi, parmi);
-	} else {
-		newzr = make_shared<addsub_expr> ("add", pr, cr_reg);
-		newzi = make_shared<addsub_expr> ("add", pi, ci_reg);
-	}
-	// emit_complex_mult (newzr, newzi, newzr, newzi, &newzr, &newzi);
+	auto [newzr, newzi] = emit_addc (julia, pr, pi, cr_reg, ci_reg, size, stepsize);
 
 	array<shared_ptr<expr>, 20> powers_bre, powers_bim;
 	build_powers (powers_bre, powers_bim, newzr, newzi, nullptr, nullptr, power);
