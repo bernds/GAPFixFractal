@@ -139,6 +139,7 @@
      <addaction name="action_FormulaMix"/>
      <addaction name="action_FormulaSqTwiceA"/>
      <addaction name="action_FormulaSqTwiceB"/>
+     <addaction name="action_FormulaTest"/>
     </widget>
     <widget class="QMenu" name="menuPower">
      <property name="title">
@@ -1477,6 +1478,11 @@
    </property>
    <property name="text">
     <string>Traditional colour star</string>
+   </property>
+  </action>
+  <action name="action_FormulaTest">
+   <property name="text">
+    <string>Testing</string>
    </property>
   </action>
  </widget>

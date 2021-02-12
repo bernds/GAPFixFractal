@@ -33,7 +33,7 @@
 
 #define PACKAGE "GAPFixFractal"
 
-const formula formula_table[] = { formula::standard, formula::lambda, formula::spider, formula::tricorn, formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b };
+const formula formula_table[] = { formula::standard, formula::lambda, formula::spider, formula::tricorn, formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b, formula::testing };
 
 constexpr int default_power = 2;
 
@@ -1670,7 +1670,8 @@ void MainWindow::formula_chosen (formula f, int power)
 	if (f != formula::standard)
 		ui->demBox->setChecked (false);
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
-				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b);
+				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
+				      || f == formula::testing);
 
 	ui->action_q_1->setEnabled (f == formula::mix);
 	ui->action_q_m1->setEnabled (f == formula::mix);
@@ -1966,6 +1967,7 @@ void MainWindow::restore_params (const frac_params &p)
 		       : m_formula == formula::mix ? ui->action_FormulaMix
 		       : m_formula == formula::sqtwice_a ? ui->action_FormulaSqTwiceA
 		       : m_formula == formula::sqtwice_b ? ui->action_FormulaSqTwiceB
+		       : m_formula == formula::testing ? ui->action_FormulaTest
 		       : ui->action_FormulaStandard);
 	fa->setChecked (true);
 
@@ -2295,6 +2297,9 @@ MainWindow::MainWindow ()
 	// Could potentially still be useful, but not as much as before.
 	ui->action_Precompute->setVisible (false);
 	ui->action_Precompute->setChecked (true);
+#ifndef TESTING
+	ui->action_FormulaTest->setVisible (false);
+#endif
 
 	QString errstr;
 	m_power = default_power;
@@ -2382,6 +2387,7 @@ MainWindow::MainWindow ()
 	m_formula_group->addAction (ui->action_FormulaMix);
 	m_formula_group->addAction (ui->action_FormulaSqTwiceA);
 	m_formula_group->addAction (ui->action_FormulaSqTwiceB);
+	m_formula_group->addAction (ui->action_FormulaTest);
 
 	ui->action_NFactor4->setChecked (true);
 	ui->action_StructDark->setChecked (true);
@@ -2473,6 +2479,8 @@ MainWindow::MainWindow ()
 		 [this] (bool) { formula_chosen (formula::sqtwice_a, 2); });
 	connect (ui->action_FormulaSqTwiceB, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::sqtwice_b, 2); });
+	connect (ui->action_FormulaTest, &QAction::triggered,
+		 [this] (bool) { formula_chosen (formula::testing, 2); });
 
 	ui->action_SavePalette->setEnabled (m_custom_palette.size () > 0);
 	connect (ui->action_SaveImageAs, &QAction::triggered, this, &MainWindow::slot_save_as);
