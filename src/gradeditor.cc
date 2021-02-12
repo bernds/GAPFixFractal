@@ -382,7 +382,7 @@ void GradEditor::enable_buttons ()
 
 void GradEditor::interpolate ()
 {
-	auto new_colors = interpolate_colors (m_model->entries (), 2);
+	auto new_colors = interpolate_colors (m_model->entries (), 2, 0, false);
 	m_model->replace_all (new_colors);
 	emit colors_changed (new_colors);
 	m_changed = false;

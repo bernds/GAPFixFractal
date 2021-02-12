@@ -2073,7 +2073,9 @@ void MainWindow::update_palette ()
 	bool narrowb = ui->action_NarrowB->isChecked ();
 	bool narroww = ui->action_NarrowW->isChecked ();
 	int nfactor = ui->action_NFactor4->isChecked () ? 4 : 2;
-	m_palette = interpolate_colors (pal, interpolation_factor, narrowb, narroww, nfactor);
+	int hue_shift = ui->hueSlider->value ();
+	bool trad = ui->action_RotateTrad->isChecked ();
+	m_palette = interpolate_colors (pal, interpolation_factor, hue_shift, trad, narrowb, narroww, nfactor);
 	if (ui->structureGroup->isChecked ()) {
 		int strtype = ui->action_StructLight->isChecked () ? 0 : ui->action_StructDark->isChecked () ? 1 : 2;
 		int str = ui->structureSlider->value ();
@@ -2116,12 +2118,15 @@ void MainWindow::gradient_edit (bool)
 	bool narrowb = ui->action_NarrowB->isChecked ();
 	bool narroww = ui->action_NarrowW->isChecked ();
 	int nfactor = ui->action_NFactor4->isChecked () ? 4 : 2;
+	int hue_shift = ui->hueSlider->value ();
+	bool trad = ui->action_RotateTrad->isChecked ();
 	GradEditor edit (this, pal);
 	connect (&edit, &GradEditor::colors_changed,
-		 [this, &new_pal, narrowb, narroww, nfactor] (const QVector<uint32_t> &newcols)
+		 [this, &new_pal, narrowb, hue_shift, trad, narroww, nfactor] (const QVector<uint32_t> &newcols)
 		 {
 			 new_pal = newcols;
-			 m_palette = interpolate_colors (newcols, interpolation_factor, narrowb, narroww, nfactor);
+			 m_palette = interpolate_colors (newcols, interpolation_factor, hue_shift, trad,
+							 narrowb, narroww, nfactor);
 			 update_views ();
 		 });
 	if (edit.exec ()) {
@@ -2316,6 +2321,7 @@ MainWindow::MainWindow ()
 	ui->sampleSpinBox->setValue (1);
 	ui->action_NarrowB->setChecked (true);
 	ui->action_NarrowW->setChecked (true);
+	ui->action_RotateHSV->setChecked (true);
 
 	reset_coords (m_fd_mandel);
 	reset_coords (m_fd_julia);
@@ -2363,6 +2369,10 @@ MainWindow::MainWindow ()
 	m_narrow_group->addAction (ui->action_NFactor2);
 	m_narrow_group->addAction (ui->action_NFactor4);
 
+	m_rotate_group = new QActionGroup (this);
+	m_rotate_group->addAction (ui->action_RotateTrad);
+	m_rotate_group->addAction (ui->action_RotateHSV);
+
 	m_formula_group = new QActionGroup (this);
 	m_formula_group->addAction (ui->action_FormulaStandard);
 	m_formula_group->addAction (ui->action_FormulaTricorn);
@@ -2401,10 +2411,13 @@ MainWindow::MainWindow ()
 	connect (ui->colStepSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
 	connect (ui->structureGroup, &QGroupBox::toggled, [this] (bool) { update_palette (); });
 	connect (ui->structureSlider, &QSlider::valueChanged, [this] (bool) { update_palette (); });
+	connect (ui->hueSlider, &QSlider::valueChanged, [this] (bool) { update_palette (); });
 	connect (ui->action_NarrowB, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_NarrowW, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_NFactor2, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_NFactor4, &QAction::toggled, [this] (bool) { update_palette (); });
+	connect (ui->action_RotateTrad, &QAction::toggled, [this] (bool) { update_palette (); });
+	connect (ui->action_RotateHSV, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_StructLight, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_StructDark, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_StructBoth, &QAction::toggled, [this] (bool) { update_palette (); });
@@ -2489,6 +2502,7 @@ MainWindow::~MainWindow ()
 	delete m_struct_group;
 	delete m_formula_group;
 	delete m_power_group;
+	delete m_rotate_group;
 	delete ui;
 }
 

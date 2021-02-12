@@ -150,6 +150,7 @@ class MainWindow: public QMainWindow
 	QActionGroup *m_power_group {};
 	QActionGroup *m_struct_group {};
 	QActionGroup *m_narrow_group {};
+	QActionGroup *m_rotate_group {};
 
 	int m_last_pal_idx = 0;
 	QVector<uint32_t> m_palette;

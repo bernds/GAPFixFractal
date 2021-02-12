@@ -185,8 +185,16 @@
      <addaction name="action_NFactor2"/>
      <addaction name="action_NFactor4"/>
     </widget>
+    <widget class="QMenu" name="menuColour_rotation">
+     <property name="title">
+      <string>Colour rotation</string>
+     </property>
+     <addaction name="action_RotateHSV"/>
+     <addaction name="action_RotateTrad"/>
+    </widget>
     <addaction name="menuNarrow_black_white"/>
     <addaction name="menuStructure_modifier"/>
+    <addaction name="menuColour_rotation"/>
     <addaction name="action_EAngle"/>
     <addaction name="separator"/>
     <addaction name="action_GradEditor"/>
@@ -487,6 +495,50 @@
                <string>White</string>
               </property>
              </item>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QWidget" name="widget_8" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_12">
+           <property name="spacing">
+            <number>2</number>
+           </property>
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="label_5">
+             <property name="text">
+              <string>H:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSlider" name="hueSlider">
+             <property name="maximum">
+              <number>359</number>
+             </property>
+             <property name="pageStep">
+              <number>30</number>
+             </property>
+             <property name="tracking">
+              <bool>false</bool>
+             </property>
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
             </widget>
            </item>
           </layout>
@@ -1409,6 +1461,22 @@
   <action name="action_BatchRender">
    <property name="text">
     <string>Batch export from stored params...</string>
+   </property>
+  </action>
+  <action name="action_RotateHSV">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>HSV</string>
+   </property>
+  </action>
+  <action name="action_RotateTrad">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Traditional colour star</string>
    </property>
   </action>
  </widget>

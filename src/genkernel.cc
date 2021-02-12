@@ -1448,6 +1448,8 @@ char *gen_mprec_funcs (formula f, int size, int stepsize, int power)
 
 	// std::cerr << result;
 	QByteArray a = result.toLatin1 ();
+#if 0
 	std::cerr << a.constData ();
+#endif
 	return strdup (a.constData ());
 }
