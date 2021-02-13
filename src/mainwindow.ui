@@ -205,9 +205,19 @@
      <addaction name="action_RotateHSV"/>
      <addaction name="action_RotateTrad"/>
     </widget>
+    <widget class="QMenu" name="menuShift_minimum">
+     <property name="title">
+      <string>Shift minimum </string>
+     </property>
+     <addaction name="action_ShiftNone"/>
+     <addaction name="action_Shift0"/>
+     <addaction name="action_Shift10"/>
+     <addaction name="action_Shift100"/>
+    </widget>
     <addaction name="menuNarrow_black_white"/>
     <addaction name="menuStructure_modifier"/>
     <addaction name="menuColour_rotation"/>
+    <addaction name="menuShift_minimum"/>
     <addaction name="action_EAngle"/>
     <addaction name="separator"/>
     <addaction name="action_GradEditor"/>
@@ -663,16 +673,6 @@
             <string>4th root</string>
            </property>
           </item>
-         </widget>
-        </item>
-        <item>
-         <widget class="QCheckBox" name="subCheckBox">
-          <property name="text">
-           <string>Sub. min.</string>
-          </property>
-          <property name="checked">
-           <bool>true</bool>
-          </property>
          </widget>
         </item>
        </layout>
@@ -1669,6 +1669,41 @@
   <action name="action_Rotate45">
    <property name="text">
     <string>Rotate 45°</string>
+   </property>
+  </action>
+  <action name="action_ShiftNone">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Off</string>
+   </property>
+  </action>
+  <action name="action_Shift0">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Set to 0</string>
+   </property>
+  </action>
+  <action name="action_Shift10">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Set to 10</string>
+   </property>
+  </action>
+  <action name="action_Shift100">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Set to 100</string>
+   </property>
+   <property name="toolTip">
+    <string>Set to 100</string>
    </property>
   </action>
  </widget>

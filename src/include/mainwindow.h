@@ -40,6 +40,7 @@ struct render_params
 	int mod_type;
 	double steps;
 	int slider;
+	int sub_val;
 	bool sub;
 	bool angle;
 	bool dem;
@@ -148,6 +149,7 @@ class MainWindow: public QMainWindow
 	QGraphicsScene m_stored_canvas;
 
 	QActionGroup *m_formula_group {};
+	QActionGroup *m_sub_group {};
 	QActionGroup *m_power_group {};
 	QActionGroup *m_struct_group {};
 	QActionGroup *m_narrow_group {};

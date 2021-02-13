@@ -1076,7 +1076,7 @@ inline double iter_value_at (frac_desc *fd, int idx, int power)
 
 void MainWindow::precompute_iter_value (frac_desc *fd)
 {
-	bool sub = ui->subCheckBox->isChecked ();
+	bool sub = !ui->action_ShiftNone->isChecked ();
 	double minimum = 0;
 	if (fd->pic_iter_value == nullptr)
 		fd->pic_iter_value = new double[fd->n_pixels];
@@ -1121,7 +1121,7 @@ public:
 		double v1 = v;
 		if (v != 0) {
 			if (rp.sub)
-				v -= minimum;
+				v -= minimum - rp.sub_val;
 
 			if (rp.dem) {
 				double re2 = fd->pic_z2[idx * 2];
@@ -1335,7 +1335,8 @@ void MainWindow::set_render_params (render_params &p)
 	int steps_spin = ui->widthSpinBox->value ();
 	p.steps = (pow (steps_spin + 1, 1.3) - 2) / 2;
 	p.angle = ui->action_EAngle->isChecked ();
-	p.sub = ui->subCheckBox->isChecked ();
+	p.sub = !ui->action_ShiftNone->isChecked ();
+	p.sub_val = ui->action_Shift10->isChecked () ? 10 : ui->action_Shift100->isChecked () ? 100 : 0;
 	p.slider = ui->colStepSlider->value ();
 	p.dem = ui->demBox->isChecked ();
 	p.dem_param = std::min (2.0, ui->demParamSpinBox->value () * (1 << ui->sampleSpinBox->value ()));
@@ -2485,6 +2486,15 @@ MainWindow::MainWindow ()
 	m_rotate_group->addAction (ui->action_RotateTrad);
 	m_rotate_group->addAction (ui->action_RotateHSV);
 
+	// The idea behind these is that if we shift to 0 and apply something like
+	// cbrt afterwards, we end up with much high colour variation on the outside.
+	// Shifting to a higher minimum reduces that effect.
+	m_sub_group = new QActionGroup (this);
+	m_sub_group->addAction (ui->action_ShiftNone);
+	m_sub_group->addAction (ui->action_Shift0);
+	m_sub_group->addAction (ui->action_Shift10);
+	m_sub_group->addAction (ui->action_Shift100);
+
 	m_formula_group = new QActionGroup (this);
 	m_formula_group->addAction (ui->action_FormulaStandard);
 	m_formula_group->addAction (ui->action_FormulaTricorn);
@@ -2498,6 +2508,7 @@ MainWindow::MainWindow ()
 	m_formula_group->addAction (ui->action_FormulaSqTwiceB);
 	m_formula_group->addAction (ui->action_FormulaTest);
 
+	ui->action_Shift10->setChecked (true);
 	ui->action_NFactor4->setChecked (true);
 	ui->action_StructDark->setChecked (true);
 	ui->action_FormulaStandard->setChecked (true);
@@ -2522,8 +2533,9 @@ MainWindow::MainWindow ()
 	connect (ui->modifyComboBox, cic, this, &MainWindow::update_views);
 	connect (ui->gradComboBox, cic,  [this] (int) { update_palette (); });
 	connect (ui->incolComboBox, cic, this, &MainWindow::update_views);
-	connect (ui->subCheckBox, &QCheckBox::toggled, [this] (bool) { update_views (); });
 	connect (ui->colStepSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
+	connect (m_sub_group, &QActionGroup::triggered, [this] (QAction *) { update_views (); });
+
 	connect (ui->structureGroup, &QGroupBox::toggled, [this] (bool) { update_palette (); });
 	connect (ui->structureSlider, &QSlider::valueChanged, [this] (bool) { update_palette (); });
 	connect (ui->hueSlider, &QSlider::valueChanged, [this] (bool) { update_palette (); });
@@ -2640,6 +2652,7 @@ MainWindow::~MainWindow ()
 	delete m_formula_group;
 	delete m_power_group;
 	delete m_rotate_group;
+	delete m_sub_group;
 	delete ui;
 }
 
