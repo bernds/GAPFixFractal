@@ -390,6 +390,30 @@ void GradEditor::interpolate ()
 	enable_buttons ();
 }
 
+void GradEditor::dup ()
+{
+	auto &entries = m_model->entries ();
+	auto new_colors = entries;
+	new_colors.append (entries);
+	m_model->replace_all (new_colors);
+	emit colors_changed (new_colors);
+	m_changed = false;
+	push_undo ();
+	enable_buttons ();
+}
+
+void GradEditor::rev_dup ()
+{
+	auto &entries = m_model->entries ();
+	auto new_colors = entries;
+	new_colors.append (QVector (entries.rbegin (), entries.rend ()));
+	m_model->replace_all (new_colors);
+	emit colors_changed (new_colors);
+	m_changed = false;
+	push_undo ();
+	enable_buttons ();
+}
+
 GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)
 	: QDialog (parent), ui (new Ui::GradEditor), m_model (new color_model (colors))
 {
@@ -412,6 +436,8 @@ GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)
 	connect (ui->redoButton, &QPushButton::clicked, this, &GradEditor::perform_redo);
 
 	connect (ui->interpolateButton, &QPushButton::clicked, this, &GradEditor::interpolate);
+	connect (ui->dupButton, &QPushButton::clicked, this, &GradEditor::dup);
+	connect (ui->revDupButton, &QPushButton::clicked, this, &GradEditor::rev_dup);
 	connect (ui->deleteButton, &QPushButton::clicked, this, &GradEditor::perform_delete);
 	connect (ui->pasteButton, &QPushButton::clicked, this, &GradEditor::perform_paste);
 	connect (ui->pasteAfterButton, &QPushButton::clicked, this, &GradEditor::perform_paste_after);

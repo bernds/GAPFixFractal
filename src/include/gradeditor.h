@@ -55,6 +55,8 @@ class GradEditor : public QDialog
 	void perform_paste_after ();
 
 	void interpolate ();
+	void dup ();
+	void rev_dup ();
 
 public:
 	GradEditor (MainWindow *, const QVector<uint32_t> &);
