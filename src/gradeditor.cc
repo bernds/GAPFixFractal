@@ -72,7 +72,7 @@ public:
 			return false;
 		// ??? Qt seems to pass us noop moves.
 		// printf ("move %d rows %d to %d\n", count, src, dst);
-		if (dst > src && src + count - 1 <= dst)
+		if (dst > src && dst <= src + count)
 			return true;
 		if (!beginMoveRows (srcp, src, src + count - 1, dstp, dst))
 			return false;
