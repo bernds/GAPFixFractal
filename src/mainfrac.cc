@@ -1700,6 +1700,12 @@ void MainWindow::reset_coords (frac_desc &fd)
 			} else
 				fd.bounds_h = fd.bounds_w = 4;
 		}
+	} else if (m_formula == formula::mix && !fd.julia) {
+		fd.center_x[max_nwords - 2] = 0xe0000000;
+		fd.center_x[max_nwords - 1] = 0xffffffff;
+		fd.width[max_nwords - 1] = 2;
+		fd.bounds_w = 2;
+		fd.bounds_h = 1;
 	}
 	if (m_formula == formula::standard && !fd.julia && power == 4) {
 		fd.center_x[max_nwords - 2] = 0xd0000000;
