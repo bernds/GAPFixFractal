@@ -29,6 +29,8 @@ static double h2t_coeffs[8][4] = {
 
 double hue_to_trad (double h)
 {
+	if (h == -1)
+		return h;
 	int cf = h <= 60 ? (int)h / 30 : h <= 75 ? 2 : h <= 120 ? 3 : h <= 195 ? 4 : h <= 240 ? 5 : h <= 285 ? 6 : 7;
 	return h * h * h * h2t_coeffs[cf][0] + h * h * h2t_coeffs[cf][1] + h * h2t_coeffs[cf][2] + h2t_coeffs[cf][3];
 }
@@ -44,6 +46,8 @@ static double t2h_coeffs[8][4] = {
 };
 double trad_to_hue (double h)
 {
+	if (h == -1)
+		return h;
 #if 0
 	if (h >= 360)
 		h -= 360;
