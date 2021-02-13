@@ -110,6 +110,8 @@ static int power_from_fp (frac_params &fp)
 		power *= 2;
 	else if (fp.fm == formula::altship2)
 		power *= 4;
+	else if (fp.fm == formula::sqtwice_a || fp.fm == formula::sqtwice_b)
+		power += 2;
 	return power;
 }
 
