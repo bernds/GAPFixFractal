@@ -27,6 +27,21 @@ struct frac_params
 	// Used for the initial position
 	int bounds_w = 0;
 	int bounds_h = 0;
+
+	void resize (int max_nwords)
+	{
+		center_x.resize (max_nwords);
+		center_y.resize (max_nwords);
+
+		matrix[0][0].resize (max_nwords);
+		matrix[0][1].resize (max_nwords);
+		matrix[1][0].resize (max_nwords);
+		matrix[1][1].resize (max_nwords);
+		width.resize (max_nwords);
+		param_p.resize (max_nwords * 2);
+		param_q.resize (max_nwords * 2);
+		critpoint.resize (max_nwords * 2);
+	}
 };
 
 // Describe other parameters necessary to compute the image.
@@ -73,21 +88,6 @@ struct frac_desc : public frac_params
 	int yoff = 0;
 	int full_height;
 
-	void resize (int max_nwords)
-	{
-		center_x.resize (max_nwords);
-		center_y.resize (max_nwords);
-
-		matrix[0][0].resize (max_nwords);
-		matrix[0][1].resize (max_nwords);
-		matrix[1][0].resize (max_nwords);
-		matrix[1][1].resize (max_nwords);
-		width.resize (max_nwords);
-		step.resize (max_nwords);
-		param_p.resize (max_nwords * 2);
-		param_q.resize (max_nwords * 2);
-		critpoint.resize (max_nwords * 2);
-	}
 	void set (const frac_params &newfp)
 	{
 		*(frac_params *)this = newfp;

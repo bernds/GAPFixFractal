@@ -93,6 +93,12 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 	fp.param_q = vparamq.toStdVector ();
 	fp.critpoint = vcrit.toStdVector ();
 	s >> fp.nwords >> fp.power >> fp.maxiter;
+	if (version < 2) {
+		set (fp.matrix[0][0], 1);
+		set (fp.matrix[0][1], 0);
+		set (fp.matrix[1][0], 0);
+		set (fp.matrix[1][1], 1);
+	}
 	return s;
 }
 #pragma GCC diagnostic pop
@@ -1947,6 +1953,7 @@ void MainWindow::slot_load_params (bool)
 	f.open (QIODevice::ReadOnly);
 	QDataStream s (&f);
 	frac_params newfd;
+	newfd.resize (max_nwords);
 	s >> newfd;
 	f.close ();
 
