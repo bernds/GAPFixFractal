@@ -9,6 +9,7 @@ namespace Ui {
 class BatchRenderDialog : public QDialog
 {
 	Ui::BatchRenderDialog *ui;
+	int m_maxiter = 0;
 
 	void inputs_changed ();
 	void choose_file ();
@@ -21,6 +22,7 @@ public:
 	int get_width ();
 	int get_height ();
 	int get_samples ();
+	int get_maxiter () { return m_maxiter; }
 	bool get_preserve_aspect ();
 	bool get_overwrite ();
 	QString get_file_template ();

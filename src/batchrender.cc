@@ -15,6 +15,7 @@ BatchRenderDialog::BatchRenderDialog (QWidget *parent)
 	ui->heightEdit->setValidator (new QIntValidator (100, 8191, this));
 	ui->widthEdit->setText ("2048");
 	ui->heightEdit->setText ("2048");
+	ui->maxiterEdit->setEnabled (ui->maxiterCheckBox->isChecked ());
 
 	connect (ui->widthEdit, &QLineEdit::textChanged, [this] () { inputs_changed (); });
 	connect (ui->heightEdit, &QLineEdit::textChanged, [this] () { inputs_changed (); });
@@ -22,6 +23,7 @@ BatchRenderDialog::BatchRenderDialog (QWidget *parent)
 	connect (ui->sampleSpinBox, changed, [this] (int) { inputs_changed (); });
 	connect (ui->aspectCheckBox, &QCheckBox::toggled, [this] (bool) { inputs_changed (); });
 	connect (ui->fileOpenButton, &QAbstractButton::clicked, this, &BatchRenderDialog::choose_file);
+	connect (ui->maxiterCheckBox, &QCheckBox::toggled, ui->maxiterEdit, &QWidget::setEnabled);
 
 	connect (ui->buttonBox->button (QDialogButtonBox::Cancel), &QPushButton::clicked, this, &QDialog::reject);
 	connect (ui->buttonBox->button (QDialogButtonBox::Save), &QPushButton::clicked, this, &QDialog::accept);
@@ -39,6 +41,17 @@ void BatchRenderDialog::accept ()
 		QMessageBox::warning (this, tr ("Filename pattern not set"),
 				      tr ("Please enter a filename pattern."));
 		return;
+	}
+	m_maxiter = 0;
+	if (ui->maxiterCheckBox->isChecked ()) {
+		bool ok;
+		m_maxiter = ui->maxiterEdit->text ().toInt (&ok);
+		if (!ok || m_maxiter < 100 || m_maxiter > 10000000) {
+			QMessageBox::warning (this, tr ("Invalid number for maximum iterations"),
+					      tr ("Please enter a number between 100 and 10000000."));
+			return;
+		}
+
 	}
 	QString w = ui->widthEdit->text ();
 	QString h = ui->heightEdit->text ();

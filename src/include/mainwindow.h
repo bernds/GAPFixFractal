@@ -114,7 +114,7 @@ class MainWindow: public QMainWindow
 
 	static constexpr int max_nwords = 16;
 	static constexpr int iter_steps = 2000;
-	static constexpr int maxiter = 500000;
+	static constexpr int default_maxiter = 500000;
 
 	formula m_formula = formula::standard;
 
@@ -169,7 +169,7 @@ class MainWindow: public QMainWindow
 	void set_rotation (frac_desc &, int);
 	void build_points (frac_desc &, int w, int h);
 	void compute_fractal (frac_desc &, int nwords, int w, int h, int full_h,
-			      int ss, bool dem, bool preview, bool batch = false);
+			      int maxiter, int ss, bool dem, bool preview, bool batch = false);
 	void render_fractal ();
 	void render_preview ();
 	bool abort_computation ();

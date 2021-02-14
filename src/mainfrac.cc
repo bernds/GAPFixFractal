@@ -483,7 +483,9 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		uint32_t maxidx = fd->n_threads;
 		int last_n_completed = fd->n_completed;
 
-		if (iter_scale_factor != 1)
+		if (count > fd->maxiter)
+			count = fd->maxiter;
+		else if (iter_scale_factor != 1)
 			printf ("scaling niter from %d to %d\n", steps, count);
 
 		if (batch)
@@ -788,7 +790,7 @@ void MainWindow::discard_fd_data (frac_desc &fd)
 }
 
 void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int full_h,
-				  int ss, bool isdem, bool preview, bool batch)
+				  int maxiter, int ss, bool isdem, bool preview, bool batch)
 {
 	QMutexLocker render_lock (&m_renderer->mutex);
 	QMutexLocker preview_lock (&m_preview_renderer->mutex);
@@ -1436,7 +1438,7 @@ void MainWindow::render_fractal ()
 	printf ("render_fractal size %d %d\n", w, h);
 
 	bool isdem = ui->demBox->isChecked ();
-	compute_fractal (fd, m_nwords, w, h, h, ui->sampleSpinBox->value (), isdem, false);
+	compute_fractal (fd, m_nwords, w, h, h, default_maxiter, ui->sampleSpinBox->value (), isdem, false);
 }
 
 void MainWindow::render_preview ()
@@ -1454,7 +1456,7 @@ void MainWindow::render_preview ()
 	printf ("render_preview size %d %d\n", w, h);
 
 	bool isdem = ui->demBox->isChecked ();
-	compute_fractal (m_fd_julia, m_nwords, w, h, h, 0, isdem, true);
+	compute_fractal (m_fd_julia, m_nwords, w, h, h, default_maxiter, 0, isdem, true);
 }
 
 void MainWindow::slot_new_data (frac_desc *fd, int generation, bool success)
@@ -2360,13 +2362,16 @@ void MainWindow::slot_batchrender (bool)
 		renderer.next_rp = rp;
 		renderer.render_width = w;
 		renderer.result_image = QImage (w, h, QImage::Format_RGB32);
-
+		int maxiter = dlg.get_maxiter ();
+		if (maxiter == 0)
+			maxiter = default_maxiter;
 		for (int y0 = 0; y0 < h; y0 += batch_size) {
 			pdlg.setValue (progress + pro_step * ((double)y0 / h));
 
 			temp_fd.yoff = y0 * (1 << samples);
 			int this_h = std::min (h - y0, batch_size);
-			compute_fractal (temp_fd, temp_fd.nwords, w, this_h, h, samples, rp.dem, false, true);
+			compute_fractal (temp_fd, temp_fd.nwords, w, this_h, h, maxiter,
+					 samples, rp.dem, false, true);
 			gpu_handler->done_sem.acquire ();
 			if (pdlg.wasCanceled ())
 				break;
