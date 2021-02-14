@@ -1024,70 +1024,6 @@ void gen_inner_ship (int size, int stepsize, int power, bool julia,
 	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
 }
 
-// Two iterations in one: a ship step followed by a standard step.
-void gen_inner_altship1 (int size, int stepsize, int power, bool julia,
-			 shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-			 shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-			 shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
-{
-	array<shared_ptr<expr>, 20> powers_re, powers_im;
-	auto zar = make_shared<abs_expr> (zr_reg);
-	auto zai = make_shared<abs_expr> (zi_reg);
-	gen_store (&*zr_reg, zar);
-	gen_store (&*zi_reg, zai);
-	build_powers (powers_re, powers_im, zr_reg, zi_reg, z2r_reg, z2i_reg, power);
-	auto [pr, pi] = get_power (powers_re, powers_im, power);
-	auto [tmpzr, tmpzi] = emit_addc (julia, pr, pi, cr_reg, ci_reg, size, stepsize);
-
-	array<shared_ptr<expr>, 20> powersb_re, powersb_im;
-	build_powers (powersb_re, powersb_im, tmpzr, tmpzi, nullptr, nullptr, power);
-	auto [pbr, pbi] = get_power (powersb_re, powersb_im, power);
-	auto [newzr, newzi] = emit_addc (julia, pbr, pbi, cr_reg, ci_reg, size, stepsize);
-
-	gen_store (&*zr_reg, newzr);
-	gen_store (&*zi_reg, newzi);
-	gen_store (&*z2r_reg, gen_mult (newzr, newzr));
-	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
-}
-
-// Four iterations in one: ship, standard, standard, ship
-void gen_inner_altship2 (int size, int stepsize, int power, bool julia,
-			 shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-			 shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-			 shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
-{
-	array<shared_ptr<expr>, 20> powers_re, powers_im;
-	auto zar = make_shared<abs_expr> (zr_reg);
-	auto zai = make_shared<abs_expr> (zi_reg);
-	gen_store (&*zr_reg, zar);
-	gen_store (&*zi_reg, zai);
-	build_powers (powers_re, powers_im, zr_reg, zi_reg, z2r_reg, z2i_reg, power);
-	auto [pr, pi] = get_power (powers_re, powers_im, power);
-	auto [tmpzr, tmpzi] = emit_addc (julia, pr, pi, cr_reg, ci_reg, size, stepsize);
-
-	array<shared_ptr<expr>, 20> powersb_re, powersb_im;
-	build_powers (powersb_re, powersb_im, tmpzr, tmpzi, nullptr, nullptr, power);
-	auto [pbr, pbi] = get_power (powersb_re, powersb_im, power);
-	auto [tmp2zr, tmp2zi] = emit_addc (julia, pbr, pbi, cr_reg, ci_reg, size, stepsize);
-
-	array<shared_ptr<expr>, 20> powersc_re, powersc_im;
-	build_powers (powersc_re, powersc_im, tmp2zr, tmp2zi, nullptr, nullptr, power);
-	auto [pcr, pci] = get_power (powersc_re, powersc_im, power);
-	auto [tmp3zr, tmp3zi] = emit_addc (julia, pcr, pci, cr_reg, ci_reg, size, stepsize);
-
-	auto zdar = make_shared<abs_expr> (tmp3zr);
-	auto zdai = make_shared<abs_expr> (tmp3zi);
-	array<shared_ptr<expr>, 20> powersd_re, powersd_im;
-	build_powers (powersd_re, powersd_im, zdar, zdai, nullptr, nullptr, power);
-	auto [pdr, pdi] = get_power (powersd_re, powersd_im, power);
-	auto [newzr, newzi] = emit_addc (julia, pdr, pdi, cr_reg, ci_reg, size, stepsize);
-
-	gen_store (&*zr_reg, newzr);
-	gen_store (&*zi_reg, newzi);
-	gen_store (&*z2r_reg, gen_mult (newzr, newzr));
-	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
-}
-
 /* Tricorn, also known as Mandelbar.
    Like the default function except the conjugate is taken after the final step
    before assigning Z.  */
@@ -1246,22 +1182,102 @@ void gen_inner_mix (int size, int stepsize, int power, bool julia,
 	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
 }
 
-void gen_kernel (formula f, QString &result, int size, int stepsize, int power, bool julia, bool dem)
+static void gen_inner (formula f, int size, int stepsize, int power, bool julia, bool dem,
+		       shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
+		       shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
+		       shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg,
+		       shared_ptr<reg_expr> zderr_reg, shared_ptr<reg_expr> zderi_reg)
+{
+	switch (f) {
+	default:
+	case formula::standard:
+		gen_inner_standard (size, stepsize, power, julia, dem,
+				    zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg, zderr_reg, zderi_reg);
+		break;
+	case formula::tricorn:
+		gen_inner_tricorn (size, stepsize, power, julia,
+				   zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
+	case formula::ship:
+		gen_inner_ship (size, stepsize, power, julia,
+				zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
+	case formula::spider:
+		gen_inner_spider (size, stepsize, power,
+				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
+	case formula::lambda:
+		gen_inner_lambda (size, stepsize, power, julia,
+				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
+	case formula::mix:
+		gen_inner_mix (size, stepsize, power, julia,
+			       zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
+	case formula::sqtwice_a:
+		gen_inner_sqtwice_a (size, stepsize, power, julia,
+				     zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
+	case formula::sqtwice_b:
+		gen_inner_sqtwice_b (size, stepsize, power, julia,
+				     zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
+	}
+}
+
+static void gen_inner_hybrid (QString &result, generator &cg,
+			      formula f, int size, int stepsize, int power, bool julia,
+			      shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
+			      shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
+			      shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+{
+	result += "\t.reg.u32 %hval;\n";
+	result += "\t.reg.pred %hpred;\n";
+	result += "\tand.b32\t%hval, %hybrid_code, %hybrid_mask;\n";
+	result += "\tshl.b32\t%hybrid_code, %hybrid_code, 1;\n";
+	result += "\tsetp.ne.u32\t%hpred, %hval, 0;\n";
+	result += "@%hpred\tbra.uni\tstditer;\n";
+	switch (f) {
+	default:
+	case formula::tricorn:
+		gen_inner_tricorn (size, stepsize, power, julia,
+				   zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
+	case formula::ship:
+		gen_inner_ship (size, stepsize, power, julia,
+				zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
+	}
+	result += cg.code ();
+	result += "\tbra\tloopend;\n";
+	result += "stditer:\n";
+	result += "\tadd.u32\t%hybrid_code, %hybrid_code, 1;\n";
+	gen_inner_standard (size, stepsize, power, julia, false,
+			    zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg, nullptr, nullptr);
+	result += cg.code ();
+	result += "loopend:\n";
+}
+
+void gen_kernel (formula f, QString &result, int size, int stepsize, int power, bool julia, bool dem, bool hybrid = false)
 {
 	QString nm = julia ? "iter_julia" : "iter_mandel";
 	if (dem)
 		nm += "_dem";
+	if (hybrid)
+		nm += "_hybrid";
 	if (dem) {
 		gen_kernel_header (result, nm,
 				   "u64", "ar_z", "u64", "ar_z2",
 				   "u64", "ar_coords", "u64", "ar_step", "u64", "ar_t",
 				   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init",
+				   "u32", "hybrid_code", "u32", "hybrid_mask",
 				   "u64", "ar_zder");
 	} else {
 		gen_kernel_header (result, nm,
 				   "u64", "ar_z", "u64", "ar_z2",
 				   "u64", "ar_coords", "u64", "ar_step", "u64", "ar_t",
-				   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init");
+				   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init",
+				   "u32", "hybrid_code", "u32", "hybrid_mask");
 	}
 	QString kernel_init = R"(
 	.reg.s32 %idx, %tidx, %ctaidx, %ntidx;
@@ -1414,49 +1430,13 @@ loop:
 	add.u32		%niter, %niter, 1;
 
 )";
-	switch (f) {
-	default:
-	case formula::standard:
-		gen_inner_standard (size, stepsize, power, julia, dem,
-				    zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg, zderr_reg, zderi_reg);
-		break;
-	case formula::tricorn:
-		gen_inner_tricorn (size, stepsize, power, julia,
-				   zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	case formula::ship:
-		gen_inner_ship (size, stepsize, power, julia,
-				zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	case formula::altship1:
-		gen_inner_altship1 (size, stepsize, power, julia,
-				    zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	case formula::altship2:
-		gen_inner_altship2 (size, stepsize, power, julia,
-				    zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	case formula::spider:
-		gen_inner_spider (size, stepsize, power,
+	if (hybrid)
+		gen_inner_hybrid (result, cg, f, size, stepsize, power, julia,
 				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	case formula::lambda:
-		gen_inner_lambda (size, stepsize, power, julia,
-				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	case formula::mix:
-		gen_inner_mix (size, stepsize, power, julia,
-			       zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	case formula::sqtwice_a:
-		gen_inner_sqtwice_a (size, stepsize, power, julia,
-				     zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	case formula::sqtwice_b:
-		gen_inner_sqtwice_b (size, stepsize, power, julia,
-				     zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	}
+	else
+		gen_inner (f, size, stepsize, power, julia, dem,
+			   zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg, zderr_reg, zderi_reg);
+
 	result += cg.code ();
 
 	QString z2r_high = z2r_reg->get_piece_high (0);
@@ -1535,6 +1515,9 @@ char *gen_mprec_funcs (formula f, int size, int stepsize, int power)
 	if (f == formula::standard) {
 		gen_kernel (f, result, size, stepsize, power, true, true);
 		gen_kernel (f, result, size, stepsize, power, false, true);
+	} else if (f == formula::tricorn || f == formula::ship) {
+		gen_kernel (f, result, size, stepsize, power, true, false, true);
+		gen_kernel (f, result, size, stepsize, power, false, false, true);
 	}
 
 	// std::cerr << result;

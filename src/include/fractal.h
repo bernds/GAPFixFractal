@@ -28,6 +28,9 @@ struct frac_params
 	int bounds_w = 0;
 	int bounds_h = 0;
 
+	uint32_t hybrid_code = 0;
+	int hybrid_len = 0;
+
 	void resize (int max_nwords)
 	{
 		center_x.resize (max_nwords);

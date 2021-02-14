@@ -24,6 +24,7 @@
 #include "gpuhandler.h"
 #include "formulas.h"
 #include "genkernel.h"
+#include "hybriddialog.h"
 #include "gradeditor.h"
 #include "colors.h"
 
@@ -36,7 +37,7 @@
 const formula formula_table[] = {
 	formula::standard, formula::lambda, formula::spider, formula::tricorn,
 	formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b,
-	formula::altship1, formula::altship2, formula::testing
+	formula::testing
 };
 
 constexpr int default_power = 2;
@@ -63,7 +64,7 @@ inline void tryCuda (CUresult err)
 
 QDataStream &operator<< (QDataStream &s, const frac_params &fp)
 {
-	s << (qint32)1;
+	s << (qint32)2;
 	s << fp.julia;
 	s << (qint32)fp.fm;
 	s << QVector<uint32_t>::fromStdVector (fp.center_x);
@@ -73,6 +74,9 @@ QDataStream &operator<< (QDataStream &s, const frac_params &fp)
 	s << QVector<uint32_t>::fromStdVector (fp.param_q);
 	s << QVector<uint32_t>::fromStdVector (fp.critpoint);
 	s << fp.nwords << fp.power << fp.maxiter;
+	// We stream another formula::standard in case we ever want to support
+	// things like hybrids of tricon/ship.
+	s << fp.hybrid_code << fp.hybrid_len << (qint32)formula::standard;
 	return s;
 }
 
@@ -93,12 +97,16 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 	fp.param_q = vparamq.toStdVector ();
 	fp.critpoint = vcrit.toStdVector ();
 	s >> fp.nwords >> fp.power >> fp.maxiter;
-	if (version < 2) {
-		set (fp.matrix[0][0], 1);
-		set (fp.matrix[0][1], 0);
-		set (fp.matrix[1][0], 0);
-		set (fp.matrix[1][1], 1);
+	if (version >= 2) {
+		qint32 dummy;
+		s >> fp.hybrid_code >> fp.hybrid_len >> dummy;
 	}
+
+	set (fp.matrix[0][0], 1);
+	set (fp.matrix[0][1], 0);
+	set (fp.matrix[1][0], 0);
+	set (fp.matrix[1][1], 1);
+
 	return s;
 }
 #pragma GCC diagnostic pop
@@ -106,11 +114,7 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 static int power_from_fp (frac_params &fp)
 {
 	int power = fp.power;
-	if (fp.fm == formula::altship1)
-		power *= 2;
-	else if (fp.fm == formula::altship2)
-		power *= 4;
-	else if (fp.fm == formula::sqtwice_a || fp.fm == formula::sqtwice_b)
+	if (fp.fm == formula::sqtwice_a || fp.fm == formula::sqtwice_b)
 		power += 2;
 	return power;
 }
@@ -485,6 +489,9 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 
 		if (count > fd->maxiter)
 			count = fd->maxiter;
+		if (fd->hybrid_len > 0) {
+			count = (count + fd->hybrid_len - 1) / fd->hybrid_len * fd->hybrid_len;
+		}
 		else if (iter_scale_factor != 1)
 			printf ("scaling niter from %d to %d\n", steps, count);
 
@@ -502,10 +509,14 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 
 		tryCuda (cuMemcpyHtoD (fd->cu_ar_coords, fd->host_coords, 4 * maxidx));
 
+		uint32_t hybrid_mask = 1;
+		hybrid_mask <<= fd->hybrid_len - 1;
+
 		void *args[] = {
 			&fd->cu_ar_z, &fd->cu_ar_z2,
 			&fd->cu_ar_coords, &fd->cu_ar_step, &fd->cu_ar_tmp,
 			&maxidx, &fd->cu_ar_result, &count, &fd->start_idx,
+			&fd->hybrid_code, &hybrid_mask,
 			&fd->cu_ar_zder
 		};
 
@@ -516,8 +527,8 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		for (;;) {
 			int blocks = (maxidx + nthreads - 1) / nthreads;
 			CUfunction kernel = (fd->julia
-					     ? (fd->dem ? m_julia_dem : m_julia)
-					     : (fd->dem ? m_mandel_dem : m_mandel));
+					     ? (fd->hybrid_len != 0 ? m_julia_hybrid : fd->dem ? m_julia_dem : m_julia)
+					     : (fd->hybrid_len != 0 ? m_mandel_hybrid : fd->dem ? m_mandel_dem : m_mandel));
 			auto err = cuLaunchKernel (kernel,
 						   blocks, 1, 1,
 						   nthreads, 1, 1,
@@ -757,6 +768,13 @@ void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_
 	} else {
 		m_mandel_dem = 0;
 		m_julia_dem = 0;
+	}
+	if (f == formula::tricorn || f == formula::ship) {
+		tryCuda (cuModuleGetFunction (&m_mandel_hybrid, m_module, "iter_mandel_hybrid"));
+		tryCuda (cuModuleGetFunction (&m_julia_hybrid, m_module, "iter_julia_hybrid"));
+	} else {
+		m_mandel_hybrid = 0;
+		m_julia_hybrid = 0;
 	}
 
 	free (ptx);
@@ -1777,6 +1795,9 @@ void MainWindow::init_formula (formula f)
 	m_fd_julia.critpoint = cplx_zero;
 	m_fd_julia.param_p = cplx_zero;
 	m_fd_julia.param_q = cplx_zero;
+
+	m_fd_mandel.hybrid_len = 0;
+	m_fd_julia.hybrid_len = 0;
 	if (f == formula::lambda) {
 		vpvec one = cplx_zero;
 		one[max_nwords - 1] = 1;
@@ -1807,7 +1828,9 @@ void MainWindow::formula_chosen (formula f, int power)
 		ui->demBox->setChecked (false);
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
 				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
-				      || f == formula::altship1 || f == formula::altship2 || f == formula::testing);
+				      || f == formula::testing);
+	ui->menuHybrid->setEnabled (f == formula::tricorn || f == formula::ship);
+	ui->action_HybridOff->setChecked (true);
 
 	ui->action_q_1->setEnabled (f == formula::mix);
 	ui->action_q_m1->setEnabled (f == formula::mix);
@@ -2099,8 +2122,6 @@ void MainWindow::restore_params (const frac_params &p)
 	m_formula = p.fm;
 	QAction *fa = (m_formula == formula::tricorn ? ui->action_FormulaTricorn
 		       : m_formula == formula::ship ? ui->action_FormulaShip
-		       : m_formula == formula::altship1 ? ui->action_FormulaShip1
-		       : m_formula == formula::altship2 ? ui->action_FormulaShip2
 		       : m_formula == formula::lambda ? ui->action_FormulaLambda
 		       : m_formula == formula::spider ? ui->action_FormulaSpider
 		       : m_formula == formula::mix ? ui->action_FormulaMix
@@ -2414,6 +2435,56 @@ void MainWindow::help_about ()
 	mb.exec ();
 }
 
+void MainWindow::choose_hybrid (bool on)
+{
+	frac_desc &fd = current_fd ();
+	if (!on) {
+		ui->action_HybridOn->setText (tr ("On"));
+		fd.hybrid_code = 0;
+		fd.hybrid_len = 0;
+		update_settings (true);
+		return;
+	}
+	if (m_inhibit_updates)
+		return;
+
+	HybridDialog dlg (this);
+	if (!dlg.exec ()) {
+		ui->action_HybridOff->setChecked (true);
+	}
+	QString code = dlg.get_code ();
+	int len = code.length ();
+	if (len < 2 || len > 32) {
+		QMessageBox::warning (this, tr ("Invalid hybrid code"),
+				      tr ("The code should have a length between 2 and 32."));
+		ui->action_HybridOn->setText (tr ("On"));
+		ui->action_HybridOn->setText ("On");
+		ui->action_HybridOff->setChecked (true);
+		return;
+	}
+	int c0 = code.count ('0');
+	int c1 = code.count ('1');
+	if (c0 + c1 != len) {
+		QMessageBox::warning (this, tr ("Invalid hybrid code"),
+				      tr ("The code should contain a pattern made of only 0s and 1s."));
+		ui->action_HybridOn->setText (tr ("On"));
+		ui->action_HybridOff->setChecked (true);
+		return;
+	}
+	uint32_t bin_code = 0;
+	for (int i = 0; i < len; i++) {
+		bin_code *= 2;
+		if (code[i] == '1')
+			bin_code++;
+	}
+	ui->action_HybridOn->setText (tr ("On: ") + code);
+	m_fd_mandel.hybrid_code = bin_code;
+	m_fd_mandel.hybrid_len = len;
+	m_fd_julia.hybrid_code = bin_code;
+	m_fd_julia.hybrid_len = len;
+	update_settings (true);
+}
+
 MainWindow::MainWindow ()
 	: ui (new Ui::MainWindow)
 {
@@ -2478,6 +2549,7 @@ MainWindow::MainWindow ()
 	ui->previewDock->setVisible (ui->typeComboBox->currentIndex () == 2);
 	ui->storedDock->hide ();
 	ui->action_BatchRender->setEnabled (false);
+	ui->menuHybrid->setEnabled (false);
 
 	render_fractal ();
 
@@ -2530,12 +2602,14 @@ MainWindow::MainWindow ()
 	m_sub_group->addAction (ui->action_Shift10);
 	m_sub_group->addAction (ui->action_Shift100);
 
+	m_hybrid_group = new QActionGroup (this);
+	m_hybrid_group->addAction (ui->action_HybridOff);
+	m_hybrid_group->addAction (ui->action_HybridOn);
+
 	m_formula_group = new QActionGroup (this);
 	m_formula_group->addAction (ui->action_FormulaStandard);
 	m_formula_group->addAction (ui->action_FormulaTricorn);
 	m_formula_group->addAction (ui->action_FormulaShip);
-	m_formula_group->addAction (ui->action_FormulaShip1);
-	m_formula_group->addAction (ui->action_FormulaShip2);
 	m_formula_group->addAction (ui->action_FormulaLambda);
 	m_formula_group->addAction (ui->action_FormulaSpider);
 	m_formula_group->addAction (ui->action_FormulaMix);
@@ -2645,10 +2719,6 @@ MainWindow::MainWindow ()
 		 [this] (bool) { formula_chosen (formula::tricorn, 2); });
 	connect (ui->action_FormulaShip, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::ship, 2); });
-	connect (ui->action_FormulaShip1, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::altship1, 2); });
-	connect (ui->action_FormulaShip2, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::altship2, 2); });
 	connect (ui->action_FormulaMix, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::mix, 3); });
 	connect (ui->action_FormulaSqTwiceA, &QAction::triggered,
@@ -2657,6 +2727,9 @@ MainWindow::MainWindow ()
 		 [this] (bool) { formula_chosen (formula::sqtwice_b, 2); });
 	connect (ui->action_FormulaTest, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::testing, 2); });
+
+	connect (ui->action_HybridOn, &QAction::triggered, [this] (bool) { choose_hybrid (true); });
+	connect (ui->action_HybridOff, &QAction::triggered, [this] (bool) { choose_hybrid (false); });
 
 	ui->action_SavePalette->setEnabled (m_custom_palette.size () > 0);
 	connect (ui->action_SaveImageAs, &QAction::triggered, this, &MainWindow::slot_save_as);
@@ -2688,6 +2761,7 @@ MainWindow::~MainWindow ()
 	delete m_power_group;
 	delete m_rotate_group;
 	delete m_sub_group;
+	delete m_hybrid_group;
 	delete ui;
 }
 

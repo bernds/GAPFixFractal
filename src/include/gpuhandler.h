@@ -18,6 +18,7 @@ class GPU_handler : public QObject
 	bool m_have_module = false;
 	CUfunction m_mandel, m_julia;
 	CUfunction m_mandel_dem, m_julia_dem;
+	CUfunction m_mandel_hybrid, m_julia_hybrid;
 
 	void free_cuda_data (frac_desc *);
 	int initial_setup (frac_desc *);

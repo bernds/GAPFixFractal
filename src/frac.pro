@@ -1,6 +1,6 @@
 TEMPLATE	      = app
 CONFIG		     += qt warn_on force_debug_info thread c++17
-FORMS		      = mainwindow.ui gradeditor.ui batchrender.ui
+FORMS		      = mainwindow.ui gradeditor.ui batchrender.ui hybriddialog.ui
 HEADERS		      = include/genkernel.h \
 			include/batchrender.h \
 			include/bitarray.h \
@@ -8,6 +8,7 @@ HEADERS		      = include/genkernel.h \
 			include/fractal.h \
 			include/gpuhandler.h \
                         include/gradeditor.h \
+                        include/hybriddialog.h \
                         include/mainwindow.h \
                         include/util-widgets.h
 
@@ -16,6 +17,7 @@ SOURCES		      = batchrender.cc \
 			colors.cc \
                         genkernel.cc \
                         gradeditor.cc \
+                        hybriddialog.cc \
 			mainfrac.cc \
                         util-widgets.cc \
                         vparith.cc

@@ -150,6 +150,7 @@ class MainWindow: public QMainWindow
 
 	QActionGroup *m_formula_group {};
 	QActionGroup *m_sub_group {};
+	QActionGroup *m_hybrid_group {};
 	QActionGroup *m_power_group {};
 	QActionGroup *m_struct_group {};
 	QActionGroup *m_narrow_group {};
@@ -221,6 +222,7 @@ class MainWindow: public QMainWindow
 
 	void init_formula (formula);
 	void formula_chosen (formula, int);
+	void choose_hybrid (bool);
 
 	void help_about ();
 protected:
