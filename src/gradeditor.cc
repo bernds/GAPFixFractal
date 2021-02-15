@@ -406,7 +406,8 @@ void GradEditor::rev_dup ()
 {
 	auto &entries = m_model->entries ();
 	auto new_colors = entries;
-	new_colors.append (QVector (entries.rbegin (), entries.rend ()));
+	for (auto it = entries.rbegin (); it != entries.rend (); it++)
+		new_colors.append (*it);
 	m_model->replace_all (new_colors);
 	emit colors_changed (new_colors);
 	m_changed = false;
