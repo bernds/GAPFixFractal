@@ -958,27 +958,12 @@ void MainWindow::restore_geometry ()
 	restoreState (settings.value("mainwin/windowState").toByteArray());
 }
 
-#define ANGLES
-
-static inline uint32_t color_merge (uint32_t c1, uint32_t c2, double m1, double angle)
+static inline uint32_t color_merge (uint32_t c1, uint32_t c2, double m1)
 {
 	double m2 = 1 - m1;
 	int r = ((c1 >> 16) & 255) * m1 + ((c2 >> 16) & 255) * m2;
 	int g = ((c1 >> 8) & 255) * m1 + ((c2 >> 8) & 255) * m2;
 	int b = ((c1 >> 0) & 255) * m1 + ((c2 >> 0) & 255) * m2;
-#ifdef ANGLES
-	angle /= M_PI;
-	if (angle > 1) {
-		angle = 2 - angle;
-		r = 255 - (255 - r) * angle;
-		g = 255 - (255 - g) * angle;
-		b = 255 - (255 - b) * angle;
-	} else {
-		r *= angle;
-		g *= angle;
-		b *= angle;
-	}
-#endif
 	return (r << 16) | (g << 8) | b;
 }
 
@@ -1082,7 +1067,7 @@ static int col_sum (uint32_t col)
 }
 #endif
 static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double niter, int type, double steps,
-				     double angle, int slider)
+				     int slider)
 {
 	if (type == 1) {
 		niter = log (niter + 5);
@@ -1102,7 +1087,7 @@ static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double ni
 	double m1 = y / steps;
 	uint32_t col1 = palette[(x + 1) % size];
 	uint32_t col2 = palette[x % size];
-	uint32_t primary = color_merge (col1, col2, m1, angle);
+	uint32_t primary = color_merge (col1, col2, m1);
 	return primary;
 }
 
@@ -1166,7 +1151,7 @@ public:
 
 	void compute_color (size_t idx, int &r, int &g, int &b, int &outcolor)
 	{
-		double v = /* precomputed ? precomputed[idx] : */ iter_value_at (fd, idx, power);
+		double v = rp.angle ? fd->pic_result[idx] : iter_value_at (fd, idx, power);
 		double v1 = v;
 		if (v != 0) {
 			if (rp.sub)
@@ -1195,9 +1180,8 @@ public:
 				b += dist * 0xFF;
 				return;
 			}
+			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, rp.slider);
 
-			double ang = M_PI;
-#ifdef ANGLES
 			if (rp.angle) {
 				double re = fd->pic_z[idx * 2];
 				double im = fd->pic_z[idx * 2 + 1];
@@ -1211,11 +1195,28 @@ public:
 				compare_angle -= M_PI * 2 * floor (compare_angle / (M_PI * 2));
 				init_angle = init_angle - compare_angle + M_PI * 2;
 #endif
-				ang = init_angle - M_PI * 2 * floor (init_angle / (M_PI * 2));
-			}
+				double ang = init_angle - M_PI * 2 * floor (init_angle / (M_PI * 2));
+#if 0
+				double v = fabs (sin (ang)) / 2;
+#else
+				ang += M_PI / 2;
+				ang = fmod (ang, M_PI * 2);
+				double v = fabs (ang / (M_PI * 2) - 0.5);
 #endif
-			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, ang, rp.slider);
-			r += col >> 16;
+				QColor c = QColor::fromRgb (col);
+				int cl = c.lightness ();
+				int ch = c.hslHue ();
+				int cs = c.hslSaturation ();
+				// Lighten dark colors, darken light colors
+				v -= (1 - cl / 255.) / 2;
+				if (v < 0) {
+					cl = 255 - (255 - cl) * (v + 1);
+				} else {
+					cl *= 1 - v;
+				}
+				col = QColor::fromHsl (ch, cs, cl).rgb ();
+			}
+			r += (col >> 16) & 0xFF;
 			g += (col >> 8) & 0xFF;
 			b += col & 0xFF;
 			outcolor++;
