@@ -143,6 +143,7 @@
      <addaction name="action_FormulaSpider"/>
      <addaction name="action_FormulaTricorn"/>
      <addaction name="action_FormulaShip"/>
+     <addaction name="action_FormulaCeltic"/>
      <addaction name="action_FormulaMix"/>
      <addaction name="action_FormulaSqTwiceA"/>
      <addaction name="action_FormulaSqTwiceB"/>
@@ -1707,6 +1708,17 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+H</string>
+   </property>
+  </action>
+  <action name="action_FormulaCeltic">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Celtic</string>
+   </property>
+   <property name="toolTip">
+    <string>Celtic</string>
    </property>
   </action>
  </widget>

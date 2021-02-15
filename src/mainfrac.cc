@@ -37,7 +37,7 @@
 const formula formula_table[] = {
 	formula::standard, formula::lambda, formula::spider, formula::tricorn,
 	formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b,
-	formula::testing
+	formula::celtic, formula::testing
 };
 
 constexpr int default_power = 2;
@@ -769,7 +769,7 @@ void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_
 		m_mandel_dem = 0;
 		m_julia_dem = 0;
 	}
-	if (f == formula::tricorn || f == formula::ship) {
+	if (formula_supports_hybrid (f)) {
 		tryCuda (cuModuleGetFunction (&m_mandel_hybrid, m_module, "iter_mandel_hybrid"));
 		tryCuda (cuModuleGetFunction (&m_julia_hybrid, m_module, "iter_julia_hybrid"));
 	} else {
@@ -1828,8 +1828,8 @@ void MainWindow::formula_chosen (formula f, int power)
 		ui->demBox->setChecked (false);
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
 				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
-				      || f == formula::testing);
-	ui->menuHybrid->setEnabled (f == formula::tricorn || f == formula::ship);
+				      || f == formula::celtic || f == formula::testing);
+	ui->menuHybrid->setEnabled (formula_supports_hybrid (f));
 	ui->action_HybridOff->setChecked (true);
 
 	ui->action_q_1->setEnabled (f == formula::mix);
@@ -2122,6 +2122,7 @@ void MainWindow::restore_params (const frac_params &p)
 	m_formula = p.fm;
 	QAction *fa = (m_formula == formula::tricorn ? ui->action_FormulaTricorn
 		       : m_formula == formula::ship ? ui->action_FormulaShip
+		       : m_formula == formula::celtic ? ui->action_FormulaCeltic
 		       : m_formula == formula::lambda ? ui->action_FormulaLambda
 		       : m_formula == formula::spider ? ui->action_FormulaSpider
 		       : m_formula == formula::mix ? ui->action_FormulaMix
@@ -2610,6 +2611,7 @@ MainWindow::MainWindow ()
 	m_formula_group->addAction (ui->action_FormulaStandard);
 	m_formula_group->addAction (ui->action_FormulaTricorn);
 	m_formula_group->addAction (ui->action_FormulaShip);
+	m_formula_group->addAction (ui->action_FormulaCeltic);
 	m_formula_group->addAction (ui->action_FormulaLambda);
 	m_formula_group->addAction (ui->action_FormulaSpider);
 	m_formula_group->addAction (ui->action_FormulaMix);
@@ -2719,6 +2721,8 @@ MainWindow::MainWindow ()
 		 [this] (bool) { formula_chosen (formula::tricorn, 2); });
 	connect (ui->action_FormulaShip, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::ship, 2); });
+	connect (ui->action_FormulaCeltic, &QAction::triggered,
+		 [this] (bool) { formula_chosen (formula::celtic, 2); });
 	connect (ui->action_FormulaMix, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::mix, 3); });
 	connect (ui->action_FormulaSqTwiceA, &QAction::triggered,

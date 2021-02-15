@@ -6,9 +6,14 @@
 
 enum class formula
 {
-	testing, standard, lambda, tricorn, spider, ship, mix, sqtwice_a, sqtwice_b
+	testing, standard, lambda, tricorn, spider, ship, mix, sqtwice_a, sqtwice_b, celtic
 };
 
 extern const formula formula_table[];
+
+inline bool formula_supports_hybrid (formula f)
+{
+	return f == formula::tricorn || f == formula::ship || f == formula::celtic;
+}
 
 #endif

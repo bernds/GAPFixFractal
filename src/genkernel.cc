@@ -1044,6 +1044,24 @@ void gen_inner_tricorn (int size, int stepsize, int power, bool julia,
 	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
 }
 
+void gen_inner_celtic (int size, int stepsize, int power, bool julia,
+		       shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
+		       shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
+		       shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+{
+	array<shared_ptr<expr>, 20> powers_re;
+	array<shared_ptr<expr>, 20> powers_im;
+	build_powers (powers_re, powers_im, zr_reg, zi_reg, z2r_reg, z2i_reg, power);
+	auto [pr, pi] = get_power (powers_re, powers_im, power);
+	auto par = make_shared<abs_expr> (pr);
+	auto [newzr, newzi] = emit_addc (julia, par, pi, cr_reg, ci_reg, size, stepsize);
+
+	gen_store (&*zr_reg, newzr);
+	gen_store (&*zi_reg, newzi);
+	gen_store (&*z2r_reg, gen_mult (newzr, newzr));
+	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
+}
+
 /* c*(z^N - Nz)
    The critical point is 1.
    The "actual" fractal named Lambda in other programs is c*(z^2 - z), with critical point 1/2.
@@ -1202,6 +1220,10 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 		gen_inner_ship (size, stepsize, power, julia,
 				zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
 		break;
+	case formula::celtic:
+		gen_inner_celtic (size, stepsize, power, julia,
+				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		break;
 	case formula::spider:
 		gen_inner_spider (size, stepsize, power,
 				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
@@ -1237,17 +1259,9 @@ static void gen_inner_hybrid (QString &result, generator &cg,
 	result += "\tshl.b32\t%hybrid_code, %hybrid_code, 1;\n";
 	result += "\tsetp.ne.u32\t%hpred, %hval, 0;\n";
 	result += "@%hpred\tbra.uni\tstditer;\n";
-	switch (f) {
-	default:
-	case formula::tricorn:
-		gen_inner_tricorn (size, stepsize, power, julia,
-				   zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	case formula::ship:
-		gen_inner_ship (size, stepsize, power, julia,
-				zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
-		break;
-	}
+
+	gen_inner (f, size, stepsize, power, julia, false,
+		   zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg, nullptr, nullptr);
 	result += cg.code ();
 	result += "\tbra\tloopend;\n";
 	result += "stditer:\n";
@@ -1515,7 +1529,7 @@ char *gen_mprec_funcs (formula f, int size, int stepsize, int power)
 	if (f == formula::standard) {
 		gen_kernel (f, result, size, stepsize, power, true, true);
 		gen_kernel (f, result, size, stepsize, power, false, true);
-	} else if (f == formula::tricorn || f == formula::ship) {
+	} else if (formula_supports_hybrid (f)) {
 		gen_kernel (f, result, size, stepsize, power, true, false, true);
 		gen_kernel (f, result, size, stepsize, power, false, false, true);
 	}
