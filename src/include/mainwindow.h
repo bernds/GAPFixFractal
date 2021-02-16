@@ -171,6 +171,8 @@ class MainWindow: public QMainWindow
 
 	void inc_rotation (frac_desc &, int);
 	void set_rotation (frac_desc &, int);
+	double shear_slider_value ();
+	double scale_slider_value ();
 	void build_points (frac_desc &, int w, int h);
 	void compute_fractal (frac_desc &, int nwords, int w, int h, int full_h,
 			      int maxiter, int ss, bool dem, bool preview, bool batch = false);

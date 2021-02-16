@@ -686,8 +686,8 @@ void MainWindow::set_rotation (frac_desc &fd, int angle)
 {
 	angle %= 360;
 	fd.rotation_angle = angle;
-	double shear = (double)ui->shearSlider->value () / 50;
-	double scale = 1 + (double)ui->scaleSlider->value () / 20;
+	double shear = shear_slider_value ();
+	double scale = scale_slider_value ();
 	int shidx = ui->shearComboBox->currentIndex ();
 	int scidx = ui->scaleComboBox->currentIndex ();
 	double c = cos_deg (angle);
@@ -706,6 +706,31 @@ void MainWindow::set_rotation (frac_desc &fd, int angle)
 void MainWindow::inc_rotation (frac_desc &fd, int angle)
 {
 	set_rotation (fd, fd.rotation_angle + angle);
+}
+
+double MainWindow::shear_slider_value ()
+{
+	double maxv = ui->shearSlider->maximum ();
+	double v = ui->shearSlider->value ();
+	v /= maxv;
+	/* Arrange for finer control near the center.  */
+	v = 1 - cbrt (1 - v);
+	/* Scale to the actual maximum we want to support.  */
+	v *= 20;
+	return v;
+}
+
+double MainWindow::scale_slider_value ()
+{
+	double maxv = ui->scaleSlider->maximum ();
+	double v = ui->scaleSlider->value ();
+	/* Force into range 0..1.  */
+	v = (v - 1) / (maxv - 1);
+	/* Arrange for finer control near the center.  */
+	v = v * v * v;
+	/* Scale to the actual maximum we want to support.  */
+	v = 1 + v * 20;
+	return v;
 }
 
 /* The caller should invalidate all existing frac_desc structures before calling this.  */
