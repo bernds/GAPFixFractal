@@ -1851,18 +1851,22 @@ void MainWindow::init_formula (formula f)
 	}
 }
 
-void MainWindow::formula_chosen (formula f, int power)
+void MainWindow::enable_interface_for_formula (formula f)
 {
-	if (m_inhibit_updates || (m_formula == f && power == m_power))
-		return;
+	bool_changer (m_inhibit_updates, true);
 
-	bool old_inhibit_updates = m_inhibit_updates;
-	m_inhibit_updates = true;
-	ui->powerSpinBox->setValue (power);
-	if (m_formula != f) {
-		m_formula = f;
-		init_formula (f);
-	}
+	QAction *fa = (f == formula::tricorn ? ui->action_FormulaTricorn
+		       : f == formula::ship ? ui->action_FormulaShip
+		       : f == formula::celtic ? ui->action_FormulaCeltic
+		       : f == formula::lambda ? ui->action_FormulaLambda
+		       : f == formula::spider ? ui->action_FormulaSpider
+		       : f == formula::mix ? ui->action_FormulaMix
+		       : f == formula::sqtwice_a ? ui->action_FormulaSqTwiceA
+		       : f == formula::sqtwice_b ? ui->action_FormulaSqTwiceB
+		       : f == formula::testing ? ui->action_FormulaTest
+		       : ui->action_FormulaStandard);
+	fa->setChecked (true);
+
 	ui->menuDEM->setEnabled (f == formula::standard);
 	ui->DEMGroup->setEnabled (f == formula::standard);
 	if (f != formula::standard)
@@ -1876,6 +1880,21 @@ void MainWindow::formula_chosen (formula f, int power)
 	ui->action_q_1->setEnabled (f == formula::mix);
 	ui->action_q_m1->setEnabled (f == formula::mix);
 	ui->action_q_2->setEnabled (f == formula::mix);
+}
+
+void MainWindow::formula_chosen (formula f, int power)
+{
+	if (m_inhibit_updates || (m_formula == f && power == m_power))
+		return;
+
+	bool old_inhibit_updates = m_inhibit_updates;
+	m_inhibit_updates = true;
+	ui->powerSpinBox->setValue (power);
+	if (m_formula != f) {
+		m_formula = f;
+		init_formula (f);
+	}
+	enable_interface_for_formula (f);
 
 	m_inhibit_updates = old_inhibit_updates;
 	update_settings (true);
@@ -2173,17 +2192,7 @@ void MainWindow::restore_params (const frac_params &p)
 		ui->typeComboBox->setCurrentIndex (0);
 	}
 	m_formula = p.fm;
-	QAction *fa = (m_formula == formula::tricorn ? ui->action_FormulaTricorn
-		       : m_formula == formula::ship ? ui->action_FormulaShip
-		       : m_formula == formula::celtic ? ui->action_FormulaCeltic
-		       : m_formula == formula::lambda ? ui->action_FormulaLambda
-		       : m_formula == formula::spider ? ui->action_FormulaSpider
-		       : m_formula == formula::mix ? ui->action_FormulaMix
-		       : m_formula == formula::sqtwice_a ? ui->action_FormulaSqTwiceA
-		       : m_formula == formula::sqtwice_b ? ui->action_FormulaSqTwiceB
-		       : m_formula == formula::testing ? ui->action_FormulaTest
-		       : ui->action_FormulaStandard);
-	fa->setChecked (true);
+	enable_interface_for_formula (m_formula);
 
 	reset_coords (m_fd_mandel);
 	reset_coords (m_fd_julia);

@@ -225,6 +225,7 @@ class MainWindow: public QMainWindow
 	void fractal_wheel_event (QWheelEvent *);
 	void preview_wheel_event (QWheelEvent *);
 
+	void enable_interface_for_formula (formula);
 	void init_formula (formula);
 	void formula_chosen (formula, int);
 	void choose_hybrid (bool);
