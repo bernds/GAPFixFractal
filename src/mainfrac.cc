@@ -1680,11 +1680,18 @@ void MainWindow::fractal_mouse_event (QMouseEvent *e)
 
 	int w = ui->fractalView->width ();
 	int h = ui->fractalView->height ();
-	vpvec left = sub (fd.center_x, mul1 (fd.step, w * fd.samples / 2));
-	vpvec top = sub (fd.center_y, mul1 (fd.step, h * fd.samples / 2));
 
-	vpvec a = add (left, mul1 (fd.step, fd.samples * scene_pos.x ()));
-	vpvec b = add (top, mul1 (fd.step, fd.samples * scene_pos.y ()));
+	int px = scene_pos.x ();
+	int py = scene_pos.y ();
+	double pxn = px - w / 2;
+	double pyn = py - h / 2;
+	int real_px = to_double (fd.matrix[0][0]) * pxn + to_double (fd.matrix[0][1]) * pyn;
+	int real_py = to_double (fd.matrix[1][0]) * pxn + to_double (fd.matrix[1][1]) * pyn;
+	auto pxstep = mul1 (fd.step, fd.samples * abs (real_px));
+	auto pystep = mul1 (fd.step, fd.samples * abs (real_py));
+	vpvec a = real_px < 0 ? sub (fd.center_x, pxstep) : add (fd.center_x, pxstep);
+	vpvec b = real_py < 0 ? sub (fd.center_y, pystep) : add (fd.center_y, pystep);
+
 	if (param) {
 		memcpy (&m_fd_julia.param_p[0], &a[0], max_nwords * sizeof (uint32_t));
 		memcpy (&m_fd_julia.param_p[max_nwords], &b[0], max_nwords * sizeof (uint32_t));
