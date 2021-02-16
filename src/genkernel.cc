@@ -908,23 +908,21 @@ cplx_val emit_complex_mult (const cplx_val &va, const cplx_val &vb)
 	return { re, im };
 }
 
-std::pair<shared_ptr<expr>, shared_ptr<expr>>
-gen_mult_int (shared_ptr<expr> re, shared_ptr<expr> im, int factor)
+cplx_val gen_mult_int (cplx_val v, int factor)
 {
-	shared_ptr<expr> pr = nullptr, pi = nullptr;
+	cplx_val result;
 	for (int i = 0; i < 10; i++)
 		if (factor & (1 << i)) {
-			shared_ptr<expr> shfr = i == 0 ? re : make_shared<lshift_expr> (re, i);
-			shared_ptr<expr> shfi = i == 0 ? im : make_shared<lshift_expr> (im, i);
-			if (pr == nullptr) {
-				pr = shfr;
-				pi = shfi;
+			shared_ptr<expr> shfr = i == 0 ? v.re : make_shared<lshift_expr> (v.re, i);
+			shared_ptr<expr> shfi = i == 0 ? v.im : make_shared<lshift_expr> (v.im, i);
+			if (result.re == nullptr) {
+				result = { shfr, shfi };
 			} else {
-				pr = make_shared<addsub_expr> ("add", pr, shfr);
-				pi = make_shared<addsub_expr> ("add", pi, shfi);
+				result.re = make_shared<addsub_expr> ("add", result.re, shfr);
+				result.im = make_shared<addsub_expr> ("add", result.im, shfi);
 			}
 		}
-	return { pr, pi };
+	return result;
 }
 
 
@@ -984,10 +982,10 @@ void gen_inner_standard (int size, int stepsize, int power, bool julia, bool dem
 
 	auto [newzr, newzi] = emit_addc (julia, pwr.re, pwr.im, cr_reg, ci_reg, size, stepsize);
 	if (dem) {
+		cplx_val dpwr = get_power (powers, power - 1);
 		shared_ptr<expr> nrder = nullptr, nider = nullptr;
-		cplx_val nrd = emit_complex_mult ({ zr_reg, zi_reg}, { zderr_reg, zderi_reg });
-		nrd.re = make_shared<addsub_expr> ("add", nrd.re, nrd.re);
-		nrd.im = make_shared<addsub_expr> ("add", nrd.im, nrd.im);
+		cplx_val nrd = emit_complex_mult (dpwr, { zderr_reg, zderi_reg });
+		nrd = gen_mult_int (nrd, power);
 		if (!julia) {
 			nrd.re = make_shared<addsub_expr> ("add", nrd.re,
 							  make_shared<ldg_expr> ("%dem_step", size));
@@ -1073,10 +1071,10 @@ void gen_inner_lambda (int size, int stepsize, int power, bool julia,
 	array<cplx_val, 20> powers;
 	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
 	cplx_val pwr = get_power (powers, power);
-	auto [fr, fi] = gen_mult_int (zr_reg, zi_reg, power);
+	cplx_val f = gen_mult_int ({ zr_reg, zi_reg }, power);
 
-	auto sumr = make_shared<addsub_expr> ("sub", pwr.re, fr);
-	auto sumi = make_shared<addsub_expr> ("sub", pwr.im, fi);
+	auto sumr = make_shared<addsub_expr> ("sub", pwr.re, f.re);
+	auto sumi = make_shared<addsub_expr> ("sub", pwr.im, f.im);
 	cplx_val newz;
 	if (julia) {
 		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
@@ -1169,11 +1167,11 @@ void gen_inner_mix (int size, int stepsize, int power, bool julia,
 	array<cplx_val, 20> powers;
 	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
 	cplx_val pwr = get_power (powers, power);
-	auto [fr, fi] = gen_mult_int (zr_reg, zi_reg, power);
+	cplx_val f = gen_mult_int ({ zr_reg, zi_reg }, power);
 
 	auto const2 = make_shared<const_expr<2>> (size);
-	auto sumr = make_shared<addsub_expr> ("sub", make_shared<addsub_expr> ("sub", pwr.re, fr), const2);
-	auto sumi = make_shared<addsub_expr> ("sub", pwr.im, fi);
+	auto sumr = make_shared<addsub_expr> ("sub", make_shared<addsub_expr> ("sub", pwr.re, f.re), const2);
+	auto sumi = make_shared<addsub_expr> ("sub", pwr.im, f.im);
 	cplx_val newz;
 	if (julia) {
 		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
