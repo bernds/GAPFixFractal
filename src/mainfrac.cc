@@ -568,11 +568,11 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			int idx = (hcy - fd->yoff) * w + hcx;
 			if (result != 0) {
 				fd->pic_result[idx] += result;
-				fd->pic_z[idx * 2] = fd->host_z[i * z_size + fd->nwords - 1];
-				fd->pic_z[idx * 2 + 1] = fd->host_z[i * z_size + 2 * fd->nwords - 1];
+				fd->pic_z[idx * 2] = to_double (&fd->host_z[i * z_size], fd->nwords);
+				fd->pic_z[idx * 2 + 1] = to_double (&fd->host_z[i * z_size + fd->nwords], fd->nwords);
 				if (fd->dem) {
-					fd->pic_zder[idx * 2] = fd->host_zder[i * z_size + fd->nwords - 1];
-					fd->pic_zder[idx * 2 + 1] = fd->host_zder[i * z_size + 2 * fd->nwords - 1];
+					fd->pic_zder[idx * 2] = to_double (&fd->host_zder[i * z_size], fd->nwords);
+					fd->pic_zder[idx * 2 + 1] = to_double (&fd->host_zder[i * z_size + fd->nwords], fd->nwords);
 				}
 				fd->pic_z2[idx * 2] = fd->host_z2[i * z_size + fd->nwords - 1];
 				fd->pic_z2[idx * 2 + 1] = fd->host_z2[i * z_size + 2 * fd->nwords - 1];
@@ -582,11 +582,11 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 				fd->pic_result[idx] += count;
 				if (fd->pic_result[idx] >= fd->maxiter) {
 					fd->pic_result[idx] = 0;
-					fd->pic_z[idx * 2] = fd->host_z[i * z_size + fd->nwords - 1];
-					fd->pic_z[idx * 2 + 1] = fd->host_z[i * z_size + 2 * fd->nwords - 1];
+					fd->pic_z[idx * 2] = to_double (&fd->host_z[i * z_size], fd->nwords);
+					fd->pic_z[idx * 2 + 1] = to_double (&fd->host_z[i * z_size + fd->nwords], fd->nwords);
 					if (fd->dem) {
-						fd->pic_zder[idx * 2] = fd->host_zder[i * z_size + fd->nwords - 1];
-						fd->pic_zder[idx * 2 + 1] = fd->host_zder[i * z_size + 2 * fd->nwords - 1];
+						fd->pic_zder[idx * 2] = to_double (&fd->host_zder[i * z_size], fd->nwords);
+						fd->pic_zder[idx * 2 + 1] = to_double (&fd->host_zder[i * z_size + fd->nwords], fd->nwords);
 					}
 					fd->pic_z2[idx * 2] = fd->host_z2[i * z_size + fd->nwords - 1];
 					fd->pic_z2[idx * 2 + 1] = fd->host_z2[i * z_size + 2 * fd->nwords - 1];
@@ -842,10 +842,10 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 		fd.host_coords = new uint32_t[nthreads];
 		fd.host_result = new uint32_t[nthreads];
 
-		fd.pic_z = new int32_t[2 * npixels];
+		fd.pic_z = new double[2 * npixels];
 		fd.pic_zder = nullptr;
 		if (fd.dem)
-			fd.pic_zder = new int32_t[2 * npixels];
+			fd.pic_zder = new double[2 * npixels];
 		fd.pic_z2 = new uint32_t[2 * npixels];
 		fd.pic_result = new uint32_t[npixels];
 		fd.pixels_done = bit_array (npixels);
@@ -862,11 +862,11 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 	fd.pixels_started.clear ();
 	memset (fd.pic_result, 0, npixels * sizeof (uint32_t));
 	memset (fd.pic_z2, 0, 2 * npixels * sizeof (uint32_t));
-	memset (fd.pic_z, 0, 2 * npixels * sizeof (uint32_t));
+	memset (fd.pic_z, 0, 2 * npixels * sizeof (double));
 	if (fd.pic_iter_value != nullptr)
 		memset (fd.pic_iter_value, 0, npixels * sizeof (double));
 	if (fd.dem)
-		memset (fd.pic_zder, 0, 2 * npixels * sizeof (uint32_t));
+		memset (fd.pic_zder, 0, 2 * npixels * sizeof (double));
 	fd.maxiter = preview ? iter_steps : maxiter;
 	build_points (fd, w, full_h);
 
@@ -1097,8 +1097,8 @@ inline double iter_value_at (frac_desc *fd, int idx, int power)
 	if (v == 0)
 		return 0;
 	/* To avoid overflows, don't use the precomputed squared values.  */
-	uint64_t re2 = fd->pic_z[idx * 2];
-	uint64_t im2 = fd->pic_z[idx * 2 + 1];
+	double re2 = fd->pic_z[idx * 2];
+	double im2 = fd->pic_z[idx * 2 + 1];
 	re2 *= re2;
 	im2 *= im2;
 	double radius = 100;
@@ -1158,16 +1158,16 @@ public:
 				v -= minimum - rp.sub_val;
 
 			if (rp.dem) {
+				outcolor++;
+
 				double re2 = fd->pic_z2[idx * 2];
 				double im2 = fd->pic_z2[idx * 2 + 1];
 				double rezder = fd->pic_zder[idx * 2];
 				double imzder = fd->pic_zder[idx * 2 + 1];
-				rezder *= rezder;
-				imzder *= imzder;
-
-				double divisor = sqrt (rezder + imzder);
+				double rezder2 = rezder * rezder;
+				double imzder2 = imzder * imzder;
+				double divisor = sqrt (rezder2 + imzder2);
 				double dist = divisor == 0 ? rp.dem_param + 1 : log (re2 + im2) * sqrt (re2 + im2) / divisor;
-				outcolor++;
 				if (dist > rp.dem_param) {
 					r += 0xFF;
 					g += 0xFF;

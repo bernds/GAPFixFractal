@@ -7,21 +7,24 @@
 /* These are some crummy versions operating on the fixed-point values we use on
    the GPU side.  These are just good enough to work with coordinates.  */
 
-double to_double (const vpvec &v)
+double to_double (const uint32_t *v, int n)
 {
-	size_t n = v.size ();
 	double v1 = (int32_t)v[n - 1];
-	double v2 = v[n - 2];
 	unsigned long long div = 1;
 	div <<= 32;
 	double result = v1;
 	double ddiv = div;
-	for (int i = 1; i < 10; i++) {
+	for (int i = 1; i < n; i++) {
 		double tmp = v[n - 1 - i];
 		result += tmp / ddiv;
 		ddiv *= div;
 	}
 	return result;
+}
+
+double to_double (const vpvec &v)
+{
+	return to_double (&v[0], v.size ());
 }
 
 void set (vpvec &v, double d)

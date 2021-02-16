@@ -65,8 +65,8 @@ struct frac_desc : public frac_params
 	/* Updated by the GUI and used to compute the actual rotation matrix.  */
 	int rotation_angle = 0;
 
-	int32_t *pic_z;
-	int32_t *pic_zder;
+	double *pic_z;
+	double *pic_zder;
 	uint32_t *pic_z2;
 	uint32_t *pic_result;
 
