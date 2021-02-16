@@ -1463,7 +1463,7 @@ loop:
 	setp.lt.u32	%cont, %sqsum, %3;
 @%cont	bra		skip;
 )";
-	result += loop_end.arg (z2r_high, z2i_high, dem ? "4" : "10000");
+	result += loop_end.arg (z2r_high, z2i_high, dem ? "100" : "10000");
 	gen_store ("%ar_z", zr_reg);
 	gen_store ("%ar_zim", zi_reg);
 	gen_store ("%ar_z2", z2r_reg);

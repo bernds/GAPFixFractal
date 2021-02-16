@@ -1154,31 +1154,60 @@ public:
 		double v = rp.angle ? fd->pic_result[idx] : iter_value_at (fd, idx, power);
 		double v1 = v;
 		if (v != 0) {
+			outcolor++;
+
 			if (rp.sub)
 				v -= minimum - rp.sub_val;
-
-			if (rp.dem) {
-				outcolor++;
-
+			double dem_shade = 1;
+			double dem_dist = 1;
+			if (rp.dem || rp.dem_shade) {
 				double re2 = fd->pic_z2[idx * 2];
 				double im2 = fd->pic_z2[idx * 2 + 1];
 				double rezder = fd->pic_zder[idx * 2];
 				double imzder = fd->pic_zder[idx * 2 + 1];
 				double rezder2 = rezder * rezder;
 				double imzder2 = imzder * imzder;
-				double divisor = sqrt (rezder2 + imzder2);
-				double dist = divisor == 0 ? rp.dem_param + 1 : log (re2 + im2) * sqrt (re2 + im2) / divisor;
-				if (dist > rp.dem_param) {
-					r += 0xFF;
-					g += 0xFF;
-					b += 0xFF;
+				if (rp.dem_shade) {
+					double re = fd->pic_z[idx * 2];
+					double im = fd->pic_z[idx * 2 + 1];
+					double reu = re * rezder + im * imzder;
+					double imu = im * rezder - re * imzder;
+					double udiv = rezder2 + imzder2;
+					reu /= udiv;
+					imu /= udiv;
+					double uabs = sqrt (reu * reu + imu * imu);
+					if (uabs != 0) {
+						reu /= uabs;
+						imu /= uabs;
+					}
+					double light_height = 1.5;
+					double light_re = -M_SQRT1_2;
+					double light_im = -M_SQRT1_2;
+					double t = light_re * reu + light_im * imu + light_height;
+					t = t / (1 + light_height);
+					if (t < 0)
+						t = 0;
+					dem_shade = 1 - (1 - t) * rp.dem_strength;
+				}
+				if (rp.dem) {
+					double divisor = sqrt (rezder2 + imzder2);
+					double dist = divisor == 0 ? rp.dem_param + 1 : log (re2 + im2) * sqrt (re2 + im2) / divisor;
+					if (dist > rp.dem_param)
+						dem_dist = 1;
+					else
+						dem_dist = dist / rp.dem_param;
+					// The result by itself seems too steep to be useful for rendering
+					// shades of grey. Could make this configurable, but taking cbrt
+					// gives images that I find pleasing.
+					dem_dist = cbrt (dem_dist);
+					dem_dist = 1 - (1 - dem_dist) * rp.dem_strength;
+				}
+				if (!rp.dem_colour) {
+					r += dem_dist * dem_shade * 0xFF;
+					g += dem_dist * dem_shade * 0xFF;
+					b += dem_dist * dem_shade * 0xFF;
 					return;
 				}
-				dist /= rp.dem_param;
-				r += dist * 0xFF;
-				g += dist * 0xFF;
-				b += dist * 0xFF;
-				return;
 			}
 			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, rp.slider);
 
@@ -1216,10 +1245,10 @@ public:
 				}
 				col = QColor::fromHsl (ch, cs, cl).rgb ();
 			}
-			r += (col >> 16) & 0xFF;
-			g += (col >> 8) & 0xFF;
-			b += col & 0xFF;
-			outcolor++;
+			double dem_factor = dem_dist * dem_shade;
+			r += ((col >> 16) & 0xFF) * dem_factor;
+			g += ((col >> 8) & 0xFF) * dem_factor;
+			b += (col & 0xFF) * dem_factor;
 		}
 	}
 
@@ -1388,8 +1417,11 @@ void MainWindow::set_render_params (render_params &p)
 	p.sub = !ui->action_ShiftNone->isChecked ();
 	p.sub_val = ui->action_Shift10->isChecked () ? 10 : ui->action_Shift100->isChecked () ? 100 : 0;
 	p.slider = ui->colStepSlider->value ();
-	p.dem = ui->demBox->isChecked ();
-	p.dem_param = std::min (2.0, ui->demParamSpinBox->value () * (1 << ui->sampleSpinBox->value ()));
+	p.dem = ui->action_DEMDist->isChecked () || ui->action_DEMBoth->isChecked ();
+	p.dem_shade = ui->action_DEMShading->isChecked () || ui->action_DEMBoth->isChecked ();
+	p.dem_colour = ui->action_DEMColour->isChecked ();
+	p.dem_param = ui->demParamSpinBox->value () * (1 << ui->sampleSpinBox->value ());
+	p.dem_strength = ui->demStrengthSpinBox->value ();
 	p.aspect = chosen_aspect ();
 }
 
@@ -1426,7 +1458,7 @@ void MainWindow::autoprec (frac_desc &fd)
 
 	bool_changer (m_inhibit_updates, true);
 
-	bool dem = ui->demBox->isChecked ();
+	bool dem = !ui->action_DEMOff->isChecked ();
 	int w = ui->fractalView->width ();
 	int h = ui->fractalView->height ();
 	vpvec step = div1 (fd.width, std::max (w, h));
@@ -1456,7 +1488,7 @@ void MainWindow::render_fractal ()
 	m_canvas.setSceneRect (0, 0, w, h);
 	printf ("render_fractal size %d %d\n", w, h);
 
-	bool isdem = ui->demBox->isChecked ();
+	bool isdem = !ui->action_DEMOff->isChecked ();
 	compute_fractal (fd, m_nwords, w, h, h, default_maxiter, ui->sampleSpinBox->value (), isdem, false);
 }
 
@@ -1474,7 +1506,7 @@ void MainWindow::render_preview ()
 	m_preview_canvas.setSceneRect (0, 0, w, h);
 	printf ("render_preview size %d %d\n", w, h);
 
-	bool isdem = ui->demBox->isChecked ();
+	bool isdem = !ui->action_DEMOff->isChecked ();
 	compute_fractal (m_fd_julia, m_nwords, w, h, h, default_maxiter, 0, isdem, true);
 }
 
@@ -1824,9 +1856,10 @@ void MainWindow::formula_chosen (formula f, int power)
 		m_formula = f;
 		init_formula (f);
 	}
-	ui->demBox->setEnabled (f == formula::standard);
+	ui->menuDEM->setEnabled (f == formula::standard);
+	ui->DEMGroup->setEnabled (f == formula::standard);
 	if (f != formula::standard)
-		ui->demBox->setChecked (false);
+		ui->action_DEMOff->setChecked (true);
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
 				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
 				      || f == formula::celtic || f == formula::testing);
@@ -1839,6 +1872,18 @@ void MainWindow::formula_chosen (formula f, int power)
 
 	m_inhibit_updates = old_inhibit_updates;
 	update_settings (true);
+}
+
+void MainWindow::update_dem_settings (QAction *)
+{
+	if (m_inhibit_updates)
+		return;
+	frac_desc &fd = current_fd ();
+	bool isdem = !ui->action_DEMOff->isChecked ();
+	if (isdem != fd.dem)
+		update_settings (false);
+	else
+		update_views ();
 }
 
 void MainWindow::do_reset (bool)
@@ -2543,6 +2588,8 @@ MainWindow::MainWindow ()
 	ui->action_NarrowB->setChecked (true);
 	ui->action_NarrowW->setChecked (true);
 	ui->action_RotateHSV->setChecked (true);
+	ui->action_DEMOff->setChecked (true);
+	ui->action_DEMColour->setChecked (false);
 
 	reset_coords (m_fd_mandel);
 	reset_coords (m_fd_julia);
@@ -2604,6 +2651,12 @@ MainWindow::MainWindow ()
 	m_sub_group->addAction (ui->action_Shift10);
 	m_sub_group->addAction (ui->action_Shift100);
 
+	m_dem_group = new QActionGroup (this);
+	m_dem_group->addAction (ui->action_DEMOff);
+	m_dem_group->addAction (ui->action_DEMDist);
+	m_dem_group->addAction (ui->action_DEMShading);
+	m_dem_group->addAction (ui->action_DEMBoth);
+
 	m_hybrid_group = new QActionGroup (this);
 	m_hybrid_group->addAction (ui->action_HybridOff);
 	m_hybrid_group->addAction (ui->action_HybridOn);
@@ -2647,6 +2700,7 @@ MainWindow::MainWindow ()
 	connect (ui->incolComboBox, cic, this, &MainWindow::update_views);
 	connect (ui->colStepSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
 	connect (m_sub_group, &QActionGroup::triggered, [this] (QAction *) { update_views (); });
+	connect (m_dem_group, &QActionGroup::triggered, this, &MainWindow::update_dem_settings);
 
 	connect (ui->structureGroup, &QGroupBox::toggled, [this] (bool) { update_palette (); });
 	connect (ui->structureSlider, &QSlider::valueChanged, [this] (bool) { update_palette (); });
@@ -2661,6 +2715,8 @@ MainWindow::MainWindow ()
 	connect (ui->action_StructDark, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_StructBoth, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_EAngle, &QAction::toggled, [this] (bool) { update_views (); });
+	connect (ui->action_DEMColour, &QAction::toggled,
+		 [this] (bool) { if (!ui->action_DEMOff->isChecked ()) update_views (); });
 
 	connect (ui->pauseButton, &QPushButton::toggled, this, &MainWindow::do_pause);
 	connect (ui->resetButton, &QPushButton::clicked, this, &MainWindow::do_reset);
@@ -2669,8 +2725,8 @@ MainWindow::MainWindow ()
 	connect (ui->storeButton, &QPushButton::clicked, [this] (bool) { store_params (false); });
 	connect (ui->storePreviewButton, &QPushButton::clicked, [this] (bool) { store_params (true); });
 
-	connect (ui->demBox, &QGroupBox::toggled, [this] (bool) { update_settings (false); });
 	connect (ui->demParamSpinBox, dchanged, [this] (bool) { update_views (); });
+	connect (ui->demStrengthSpinBox, dchanged, [this] (bool) { update_views (); });
 	connect (ui->aspectBox, &QGroupBox::toggled, [this] (bool) { update_aspect (); });
 	connect (ui->aspectComboBox, cic, [this] (int) { update_aspect (); });
 
@@ -2766,6 +2822,7 @@ MainWindow::~MainWindow ()
 	delete m_power_group;
 	delete m_rotate_group;
 	delete m_sub_group;
+	delete m_dem_group;
 	delete m_hybrid_group;
 	delete ui;
 }

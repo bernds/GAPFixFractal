@@ -43,8 +43,10 @@ struct render_params
 	int sub_val;
 	bool sub;
 	bool angle;
+	bool dem_colour;
 	bool dem;
-	double dem_param;
+	bool dem_shade;
+	double dem_param, dem_strength;
 	// Used for stored parameters, holds either the aspect set in the GUI,
 	// or, if that is disabled, the image dimensions.
 	double aspect;
@@ -150,6 +152,7 @@ class MainWindow: public QMainWindow
 
 	QActionGroup *m_formula_group {};
 	QActionGroup *m_sub_group {};
+	QActionGroup *m_dem_group {};
 	QActionGroup *m_hybrid_group {};
 	QActionGroup *m_power_group {};
 	QActionGroup *m_struct_group {};
@@ -178,6 +181,8 @@ class MainWindow: public QMainWindow
 
 	void autoprec (frac_desc &);
 	void update_settings (bool);
+	void update_dem_settings (QAction *);
+
 	// double iter_value_at (frac_desc &, int);
 	void update_display (QGraphicsView *);
 	void precompute_iter_value (frac_desc *);
