@@ -2598,6 +2598,7 @@ MainWindow::MainWindow ()
 	ui->storePreviewButton->setEnabled (ui->typeComboBox->currentIndex () == 2);
 	ui->previewDock->setVisible (ui->typeComboBox->currentIndex () == 2);
 	ui->storedDock->hide ();
+	ui->extraDock->hide ();
 	ui->action_BatchRender->setEnabled (false);
 	ui->menuHybrid->setEnabled (false);
 
@@ -2681,6 +2682,7 @@ MainWindow::MainWindow ()
 	ui->action_FD2->setChecked (true);
 
 	ui->menu_View->insertAction (nullptr, ui->storedDock->toggleViewAction ());
+	ui->menu_View->insertAction (nullptr, ui->extraDock->toggleViewAction ());
 
 	connect (ui->fractalView, &SizeGraphicsView::mouse_event, this, &MainWindow::fractal_mouse_event);
 	connect (ui->fractalView, &SizeGraphicsView::wheel_event, this, &MainWindow::fractal_wheel_event);
