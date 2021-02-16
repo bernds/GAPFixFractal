@@ -2363,6 +2363,7 @@ void MainWindow::slot_batchrender (bool)
 	QProgressDialog pdlg (tr ("Rendering images..."), tr ("Abort"), 0, 100, this);
 	pdlg.setWindowModality (Qt::WindowModal);
 	pdlg.setMinimumDuration (0);
+	pdlg.show ();
 
 	QString pattern = dlg.get_file_template ();
 	int count = 1;
