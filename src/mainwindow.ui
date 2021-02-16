@@ -1781,6 +1781,9 @@
    <property name="text">
     <string>Distance</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+D</string>
+   </property>
   </action>
   <action name="action_DEMShading">
    <property name="checkable">
@@ -1788,6 +1791,9 @@
    </property>
    <property name="text">
     <string>Shading</string>
+   </property>
+   <property name="shortcut">
+    <string>Alt+D</string>
    </property>
   </action>
   <action name="action_DEMBoth">

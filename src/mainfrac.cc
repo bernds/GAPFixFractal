@@ -2724,6 +2724,7 @@ MainWindow::MainWindow ()
 
 	ui->menu_View->insertAction (nullptr, ui->storedDock->toggleViewAction ());
 	ui->menu_View->insertAction (nullptr, ui->extraDock->toggleViewAction ());
+	ui->extraDock->toggleViewAction ()->setShortcut (Qt::CTRL + Qt::Key_X);
 
 	connect (ui->fractalView, &SizeGraphicsView::mouse_event, this, &MainWindow::fractal_mouse_event);
 	connect (ui->fractalView, &SizeGraphicsView::wheel_event, this, &MainWindow::fractal_wheel_event);
