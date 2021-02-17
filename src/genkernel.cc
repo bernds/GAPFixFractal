@@ -1324,6 +1324,11 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 		gen_store ("%ar_z", critr);
 		gen_store ("%ar_zim", criti);
 	} else {
+		if (f == formula::spider) {
+			cplx_val parm_p = cplx_ldc ("const_param_p", size, stepsize);
+			gen_store ("%ar_t", parm_p.re);
+			gen_store ("%ar_tim", parm_p.im);
+		}
 		gen_store ("%ar_z", coord_x);
 		gen_store ("%ar_zim", coord_y);
 	}
@@ -1358,12 +1363,6 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 		auto arzim = make_shared<ldg_expr> ("%ar_zim", size);
 		auto arzim2 = gen_mult (arzim, arzim);
 		gen_store (&*z2i_reg, arzim2);
-	}
-
-	if (f == formula::spider && julia) {
-		cplx_val parm_p = cplx_ldc ("const_param_p", size, stepsize);
-		gen_store (&*cr_reg, parm_p.re);
-		gen_store (&*ci_reg, parm_p.im);
 	}
 
 	result += cg.code ();
