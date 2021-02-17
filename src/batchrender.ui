@@ -265,13 +265,6 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_3">
-        <property name="text">
-         <string>First number:</string>
-        </property>
-       </widget>
-      </item>
       <item row="1" column="1">
        <widget class="QWidget" name="widget_2" native="true">
         <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -311,22 +304,18 @@
         </layout>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="0" column="0" colspan="2">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string>Files will be stored in a numbered sequence according to the following pattern. It should contain &quot;%n&quot; where the number will be substituted. Leaving it out is possible, it will be automatically appended at the end, likewise for the &quot;.png&quot; suffix. Example: Just &quot;image&quot; will turn into &quot;image0001.png&quot; for the first file.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
        <layout class="QHBoxLayout" name="horizontalLayout_5">
-        <item>
-         <widget class="QSpinBox" name="fileNrSpinBox">
-          <property name="toolTip">
-           <string>&lt;p&gt;Counts the number of the slide, incremented on every save.
-This is substituted into the filename template when choosing the Save button.&lt;/p&gt;</string>
-          </property>
-          <property name="minimum">
-           <number>1</number>
-          </property>
-          <property name="maximum">
-           <number>9999</number>
-          </property>
-         </widget>
-        </item>
         <item>
          <widget class="QCheckBox" name="overwriteCheckBox">
           <property name="toolTip">
@@ -351,16 +340,6 @@ This is substituted into the filename template when choosing the Save button.&lt
          </spacer>
         </item>
        </layout>
-      </item>
-      <item row="0" column="0" colspan="2">
-       <widget class="QLabel" name="label_4">
-        <property name="text">
-         <string>Files will be stored in a numbered sequence according to the following pattern. It should contain &quot;%n&quot; where the number will be substituted. Leaving it out is possible, it will be automatically appended at the end, likewise for the &quot;.png&quot; suffix. Example: Just &quot;image&quot; will turn into &quot;image0001.png&quot; for the first file.</string>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
-        </property>
-       </widget>
       </item>
      </layout>
     </widget>
@@ -398,7 +377,6 @@ This is substituted into the filename template when choosing the Save button.&lt
   <tabstop>aspectCheckBox</tabstop>
   <tabstop>fileTemplateEdit</tabstop>
   <tabstop>fileOpenButton</tabstop>
-  <tabstop>fileNrSpinBox</tabstop>
   <tabstop>overwriteCheckBox</tabstop>
  </tabstops>
  <resources>
