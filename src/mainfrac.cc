@@ -399,10 +399,12 @@ void MainWindow::discard_fd_data (frac_desc &fd)
 		return;
 
 	delete[] fd.host_cplxvals;
+	delete[] fd.host_zprev;
+	delete[] fd.host_zpidx;
 	delete[] fd.host_result;
 	delete[] fd.host_coords;
 
-	delete[] fd.pic_z;
+	delete[] fd.pic_zprev;
 	delete[] fd.pic_result;
 	delete[] fd.pic_iter_value;
 	fd.n_pixels = 0;
@@ -437,10 +439,12 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 		fd.samples = ss;
 		int nvals = n_formula_cplx_vals (fd.fm, isdem);
 		fd.host_cplxvals = new uint32_t[nwords * 2 * nvals * nthreads];
+		fd.host_zprev = new double[n_prev * 2 * nthreads];
+		fd.host_zpidx = new uint32_t[nthreads];
 		fd.host_coords = new uint32_t[nthreads];
 		fd.host_result = new uint32_t[nthreads];
 
-		fd.pic_z = new double[2 * npixels];
+		fd.pic_zprev = new double[2 * n_prev * npixels];
 		fd.pic_zder = nullptr;
 		if (fd.dem)
 			fd.pic_zder = new double[2 * npixels];
@@ -458,7 +462,6 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 	fd.pixels_done.clear ();
 	fd.pixels_started.clear ();
 	memset (fd.pic_result, 0, npixels * sizeof (uint32_t));
-	memset (fd.pic_z, 0, 2 * npixels * sizeof (double));
 	if (fd.pic_iter_value != nullptr)
 		memset (fd.pic_iter_value, 0, npixels * sizeof (double));
 	if (fd.dem)
@@ -651,9 +654,8 @@ inline double iter_value_at (frac_desc *fd, int idx, int power)
 	double v = fd->pic_result[idx];
 	if (v == 0)
 		return 0;
-	/* To avoid overflows, don't use the precomputed squared values.  */
-	double re2 = fd->pic_z[idx * 2];
-	double im2 = fd->pic_z[idx * 2 + 1];
+	double re2 = fd->pic_zprev[idx * 2 * n_prev];
+	double im2 = fd->pic_zprev[idx * 2 * n_prev + 1];
 	re2 *= re2;
 	im2 *= im2;
 	double radius = 100;
@@ -715,8 +717,8 @@ public:
 				v -= minimum - rp.sub_val;
 			double dem_shade = 1;
 			if (rp.dem || rp.dem_shade) {
-				double re = fd->pic_z[idx * 2];
-				double im = fd->pic_z[idx * 2 + 1];
+				double re = fd->pic_zprev[idx * 2 * n_prev];
+				double im = fd->pic_zprev[idx * 2 * n_prev + 1];
 				double re2 = re * re;
 				double im2 = im * im;
 				double rezder = fd->pic_zder[idx * 2];
@@ -724,8 +726,6 @@ public:
 				double rezder2 = rezder * rezder;
 				double imzder2 = imzder * imzder;
 				if (rp.dem_shade) {
-					double re = fd->pic_z[idx * 2];
-					double im = fd->pic_z[idx * 2 + 1];
 					double reu = re * rezder + im * imzder;
 					double imu = im * rezder - re * imzder;
 					double udiv = rezder2 + imzder2;
@@ -775,8 +775,8 @@ public:
 			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, rp.slider);
 
 			if (rp.angle) {
-				double re = fd->pic_z[idx * 2];
-				double im = fd->pic_z[idx * 2 + 1];
+				double re = fd->pic_zprev[idx * 2 * n_prev];
+				double im = fd->pic_zprev[idx * 2 * n_prev + 1];
 				double re2 = re * re;
 				double im2 = im * im;
 				double size = sqrt (re2 + im2);

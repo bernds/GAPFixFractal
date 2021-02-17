@@ -235,7 +235,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		hybrid_mask <<= fd->hybrid_len - 1;
 
 		void *args[] = {
-			&fd->cu_ar_cplxvals,
+			&fd->cu_ar_cplxvals, &fd->cu_ar_zprev, &fd->cu_ar_zpidx,
 			&fd->cu_ar_coords, &fd->cu_ar_step,
 			&maxidx, &fd->cu_ar_result, &count, &fd->start_idx,
 			&fd->hybrid_code, &hybrid_mask
@@ -270,6 +270,8 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		fail |= cuMemcpyDtoH (fd->host_cplxvals, fd->cu_ar_cplxvals,
 				      4 * fd->nwords * 2 * n_cplxvals * maxidx) != CUDA_SUCCESS;
 		fail |= cuMemcpyDtoH (fd->host_result, fd->cu_ar_result, 4 * maxidx) != CUDA_SUCCESS;
+		fail |= cuMemcpyDtoH (fd->host_zprev, fd->cu_ar_zprev, sizeof (double) * n_prev * 2 * maxidx) != CUDA_SUCCESS;
+		fail |= cuMemcpyDtoH (fd->host_zpidx, fd->cu_ar_zpidx, sizeof (int) * maxidx) != CUDA_SUCCESS;
 
 		qint64 ms = std::max ((qint64)5, timer.elapsed ());
 		uint32_t j = 0;
@@ -288,20 +290,22 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			if (result != 0) {
 				fd->pic_result[idx] += result;
 				fd->maxiter_found = std::max (fd->maxiter_found, fd->pic_result[idx]);
-				fd->pic_z[idx * 2] = to_double (&fd->host_cplxvals[i * z_size], fd->nwords);
-				fd->pic_z[idx * 2 + 1] = to_double (&fd->host_cplxvals[i * z_size + fd->nwords], fd->nwords);
 				if (fd->dem) {
 					fd->pic_zder[idx * 2] = to_double (&fd->host_cplxvals[i * z_size + deroff], fd->nwords);
 					fd->pic_zder[idx * 2 + 1] = to_double (&fd->host_cplxvals[i * z_size + deroff + fd->nwords], fd->nwords);
 				}
+				int zpidx = fd->host_zpidx[i];
+				int base_idx = idx * 2 * n_prev;
+				int base_i = i * 2 * n_prev;
+				int first_count = n_prev - zpidx;
+				memcpy (fd->pic_zprev + base_idx, fd->host_zprev + base_i + zpidx * 2, 2 * first_count * sizeof (double));
+				memcpy (fd->pic_zprev + base_idx + 2 * first_count, fd->host_zprev + base_i, 2 * (n_prev - first_count) * sizeof (double));
 				fd->pixels_done.set_bit (idx);
 				fd->n_completed++;
 			} else {
 				fd->pic_result[idx] += count;
 				if (fd->pic_result[idx] >= fd->maxiter) {
 					fd->pic_result[idx] = 0;
-					fd->pic_z[idx * 2] = to_double (&fd->host_cplxvals[i * z_size], fd->nwords);
-					fd->pic_z[idx * 2 + 1] = to_double (&fd->host_cplxvals[i * z_size + fd->nwords], fd->nwords);
 					if (fd->dem) {
 						fd->pic_zder[idx * 2] = to_double (&fd->host_cplxvals[i * z_size + deroff], fd->nwords);
 						fd->pic_zder[idx * 2 + 1] = to_double (&fd->host_cplxvals[i * z_size + deroff + fd->nwords], fd->nwords);
@@ -309,8 +313,12 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 					fd->pixels_done.set_bit (idx);
 					fd->n_completed++;
 				} else if (i != j) {
+					constexpr int prev_size = 2 * n_prev;
 					fd->host_coords[j] = coord;
 					memcpy (&fd->host_cplxvals[j * z_size], &fd->host_cplxvals[i * z_size], z_size * 4);
+					memcpy (&fd->host_zprev[j * prev_size],
+						&fd->host_zprev[i * prev_size], prev_size * sizeof (double));
+					fd->host_zpidx[j] = fd->host_zpidx[i];
 					j++;
 				} else
 					j++;
@@ -322,6 +330,8 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		if (j > 0 && j != maxidx) {
 			fail |= cuMemcpyHtoD (fd->cu_ar_cplxvals, fd->host_cplxvals,
 					      4 * fd->nwords * 2 * n_cplxvals * j) != CUDA_SUCCESS;
+			fail |= cuMemcpyHtoD (fd->cu_ar_zprev, fd->host_zprev, sizeof (double) * n_prev * 2 * j) != CUDA_SUCCESS;
+			fail |= cuMemcpyHtoD (fd->cu_ar_zpidx, fd->host_zpidx, sizeof (int) * j) != CUDA_SUCCESS;
 		}
 
 		QMutexLocker lock (&data_mutex);
@@ -363,7 +373,7 @@ void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_
 	}
 
 	formula f = formula_table[fidx];
-	char *ptx = gen_mprec_funcs (f, nwords, max_nwords, power);
+	char *ptx = gen_mprec_funcs (f, nwords, max_nwords, power, n_prev);
 
 	vector<CUjit_option> opts;
 	vector<void *>ovals;
@@ -434,6 +444,8 @@ void GPU_handler::slot_alloc_mem (frac_desc *fd, int max_nwords, int nwords, int
 			tryCuda (cuMemAlloc (&fd->cu_ar_step, 4 * max_nwords));
 			tryCuda (cuMemAlloc (&fd->cu_ar_result, 4 * nthreads));
 			tryCuda (cuMemAlloc (&fd->cu_ar_coords, 4 * nthreads));
+			tryCuda (cuMemAlloc (&fd->cu_ar_zprev, 2 * n_prev * sizeof (double) * nthreads));
+			tryCuda (cuMemAlloc (&fd->cu_ar_zpidx, sizeof (int) * nthreads));
 		}
 	} catch (const char *err) {
 		*errstr = err;
@@ -452,10 +464,14 @@ void GPU_handler::free_cuda_data (frac_desc *fd)
 	cuMemFree (fd->cu_ar_step);
 	cuMemFree (fd->cu_ar_coords);
 	cuMemFree (fd->cu_ar_result);
+	cuMemFree (fd->cu_ar_zprev);
+	cuMemFree (fd->cu_ar_zpidx);
 	fd->cu_ar_origin = 0;
 	fd->cu_ar_cplxvals = 0;
 	fd->cu_ar_step = 0;
 	fd->cu_ar_coords = 0;
 	fd->cu_ar_result = 0;
+	fd->cu_ar_zprev = 0;
+	fd->cu_ar_zpidx = 0;
 }
 

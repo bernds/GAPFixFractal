@@ -67,15 +67,18 @@ struct frac_desc : public frac_params
 	/* Updated by the GUI and used to compute the actual rotation matrix.  */
 	int rotation_angle = 0;
 
-	double *pic_z;
+	double *pic_zprev;
 	double *pic_zder;
 	uint32_t *pic_result;
 
 	double *pic_iter_value;
 
-	uint32_t *host_cplxvals, *host_coords, *host_result;
+	uint32_t *host_cplxvals, *host_coords, *host_result, *host_zpidx;
+	double *host_zprev;
 	CUdeviceptr cu_ar_origin = 0;
 	CUdeviceptr cu_ar_cplxvals = 0;
+	CUdeviceptr cu_ar_zprev = 0;
+	CUdeviceptr cu_ar_zpidx = 0;
 	CUdeviceptr cu_ar_result = 0;
 	CUdeviceptr cu_ar_coords = 0;
 	CUdeviceptr cu_ar_step = 0;

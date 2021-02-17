@@ -963,6 +963,34 @@ real_val gen_mult (R1 &a, R2 &b, bool abs_required = true)
 	return real_val (prod, pred);
 }
 
+QString convert_to_float (shared_ptr<expr> v)
+{
+	QString dstreg = codegen->gen_reg ("f64", "convdst");
+	int len = v->length ();
+	QString conv = codegen->gen_reg ("f64", "fltconv");
+	QString mult = codegen->gen_reg ("f64", "multiplier");
+	codegen->append_move ("f64", conv, "1.0");
+	codegen->append_code (QString ("\tdiv.rn.f64\t%1, %1, 4294967296.0;\n").arg (conv));
+
+	codegen->append_move ("f64", mult, "1.0");
+	bool first = true;
+	while (len-- > 0) {
+		QString ftmp = codegen->gen_reg ("f64", "tmp");
+		codegen->append_code (QString ("\tcvt.rn.f64.%1\t%2, %3;\n")
+				      .arg (first ? "s32" : "u32", ftmp, v->get_piece (len)));
+		if (!first)
+			codegen->append_code (QString ("\tmul.f64\t%1, %1, %2;\n").arg (ftmp, mult));
+		if (first)
+			codegen->append_code (QString ("\tmov.f64\t%1, %2;\n").arg (dstreg, ftmp));
+		else
+			codegen->append_code (QString ("\tadd.f64\t%1, %1, %2;\n").arg (dstreg, ftmp));
+		if (len > 0)
+			codegen->append_code (QString ("\tmul.f64\t%1, %1, %2;\n").arg (mult, conv));
+		first = false;
+	}
+	return dstreg;
+}
+
 void gen_coord_muladd (QString &result, int dstsize, int srcsize)
 {
 	result += ".func coord_muladd (.reg.u64 %dst, .reg.u64 %src_step, .reg.u64 %src_base, .reg.u32 %srcc)\n{\n";
@@ -1549,22 +1577,41 @@ static void gen_inner_hybrid (QString &result, generator &cg,
 	result += "loopend:\n";
 }
 
-void gen_kernel (formula f, QString &result, int size, int stepsize, int power, bool julia, bool dem, bool hybrid = false)
+static void gen_store_zprev (QString &result, real_reg &zr, real_reg &zi, int n_prev)
 {
+	QString fzre = convert_to_float (zr);
+	QString fzim = convert_to_float (zi);
+	result += codegen->code ();
+
+	result += "\tsub.u32\t\t%zpidx, %zpidx, 1;\n";
+	result += QString ("\tand.b32\t\t%zpidx, %zpidx, %1;\n").arg (n_prev - 1);
+
+	result += "\tcvt.u64.u32\t\t%prevaddr, %zpidx;\n";
+	result += "\tmul.lo.u64\t\t%prevaddr, %prevaddr, 16;\n";
+	result += "\tadd.u64\t\t%prevaddr, %prevaddr, %ar_zprev;\n";
+	result += QString ("\tst.f64\t[%prevaddr], %1;\n").arg (fzre);
+	result += QString ("\tst.f64\t[%prevaddr + 8], %1;\n").arg (fzim);
+}
+
+void gen_kernel (formula f, QString &result, int size, int stepsize, int power, int n_prev,
+		 bool julia, bool dem, bool hybrid = false)
+{
+	assert ((n_prev & (n_prev - 1)) == 0);
 	QString nm = julia ? "iter_julia" : "iter_mandel";
 	if (dem)
 		nm += "_dem";
 	if (hybrid)
 		nm += "_hybrid";
 	gen_kernel_header (result, nm,
-			   "u64", "ar_z", "u64", "ar_coords", "u64", "ar_step",
+			   "u64", "ar_z", "u64", "ar_zprev", "u64", "ar_zpidx",
+			   "u64", "ar_coords", "u64", "ar_step",
 			   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init",
 			   "u32", "hybrid_code", "u32", "hybrid_mask");
 
 	QString kernel_init = R"(
 	.reg.s32 %idx, %tidx, %ctaidx, %ntidx;
 
-	.reg.u32 %iter, %stride;
+	.reg.u32 %iter;
 	mov.u32         %ntidx, %ntid.x;
 	mov.u32         %ctaidx, %ctaid.x;
 	mov.u32         %tidx, %tid.x;
@@ -1575,21 +1622,24 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	.reg.pred	%pinit;
 	setp.lt.s32     %pinit, %idx, %init;
 
-	mul.lo.u32	%stride, %ntidx, 4;
-	.reg.u64	%addroff;
+	.reg.u64	%addroff, %addridx;
+	cvt.u64.u32	%addridx, %idx;
 	mul.lo.u32	%idx, %idx, 4;
 	cvt.u64.u32	%addroff, %idx;
+	add.u64		%ar_zpidx, %ar_zpidx, %addroff;
 	add.u64		%ar_result, %ar_result, %addroff;
 	add.u64		%ar_coords, %ar_coords, %addroff;
 	mul.lo.u64	%addroff, %addroff, %2;
 	add.u64		%ar_z, %ar_z, %addroff;
+	mul.lo.u64	%addroff, %addridx, %3;
+	add.u64		%ar_zprev, %ar_zprev, %addroff;
 
 	.reg.u64	%ar_zim, %ar_t, %ar_tim;
 	add.u64		%ar_zim, %ar_z, %1;
 	add.u64		%ar_t, %ar_zim, %1;
 	add.u64		%ar_tim, %ar_t, %1;
 )";
-	result += kernel_init.arg (size * 4).arg (size * 2 * n_formula_cplx_vals (f, dem));
+	result += kernel_init.arg (size * 4).arg (size * 2 * n_formula_cplx_vals (f, dem)).arg (n_prev * 8 * 2);;
 
 	if (dem) {
 		result += QString (R"(
@@ -1667,8 +1717,11 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 		gen_store ("%ar_zim", coord_y);
 	}
 	result += cg.code ();
+	result += "\tst.global.u32\t[%ar_zpidx], 0;\n";
 
 	result += "notfirst:\n";
+	result += "\t.reg.u32\t\t%zpidx;\n";
+	result += "\tld.global.u32\t%zpidx, [%ar_zpidx];\n";
 
 	real_reg cr (size, "cr", true);
 	real_reg ci (size, "ci", true);
@@ -1703,9 +1756,13 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	mov.u32	%niter, 0;
 
 loop:
+	.reg.u64	%prevaddr;
 	add.u32		%niter, %niter, 1;
 
 )";
+
+	if (n_prev > 1)
+		gen_store_zprev (result, zr, zi, n_prev);
 
 	if (hybrid)
 		gen_inner_hybrid (result, cg, f, size, stepsize, power, julia, zreg, creg, cval);
@@ -1717,35 +1774,36 @@ loop:
 	QString z2r_high = zr.squared ()->get_piece_high (0);
 	QString z2i_high = zi.squared ()->get_piece_high (0);
 	QString loop_end = R"(
-
 	.reg.u32 %sqsum;
 	add.u32		%sqsum, %1, %2;
 	.reg.pred	%cont;
 	setp.lt.u32	%cont, %sqsum, %3;
 @%cont	bra		skip;
+
+	st.global.u32	[%ar_result], %niter;
 )";
 	result += loop_end.arg (z2r_high, z2i_high, dem ? "100" : "10000");
-	gen_store ("%ar_z", zr);
-	gen_store ("%ar_zim", zi);
-	if (dem) {
-		gen_store ("%ar_zder", zderr);
-		gen_store ("%ar_zderim", zderi);
-	}
+
+	gen_store_zprev (result, zr, zi, n_prev);
 	result += cg.code ();
 
 	result += R"(
-	st.global.u32	[%ar_result], %niter;
-	exit;
-
+	bra		store_and_exit;
 skip:
 	sub.u32		%count, %count, 1;
 	.reg.pred	%again;
 	setp.gt.u32	%again, %count, 0;
 @%again	bra		loop;
+
+	st.global.u32	[%ar_result], 0;
+
+store_and_exit:
+	st.global.u32	[%ar_zpidx], %zpidx;
 )";
-	result += "\tst.global.u32\t[%ar_result], 0;\n";
+
 	gen_store ("%ar_z", zr);
 	gen_store ("%ar_zim", zi);
+
 	if (f == formula::spider) {
 		gen_store ("%ar_t", cr);
 		gen_store ("%ar_tim", ci);
@@ -1758,7 +1816,7 @@ skip:
 	result += "}\n";
 }
 
-char *gen_mprec_funcs (formula f, int size, int stepsize, int power)
+char *gen_mprec_funcs (formula f, int size, int stepsize, int power, int n_prev)
 {
 	QString result;
 	result += QString (R"(	.version	6.2
@@ -1783,14 +1841,14 @@ char *gen_mprec_funcs (formula f, int size, int stepsize, int power)
 	gen_coord_muladd (result, size, stepsize);
 	gen_coord_mul (result, size, stepsize);
 
-	gen_kernel (f, result, size, stepsize, power, true, false);
-	gen_kernel (f, result, size, stepsize, power, false, false);
+	gen_kernel (f, result, size, stepsize, power, n_prev, true, false);
+	gen_kernel (f, result, size, stepsize, power, n_prev, false, false);
 	if (formula_supports_dem (f)) {
-		gen_kernel (f, result, size, stepsize, power, true, true);
-		gen_kernel (f, result, size, stepsize, power, false, true);
+		gen_kernel (f, result, size, stepsize, power, n_prev, true, true);
+		gen_kernel (f, result, size, stepsize, power, n_prev, false, true);
 	} else if (formula_supports_hybrid (f)) {
-		gen_kernel (f, result, size, stepsize, power, true, false, true);
-		gen_kernel (f, result, size, stepsize, power, false, false, true);
+		gen_kernel (f, result, size, stepsize, power, n_prev, true, false, true);
+		gen_kernel (f, result, size, stepsize, power, n_prev, false, false, true);
 	}
 
 	// std::cerr << result;
