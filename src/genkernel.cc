@@ -866,6 +866,18 @@ void gen_kernel_header (QString &result, const QString &name, ARGS... in_args)
 	for (size_t i = 0; i < args.size (); i += 2)
 		result += QString ("\tld.param.%1 %%2, [%in_%3];\n").arg (args[i]).arg (args[i + 1]).arg (args[i + 1]);
 }
+struct cplx_val;
+
+struct cplx_reg
+{
+	shared_ptr<reg_expr> re;
+	shared_ptr<reg_expr> im;
+	cplx_reg (shared_ptr<reg_expr> r, shared_ptr<reg_expr> i) : re (r), im (i)
+	{
+	}
+	cplx_reg () = default;
+	void store (const cplx_val &v);
+};
 
 struct cplx_val
 {
@@ -874,10 +886,19 @@ struct cplx_val
 	cplx_val (shared_ptr<expr> r, shared_ptr<expr> i) : re (r), im (i)
 	{
 	}
+	cplx_val (const cplx_reg &reg) : re (reg.re), im (reg.im)
+	{
+	}
 	cplx_val () = default;
 };
 
-cplx_val emit_complex_sqr (const cplx_val &v, cplx_val v_squared)
+void cplx_reg::store (const cplx_val &v)
+{
+	gen_store (&*re, v.re);
+	gen_store (&*im, v.im);
+}
+
+cplx_val emit_complex_sqr (const cplx_val &v, cplx_val v_squared = cplx_val ())
 {
 	if (v_squared.re == nullptr)
 		v_squared.re = gen_mult (v.re, v.re);
@@ -933,7 +954,7 @@ void build_powers (array<cplx_val, 20> &powers, const cplx_val &z, const cplx_va
 	powers[1] = emit_complex_sqr (z, z_squared);
 	int pidx = 2;
 	for (int p = 4; p <= power; p *= p, pidx++) {
-		powers[pidx] = emit_complex_sqr (powers[pidx - 1], cplx_val ());
+		powers[pidx] = emit_complex_sqr (powers[pidx - 1]);
 	}
 }
 
@@ -951,111 +972,96 @@ cplx_val get_power (const array<cplx_val, 20> &powers, int power)
 	return v;
 }
 
-std::pair<shared_ptr<expr>, shared_ptr<expr>>
-emit_addc (bool julia, shared_ptr<expr> pr, shared_ptr<expr> pi,
-	   shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg, int size, int stepsize)
+cplx_val cplx_ldc (const QString &name, int size, int stepsize)
+{
+	auto re = make_shared<ldc_expr> (QString ("%1 + %2")
+					 .arg (name).arg (stepsize * 4 - size * 4), size);
+	auto im = make_shared<ldc_expr> (QString ("%1 + %2")
+					 .arg (name).arg (2 * stepsize * 4 - size * 4), size);
+	return { re, im };
+}
+
+cplx_val emit_complex_add (const cplx_val &v1, const cplx_val &v2)
 {
 	shared_ptr<addsub_expr> newzr, newzi;
-	if (julia) {
-		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (stepsize * 4 - size * 4), size);
-		newzr = make_shared<addsub_expr> ("add", pr, parmr);
-		auto parmi = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (2 * stepsize * 4 - size * 4), size);
-		newzi = make_shared<addsub_expr> ("add", pi, parmi);
-	} else {
-		newzr = make_shared<addsub_expr> ("add", pr, cr_reg);
-		newzi = make_shared<addsub_expr> ("add", pi, ci_reg);
-	}
+	newzr = make_shared<addsub_expr> ("add", v1.re, v2.re);
+	newzi = make_shared<addsub_expr> ("add", v1.im, v2.im);
 	return { newzr, newzi };
 }
 
-void gen_inner_standard (int size, int stepsize, int power, bool julia, bool dem,
-			 shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-			 shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-			 shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg,
-			 shared_ptr<reg_expr> zderr_reg, shared_ptr<reg_expr> zderi_reg)
+cplx_val emit_complex_sub (const cplx_val &v1, const cplx_val &v2)
+{
+	shared_ptr<addsub_expr> newzr, newzi;
+	newzr = make_shared<addsub_expr> ("sub", v1.re, v2.re);
+	newzi = make_shared<addsub_expr> ("sub", v1.im, v2.im);
+	return { newzr, newzi };
+}
+
+void gen_inner_standard (int size, int power, bool julia, bool dem,
+			 cplx_reg zreg, cplx_reg z2reg, cplx_val creg, cplx_reg zder)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
+	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
 
-	auto [newzr, newzi] = emit_addc (julia, pwr.re, pwr.im, cr_reg, ci_reg, size, stepsize);
+	cplx_val newz = emit_complex_add (pwr, creg);
 	if (dem) {
 		cplx_val dpwr = get_power (powers, power - 1);
-		shared_ptr<expr> nrder = nullptr, nider = nullptr;
-		cplx_val nrd = emit_complex_mult (dpwr, { zderr_reg, zderi_reg });
+		cplx_val nrd = emit_complex_mult (dpwr, zder);
 		nrd = gen_mult_int (nrd, power);
 		if (!julia) {
 			nrd.re = make_shared<addsub_expr> ("add", nrd.re,
-							  make_shared<ldg_expr> ("%dem_step", size));
+							   make_shared<ldg_expr> ("%dem_step", size));
 		}
-		gen_store (&*zderr_reg, nrd.re);
-		gen_store (&*zderi_reg, nrd.im);
+		zder.store (nrd);
 	}
-	gen_store (&*zr_reg, newzr);
-	gen_store (&*zi_reg, newzi);
-	gen_store (&*z2r_reg, gen_mult (newzr, newzr));
-	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
+	zreg.store (newz);
+	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 // Burning ship, because why not set zre and zim to their absolute values before
 // continuing.
-void gen_inner_ship (int size, int stepsize, int power, bool julia,
-		     shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-		     shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-		     shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+void gen_inner_ship (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
 {
-	auto zar = make_shared<abs_expr> (zr_reg);
-	auto zai = make_shared<abs_expr> (zi_reg);
-	gen_store (&*zr_reg, zar);
-	gen_store (&*zi_reg, zai);
+	auto zar = make_shared<abs_expr> (zreg.re);
+	auto zai = make_shared<abs_expr> (zreg.im);
+	zreg.store ({ zar, zai});
 	array<cplx_val, 20> powers;
-	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
+	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
-	auto [newzr, newzi] = emit_addc (julia, pwr.re, pwr.im, cr_reg, ci_reg, size, stepsize);
+	cplx_val newz = emit_complex_add (pwr, creg);
 
-	gen_store (&*zr_reg, newzr);
-	gen_store (&*zi_reg, newzi);
-	gen_store (&*z2r_reg, gen_mult (newzr, newzr));
-	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
+	zreg.store (newz);
+	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 /* Tricorn, also known as Mandelbar.
    Like the default function except the conjugate is taken after the final step
    before assigning Z.  */
-void gen_inner_tricorn (int size, int stepsize, int power, bool julia,
-			shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-			shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-			shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+void gen_inner_tricorn (int size, int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
+	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
-	auto [newzr, newzi] = emit_addc (julia, pwr.re, pwr.im, cr_reg, ci_reg, size, stepsize);
+	cplx_val newz = emit_complex_add (pwr, creg);
 
 	auto const0 = make_shared<const_expr<0>> (size);
-	gen_store (&*zr_reg, newzr);
-	gen_store (&*zi_reg, make_shared<addsub_expr> ("sub", const0, newzi));
-	gen_store (&*z2r_reg, gen_mult (newzr, newzr));
-	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
+	newz.im = make_shared<addsub_expr> ("sub", const0, newz.im);
+
+	zreg.store (newz);
+	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
-void gen_inner_celtic (int size, int stepsize, int power, bool julia,
-		       shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-		       shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-		       shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+void gen_inner_celtic (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
+	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
-	auto par = make_shared<abs_expr> (pwr.re);
-	auto [newzr, newzi] = emit_addc (julia, par, pwr.im, cr_reg, ci_reg, size, stepsize);
+	pwr.re = make_shared<abs_expr> (pwr.re);
+	cplx_val newz = emit_complex_add (pwr, creg);
 
-	gen_store (&*zr_reg, newzr);
-	gen_store (&*zi_reg, newzi);
-	gen_store (&*z2r_reg, gen_mult (newzr, newzr));
-	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
+	zreg.store (newz);
+	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 /* c*(z^N - Nz)
@@ -1063,190 +1069,126 @@ void gen_inner_celtic (int size, int stepsize, int power, bool julia,
    The "actual" fractal named Lambda in other programs is c*(z^2 - z), with critical point 1/2.
    Seems to look identical except for scaling.  */
 
-void gen_inner_lambda (int size, int stepsize, int power, bool julia,
-		      shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-		      shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-		      shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+void gen_inner_lambda (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
+	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
-	cplx_val f = gen_mult_int ({ zr_reg, zi_reg }, power);
+	cplx_val f = gen_mult_int (zreg, power);
 
-	auto sumr = make_shared<addsub_expr> ("sub", pwr.re, f.re);
-	auto sumi = make_shared<addsub_expr> ("sub", pwr.im, f.im);
-	cplx_val newz;
-	if (julia) {
-		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
-						    .arg (stepsize * 4 - size * 4), size);
-		auto parmi = make_shared<ldc_expr> (QString ("const_param_p + %1")
-						    .arg (2 * stepsize * 4 - size * 4), size);
-		newz = emit_complex_mult ({ sumr, sumi }, { parmr, parmi });
-	} else {
-		newz = emit_complex_mult ({ sumr, sumi }, { cr_reg, ci_reg });
-	}
-	gen_store (&*zr_reg, newz.re);
-	gen_store (&*zi_reg, newz.im);
-	gen_store (&*z2r_reg, gen_mult (newz.re, newz.re));
-	gen_store (&*z2i_reg, gen_mult (newz.im, newz.im));
+	cplx_val sum = emit_complex_sub (pwr, f);
+	cplx_val newz = emit_complex_mult (sum, creg);
+
+	zreg.store (newz);
+	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
-void gen_inner_sqtwice_a (int size, int stepsize, int power, bool julia,
-			  shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-			  shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-			  shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+void gen_inner_sqtwice_a (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
+	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
-	auto [newzr, newzi] = emit_addc (julia, pwr.re, pwr.im, cr_reg, ci_reg, size, stepsize);
-	cplx_val newz = emit_complex_mult ({ newzr, newzi }, { newzr, newzi });
+	cplx_val newz1 = emit_complex_add (pwr, creg);
+	cplx_val newz = emit_complex_sqr (newz1);
 
-	gen_store (&*zr_reg, newz.re);
-	gen_store (&*zi_reg, newz.im);
-	gen_store (&*z2r_reg, gen_mult (newz.re, newz.re));
-	gen_store (&*z2i_reg, gen_mult (newz.im, newz.im));
+	zreg.store (newz);
+	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 
-void gen_inner_sqtwice_b (int size, int stepsize, int power, bool julia,
-			  shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-			  shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-			  shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+void gen_inner_sqtwice_b (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
 {
-	array<cplx_val, 20> powers;
-	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, 2);
-	cplx_val pwr = get_power (powers, 2);
-	auto [newzr, newzi] = emit_addc (julia, pwr.re, pwr.im, cr_reg, ci_reg, size, stepsize);
+	cplx_val pwr = emit_complex_sqr (zreg);
+	cplx_val newz1 = emit_complex_add (pwr, creg);
 
 	array<cplx_val, 20> powers_b;
-	build_powers (powers_b, { newzr, newzi }, cplx_val (), power);
-	cplx_val pwb = get_power (powers_b, power);
+	build_powers (powers_b, newz1, cplx_val (), power);
+	cplx_val newz = get_power (powers_b, power);
 
-	gen_store (&*zr_reg, pwb.re);
-	gen_store (&*zi_reg, pwb.im);
-	gen_store (&*z2r_reg, gen_mult (pwb.re, pwb.re));
-	gen_store (&*z2i_reg, gen_mult (pwb.im, pwb.im));
+	zreg.store (newz);
+	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
-void gen_inner_spider (int size, int stepsize, int power,
-		       shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-		       shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-		       shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg z2reg, cplx_reg creg)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
+	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
 
-	shared_ptr<addsub_expr> newzr, newzi;
-	newzr = make_shared<addsub_expr> ("add", pwr.re, cr_reg);
-	newzi = make_shared<addsub_expr> ("add", pwr.im, ci_reg);
+	cplx_val newz = emit_complex_add (pwr, creg);
 
-	auto prhalf = make_shared<arshift_expr<1>> (cr_reg);
-	auto pihalf = make_shared<arshift_expr<1>> (ci_reg);
-	auto npr = make_shared<reg_expr> (size, "npr");
-	auto npi = make_shared<reg_expr> (size, "npi");
-	gen_store (&*npr, make_shared<addsub_expr> ("add", prhalf, newzr));
-	gen_store (&*npi, make_shared<addsub_expr> ("add", pihalf, newzi));
-
-	gen_store (&*zr_reg, newzr);
-	gen_store (&*zi_reg, newzi);
-	gen_store (&*z2r_reg, gen_mult (newzr, newzr));
-	gen_store (&*z2i_reg, gen_mult (newzi, newzi));
-	gen_store (&*cr_reg, npr);
-	gen_store (&*ci_reg, npi);
+	auto prhalf = make_shared<arshift_expr<1>> (creg.re);
+	auto pihalf = make_shared<arshift_expr<1>> (creg.im);
+	cplx_val np = emit_complex_add ({ prhalf, pihalf}, newz);
+	newz.re->calculate_full ();
+	newz.im->calculate_full ();
+	zreg.store (newz);
+	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
+	creg.store (np);
 }
 
 // Similar to lambda, but computes c(z^N - Nz - 2) + q
 
-void gen_inner_mix (int size, int stepsize, int power, bool julia,
-		     shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-		     shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-		     shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+void gen_inner_mix (int size, int stepsize, int power, bool /* julia */,
+		    cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, { zr_reg, zi_reg }, { z2r_reg, z2i_reg }, power);
+	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
-	cplx_val f = gen_mult_int ({ zr_reg, zi_reg }, power);
+	cplx_val f = gen_mult_int (zreg, power);
 
 	auto const2 = make_shared<const_expr<2>> (size);
 	auto sumr = make_shared<addsub_expr> ("sub", make_shared<addsub_expr> ("sub", pwr.re, f.re), const2);
 	auto sumi = make_shared<addsub_expr> ("sub", pwr.im, f.im);
-	cplx_val newz;
-	if (julia) {
-		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
-						    .arg (stepsize * 4 - size * 4), size);
-		auto parmi = make_shared<ldc_expr> (QString ("const_param_p + %1")
-						    .arg (2 * stepsize * 4 - size * 4), size);
-		newz = emit_complex_mult ({ sumr, sumi }, { parmr, parmi });
-	} else {
-		newz = emit_complex_mult ({ sumr, sumi }, { cr_reg, ci_reg });
-	}
-	auto pqr = make_shared<ldc_expr> (QString ("const_param_q + %1")
-					  .arg (stepsize * 4 - size * 4), size);
-	newz.re = make_shared<addsub_expr> ("sub", newz.re, pqr);
-	auto pqi = make_shared<ldc_expr> (QString ("const_param_q + %1")
-					  .arg (2 * stepsize * 4 - size * 4), size);
-	newz.im = make_shared<addsub_expr> ("sub", newz.im, pqi);
+	cplx_val newz1 = emit_complex_mult ({ sumr, sumi }, creg);
+	auto pq = cplx_ldc ("const_param_q", size, stepsize);
+	cplx_val newz = emit_complex_sub (newz1, pq);
 
-	gen_store (&*zr_reg, newz.re);
-	gen_store (&*zi_reg, newz.im);
-	gen_store (&*z2r_reg, gen_mult (newz.re, newz.re));
-	gen_store (&*z2i_reg, gen_mult (newz.im, newz.im));
+	zreg.store (newz);
+	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 static void gen_inner (formula f, int size, int stepsize, int power, bool julia, bool dem,
-		       shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-		       shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-		       shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg,
-		       shared_ptr<reg_expr> zderr_reg, shared_ptr<reg_expr> zderi_reg)
+		       cplx_reg zreg, cplx_reg z2reg, cplx_reg creg, cplx_reg zder)
 {
+	cplx_val cval = { creg.re, creg.im };
+	if (julia)
+		cval = cplx_ldc ("const_param_p", size, stepsize);
 	switch (f) {
 	default:
 	case formula::standard:
-		gen_inner_standard (size, stepsize, power, julia, dem,
-				    zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg, zderr_reg, zderi_reg);
+		gen_inner_standard (size, power, julia, dem, zreg, z2reg, cval, zder);
 		break;
 	case formula::tricorn:
-		gen_inner_tricorn (size, stepsize, power, julia,
-				   zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		gen_inner_tricorn (size, power, julia, zreg, z2reg, cval);
 		break;
 	case formula::ship:
-		gen_inner_ship (size, stepsize, power, julia,
-				zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		gen_inner_ship (power, julia, zreg, z2reg, cval);
 		break;
 	case formula::celtic:
-		gen_inner_celtic (size, stepsize, power, julia,
-				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		gen_inner_celtic (power, julia, zreg, z2reg, cval);
 		break;
 	case formula::spider:
-		gen_inner_spider (size, stepsize, power,
-				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		gen_inner_spider (size, power, zreg, z2reg, creg);
 		break;
 	case formula::lambda:
-		gen_inner_lambda (size, stepsize, power, julia,
-				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		gen_inner_lambda (power, julia, zreg, z2reg, cval);
 		break;
 	case formula::mix:
-		gen_inner_mix (size, stepsize, power, julia,
-			       zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		gen_inner_mix (size, stepsize, power, julia, zreg, z2reg, cval);
 		break;
 	case formula::sqtwice_a:
-		gen_inner_sqtwice_a (size, stepsize, power, julia,
-				     zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		gen_inner_sqtwice_a (power, julia, zreg, z2reg, cval);
 		break;
 	case formula::sqtwice_b:
-		gen_inner_sqtwice_b (size, stepsize, power, julia,
-				     zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		gen_inner_sqtwice_b (power, julia, zreg, z2reg, cval);
 		break;
 	}
 }
 
 static void gen_inner_hybrid (QString &result, generator &cg,
 			      formula f, int size, int stepsize, int power, bool julia,
-			      shared_ptr<reg_expr> zr_reg, shared_ptr<reg_expr> zi_reg,
-			      shared_ptr<reg_expr> z2r_reg, shared_ptr<reg_expr> z2i_reg,
-			      shared_ptr<reg_expr> cr_reg, shared_ptr<reg_expr> ci_reg)
+			      cplx_reg zreg, cplx_reg z2reg, cplx_reg creg)
 {
 	result += "\t.reg.u32 %hval;\n";
 	result += "\t.reg.pred %hpred;\n";
@@ -1255,14 +1197,12 @@ static void gen_inner_hybrid (QString &result, generator &cg,
 	result += "\tsetp.ne.u32\t%hpred, %hval, 0;\n";
 	result += "@%hpred\tbra.uni\tstditer;\n";
 
-	gen_inner (f, size, stepsize, power, julia, false,
-		   zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg, nullptr, nullptr);
+	gen_inner (f, size, stepsize, power, julia, false, zreg, z2reg, creg, cplx_reg ());
 	result += cg.code ();
 	result += "\tbra\tloopend;\n";
 	result += "stditer:\n";
 	result += "\tadd.u32\t%hybrid_code, %hybrid_code, 1;\n";
-	gen_inner_standard (size, stepsize, power, julia, false,
-			    zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg, nullptr, nullptr);
+	gen_inner_standard (size, power, julia, false, zreg, z2reg, creg, cplx_reg ());
 	result += cg.code ();
 	result += "loopend:\n";
 }
@@ -1421,13 +1361,11 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	}
 
 	if (f == formula::spider && julia) {
-		auto parmr = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (stepsize * 4 - size * 4), size);
-		gen_store (&*cr_reg, parmr);
-		auto parmi = make_shared<ldc_expr> (QString ("const_param_p + %1")
-					     .arg (2 * stepsize * 4 - size * 4), size);
-		gen_store (&*ci_reg, parmi);
+		cplx_val parm_p = cplx_ldc ("const_param_p", size, stepsize);
+		gen_store (&*cr_reg, parm_p.re);
+		gen_store (&*ci_reg, parm_p.im);
 	}
+
 	result += cg.code ();
 
 	result += R"(
@@ -1439,12 +1377,15 @@ loop:
 	add.u32		%niter, %niter, 1;
 
 )";
+	cplx_reg zreg = { zr_reg, zi_reg };
+	cplx_reg z2reg = { z2r_reg, z2i_reg };
+	cplx_reg creg = { cr_reg, ci_reg };
+	cplx_reg zder = { zderr_reg, zderi_reg };
+
 	if (hybrid)
-		gen_inner_hybrid (result, cg, f, size, stepsize, power, julia,
-				  zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg);
+		gen_inner_hybrid (result, cg, f, size, stepsize, power, julia, zreg, z2reg, creg);
 	else
-		gen_inner (f, size, stepsize, power, julia, dem,
-			   zr_reg, zi_reg, z2r_reg, z2i_reg, cr_reg, ci_reg, zderr_reg, zderi_reg);
+		gen_inner (f, size, stepsize, power, julia, dem, zreg, z2reg, creg, zder);
 
 	result += cg.code ();
 
