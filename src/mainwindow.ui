@@ -243,6 +243,9 @@
      <addaction name="action_AngleNone"/>
      <addaction name="action_AngleSmooth"/>
      <addaction name="action_AngleBin"/>
+     <addaction name="action_SAC"/>
+     <addaction name="separator"/>
+     <addaction name="action_Contrast"/>
     </widget>
     <addaction name="menuNarrow_black_white"/>
     <addaction name="menuStructure_modifier"/>
@@ -930,7 +933,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QGroupBox" name="groupBox_4">
+      <widget class="QGroupBox" name="superBox">
        <property name="title">
         <string>Supersample</string>
        </property>
@@ -1929,6 +1932,17 @@
     <string>Ctrl+B</string>
    </property>
   </action>
+  <action name="action_SAC">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Stripe Average Colouring</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+C</string>
+   </property>
+  </action>
   <action name="action_AngleNone">
    <property name="checkable">
     <bool>true</bool>
@@ -1975,6 +1989,14 @@
    </property>
    <property name="toolTip">
     <string>Rotate 5°</string>
+   </property>
+  </action>
+  <action name="action_Contrast">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Adjust contrast for SAC</string>
    </property>
   </action>
  </widget>

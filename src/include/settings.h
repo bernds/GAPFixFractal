@@ -16,6 +16,7 @@ class PrefsDialog : public QDialog
 
 	Ui::PrefsDialog *ui;
 
+	void update_gui ();
 public:
 	PrefsDialog (MainWindow *);
 	~PrefsDialog ();

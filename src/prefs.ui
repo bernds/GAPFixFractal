@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>813</width>
-    <height>251</height>
+    <height>310</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -84,6 +84,87 @@
        <widget class="QToolButton" name="colorsButton">
         <property name="text">
          <string>...</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="largememBox">
+     <property name="title">
+      <string>Allow options that can cause excessive memory consumption</string>
+     </property>
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+     <property name="checked">
+      <bool>false</bool>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="2" column="2">
+       <widget class="QLabel" name="nprevLabel">
+        <property name="text">
+         <string>TextLabel</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0" rowspan="2" colspan="4">
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>32G and more recommended, more when using supersampling or high resolutions</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="3">
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>1</width>
+          <height>1</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSlider" name="nprevSlider">
+        <property name="toolTip">
+         <string>&lt;p&gt;Stripe Average Colouring uses not just the last iteration value, but a number of previous values. When zooming in, it is helpful to have a large number of previous values available to avoid visual artifacts, but the cost in additional memory goes up by a significant amount.&lt;/p&gt;&lt;p&gt;A value of 16 is recommended as the maximum if available memory is below 32G and/or resolution exceeds 1920x1080 with supersample factor 1.&lt;/p&gt;</string>
+        </property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>6</number>
+        </property>
+        <property name="pageStep">
+         <number>1</number>
+        </property>
+        <property name="value">
+         <number>3</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string>Number of previous iterations for stripe colouring:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QCheckBox" name="noSuperCheckBox">
+        <property name="toolTip">
+         <string>&lt;p&gt;A safety option to reduce memory consumption if using stripe colouring by disallowing supersampling in live view. Batch renders still allow supersample, since they avoid using too much memory by splitting the image into multiple parts and calculating them one after another.&lt;/p&gt;</string>
+        </property>
+        <property name="text">
+         <string>Disable supersampling in live view if using SAC</string>
         </property>
        </widget>
       </item>

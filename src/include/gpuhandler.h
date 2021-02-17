@@ -8,9 +8,6 @@
 #include "fractal.h"
 #include "bitarray.h"
 
-// Must always at least 1, since the final Z value is stored in this array.
-constexpr int n_prev = 1;
-
 class GPU_handler : public QObject
 {
         Q_OBJECT

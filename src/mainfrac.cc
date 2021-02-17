@@ -418,12 +418,13 @@ void MainWindow::discard_fd_data (frac_desc &fd)
 	delete[] fd.host_coords;
 
 	delete[] fd.pic_zprev;
+	delete[] fd.pic_t;
 	delete[] fd.pic_result;
 	delete[] fd.pic_iter_value;
 	fd.n_pixels = 0;
 }
 
-void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int full_h,
+void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, int h, int full_h,
 				  int maxiter, int ss, bool isdem, bool preview, bool batch)
 {
 	QMutexLocker render_lock (&m_renderer->mutex);
@@ -438,7 +439,8 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 	if (fd.nvals_allocated != nvals || fd.samples != ss
 	    || fd.n_pixels != npixels
 	    || fd.n_threads != nthreads
-	    || fd.nwords != nwords)
+	    || fd.nwords != nwords
+	    || fd.n_prev != n_prev)
 	{
 		discard_fd_data (fd);
 
@@ -449,7 +451,9 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 		fd.n_pixels = npixels;
 		fd.n_threads = nthreads;
 		fd.nwords = nwords;
+		fd.n_prev = n_prev;
 		fd.samples = ss;
+
 		int nvals = n_formula_cplx_vals (fd.fm, isdem);
 		fd.host_cplxvals = new uint32_t[nwords * 2 * nvals * nthreads];
 		fd.host_zprev = new double[n_prev * 2 * nthreads];
@@ -457,6 +461,9 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 		fd.host_coords = new uint32_t[nthreads];
 		fd.host_result = new uint32_t[nthreads];
 
+		fd.pic_t = nullptr;
+		if (n_prev > 1)
+			fd.pic_t = new double[2 * npixels];
 		fd.pic_zprev = new double[2 * n_prev * npixels];
 		fd.pic_zder = nullptr;
 		if (fd.dem)
@@ -469,6 +476,10 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 	fd.full_height = full_h * ss;
 	fd.cmin = 10000;
 	fd.cmax = -10000;
+	if (!batch) {
+		fd.min_stripeval = 0;
+		fd.max_stripeval = 1;
+	}
 	fd.pixel_step = preview || batch ? 1 : ss * 2;
 	fd.n_completed = 0;
 	fd.start_idx = 0;
@@ -499,6 +510,33 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 	gpu_handler->processing_data = false;
 
 	emit signal_start_kernel (&fd, m_generation, max_nwords, iter_steps, batch);
+}
+
+void MainWindow::slot_enable_sac (bool on)
+{
+	if (!on) {
+		ui->superBox->setEnabled (true);
+		n_prev_requested = 1;
+		update_views ();
+		return;
+	}
+	QSettings settings;
+	n_prev_requested = 1 << settings.value ("coloring/nprev").toInt ();
+	bool safety = settings.value ("coloring/nosuper-sac").toBool ();
+	ui->superBox->setEnabled (!safety);
+	if (safety)
+		ui->sampleSpinBox->setValue (0);
+	update_settings (false);
+}
+
+/* Called whenever an angle group menu item other than SAC is chosen.  */
+void MainWindow::slot_disable_sac (bool on)
+{
+	if (n_prev_requested != 1) {
+		n_prev_requested = 1;
+		update_settings (false);
+	} else
+		update_views ();
 }
 
 void MainWindow::closeEvent (QCloseEvent *event)
@@ -696,23 +734,23 @@ static inline uint32_t modify_color (uint32_t col, double v)
 	return col;
 }
 
-inline double iter_value_at (frac_desc *fd, int idx, int power)
+inline std::pair<double, int> iter_value_at (frac_desc *fd, int idx, int power)
 {
 	double v = fd->pic_result[idx];
 	if (v == 0)
-		return 0;
-	double re2 = fd->pic_zprev[idx * 2 * n_prev];
-	double im2 = fd->pic_zprev[idx * 2 * n_prev + 1];
+		return { 0, 0 };
+	double re2 = fd->pic_zprev[idx * 2 * fd->n_prev];
+	double im2 = fd->pic_zprev[idx * 2 * fd->n_prev + 1];
 	re2 *= re2;
 	im2 *= im2;
 	// Some attractor other than infinity.
 	if (re2 + im2 < 16)
-		return v;
-	double radius = 100;
+		return { v, 1 };
+	double radius = fd->dem ? 10 : 100;
 	double correction = log (0.5 * log ((double)re2 + im2) / log (radius)) / log (power);
 	fd->cmin = std::min (fd->cmin, correction);
 	fd->cmax = std::max (fd->cmax, correction);
-	return v + 5 - correction;
+	return { v + 5 - correction, 0 };
 }
 
 class runner : public QRunnable
@@ -726,31 +764,67 @@ class runner : public QRunnable
 	QRgb *data;
 	double dstep;
 	int power;
-
+	double found_stripe_min = 1.0;
+	double found_stripe_max = 0.0;
+	double *new_stripe_min, *new_stripe_max;
+	QMutex *update_mutex;
 public:
 	runner (QSemaphore *sem, std::atomic<bool> *succ_in, const render_params &rp_in,
-		int w_in, int y0_in, int y0e_in, frac_desc *fd_in, double min_in, QRgb *data_in)
+		int w_in, int y0_in, int y0e_in, frac_desc *fd_in, double min_in, QRgb *data_in,
+		double *nsmin, double *nsmax, QMutex *umutex)
 		: completion_sem (sem), success (succ_in),
-		  rp (rp_in), w (w_in), y0 (y0_in), y0e (y0e_in), fd (fd_in), minimum (min_in), data (data_in)
+		  rp (rp_in), w (w_in), y0 (y0_in), y0e (y0e_in), fd (fd_in), minimum (min_in), data (data_in),
+		  new_stripe_min (nsmin), new_stripe_max (nsmax), update_mutex (umutex)
 	{
 		setAutoDelete (true);
 	}
 
 	void compute_color (size_t idx, int &r, int &g, int &b, int &outcolor)
 	{
-		double v = rp.angle ? fd->pic_result[idx] : iter_value_at (fd, idx, power);
+		int n_prev = fd->n_prev;
+		double re = fd->pic_zprev[idx * 2 * n_prev];
+		double im = fd->pic_zprev[idx * 2 * n_prev + 1];
+
+		auto [ v, attractor ] = iter_value_at (fd, idx, power);
 		double v1 = v;
 		if (v != 0) {
 			outcolor++;
 
 			if (rp.sub)
 				v -= minimum - rp.sub_val;
-
 			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, rp.slider);
 
-			if (rp.angle == 1) {
-				double re = fd->pic_zprev[idx * 2 * n_prev];
-				double im = fd->pic_zprev[idx * 2 * n_prev + 1];
+			if (rp.sac && attractor == 0) {
+				double density = 6;
+				double re2 = re * re;
+				double im2 = im * im;
+				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
+				double firstval = 0.5 * sin (density * atan2 (im, re)) + 0.5;
+				double sum = 0;
+				for (int i = 1; i < thisnp; i++) {
+					double lastre = fd->pic_zprev[idx * 2 * n_prev + i * 2];
+					double lastim = fd->pic_zprev[idx * 2 * n_prev + i * 2 + 1];
+					double val = 0.5 * sin (density * atan2 (lastim, lastre)) + 0.5;
+					sum += val;
+				}
+				double avg1 = thisnp > 1 ? sum / (thisnp - 1) : 0;
+				double avg2 = (sum + firstval) / thisnp;
+				double radius = fd->dem ? 10 : 100;
+				double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (fd->power);
+				// printf ("mf %f %f\n", mixfactor1, mixfactor);
+				double mod = avg1 * mixfactor + avg2 * (1 - mixfactor);
+				found_stripe_min = std::min (mod, found_stripe_min);
+				found_stripe_max = std::max (mod, found_stripe_max);
+				double prev_width = fd->max_stripeval - fd->min_stripeval;
+				if (rp.sac_contrast)
+					mod = std::max (0.0, std::min (1.0, (mod - fd->min_stripeval) / prev_width));
+				if (rp.angle_colour)
+					col = modify_color (col, mod);
+				else {
+					col = 0x010101 * floor (mod * 255);
+				}
+			}
+			else if (rp.angle == 1) {
 				double re2 = re * re;
 				double im2 = im * im;
 				double size = sqrt (re2 + im2);
@@ -772,7 +846,6 @@ public:
 				col = modify_color (col, v);
 			}
 			else if (rp.angle == 2) {
-				double im = fd->pic_zprev[idx * 2 * n_prev + 1];
 				if (im < 0)
 					col = 0;
 				else if (!rp.angle_colour)
@@ -780,8 +853,6 @@ public:
 			}
 			double dem_shade = 1;
 			if (rp.dem || rp.dem_shade) {
-				double re = fd->pic_zprev[idx * 2 * n_prev];
-				double im = fd->pic_zprev[idx * 2 * n_prev + 1];
 				double re2 = re * re;
 				double im2 = im * im;
 				double rezder = fd->pic_zder[idx * 2];
@@ -828,7 +899,7 @@ public:
 						return;
 					}
 				}
-				if (!rp.dem_colour && !rp.angle) {
+				if (!rp.dem_colour && !rp.sac && !rp.angle) {
 					r += dem_shade * 255;
 					g += dem_shade * 255;
 					b += dem_shade * 255;
@@ -906,10 +977,16 @@ public:
 		}
 		if (any_found)
 			success->store (true);
+		update_mutex->lock ();
+		*new_stripe_min = std::min (*new_stripe_min, found_stripe_min);
+		*new_stripe_max = std::max (*new_stripe_max, found_stripe_max);
+		update_mutex->unlock ();
+		// Must be outside the lock, otherwise the lock could go away from under us.
 		completion_sem->release ();
 	}
 };
 
+/* The view is null if we are being called for a batch render.  */
 void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_desc *fd, QGraphicsView *view, int gen)
 {
 	QMutexLocker lock (&mutex);
@@ -928,7 +1005,8 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 		for (int i = 0; i < fd->n_pixels; i++) {
 			if (!fd->pic_pixels_done.test_bit (i))
 				continue;
-			double v = iter_value_at (fd, i, power);
+			auto [ v, attractor ] = iter_value_at (fd, i, power);
+			v = floor (v);
 			if (v > 0 && (minimum == 0 || v < minimum))
 				minimum = v;
 		}
@@ -946,18 +1024,26 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 	int lines_per_thread = std::max (20, (h + tc - 1) / tc);
 	int n_started = 0;
 	std::atomic<bool> any_found = false;
+	double new_stripe_min = 1;
+	double new_stripe_max = 0;
+	QMutex update_mutex;
 	for (int y0 = 0; y0 < h; y0 += lines_per_thread) {
 		int y0e = y0 + lines_per_thread;
 		if (y0e > h)
 			y0e = h;
-		m_pool.start (new runner (&completion_sem, &any_found, rp, w, y0, y0e, fd, minimum, data + w * y0));
+		m_pool.start (new runner (&completion_sem, &any_found, rp, w, y0, y0e, fd, minimum, data + w * y0,
+					  &new_stripe_min, &new_stripe_max, &update_mutex));
 		n_started++;
 	}
 	completion_sem.acquire (n_started);
 	if (!any_found)
 		return;
-	if (view != nullptr)
+
+	if (view != nullptr) {
+		fd->min_stripeval = new_stripe_min;
+		fd->max_stripeval = new_stripe_max;
 		emit signal_render_complete (view, fd, result_image, minimum);
+	}
 }
 
 void Renderer::slot_render (frac_desc *fd, QGraphicsView *view, int generation)
@@ -999,6 +1085,8 @@ void MainWindow::set_render_params (render_params &p)
 	int steps_spin = ui->widthSpinBox->value ();
 	p.steps = (pow (steps_spin + 1, 1.3) - 2) / 2;
 	p.angle = !!ui->action_AngleSmooth->isChecked () + 2 * !!ui->action_AngleBin->isChecked ();
+	p.sac = ui->action_SAC->isChecked ();
+	p.sac_contrast = ui->action_Contrast->isChecked ();
 	p.sub = !ui->action_ShiftNone->isChecked ();
 	p.sub_val = ui->action_Shift10->isChecked () ? 10 : ui->action_Shift100->isChecked () ? 100 : 0;
 	p.slider = ui->colStepSlider->value ();
@@ -1079,7 +1167,7 @@ void MainWindow::render_fractal ()
 	printf ("render_fractal size %d %d\n", w, h);
 
 	bool isdem = !ui->action_DEMOff->isChecked ();
-	compute_fractal (fd, m_nwords, w, h, h, default_maxiter, ui->sampleSpinBox->value (), isdem, false);
+	compute_fractal (fd, m_nwords, n_prev_requested, w, h, h, default_maxiter, ui->sampleSpinBox->value (), isdem, false);
 }
 
 void MainWindow::render_preview ()
@@ -1097,7 +1185,7 @@ void MainWindow::render_preview ()
 	printf ("render_preview size %d %d\n", w, h);
 
 	bool isdem = !ui->action_DEMOff->isChecked ();
-	compute_fractal (m_fd_julia, m_nwords, w, h, h, default_maxiter, 0, isdem, true);
+	compute_fractal (m_fd_julia, m_nwords, n_prev_requested, w, h, h, default_maxiter, 0, isdem, true);
 }
 
 void MainWindow::slot_new_data (frac_desc *fd, int generation, bool success)
@@ -1476,6 +1564,15 @@ void MainWindow::init_formula (formula f)
 	}
 	if (f == formula::mix)
 		set_q (2, 0);
+}
+
+void MainWindow::enable_interface_for_settings ()
+{
+	QSettings settings;
+	bool largemem = settings.value ("largemem").toBool ();
+	ui->action_SAC->setEnabled (largemem);
+	if (!largemem && ui->action_SAC->isChecked ())
+		ui->action_AngleNone->setChecked (true);
 }
 
 void MainWindow::enable_interface_for_formula (formula f)
@@ -2081,6 +2178,12 @@ void MainWindow::slot_batchrender (bool)
 		QString errstr;
 		auto it = std::find (std::begin (formula_table), std::end (formula_table), fp.fm);
 		int fidx = it - std::begin (formula_table);
+		int n_prev = 1;
+		if (rp.sac) {
+			QSettings settings;
+			n_prev = 1 << settings.value ("coloring/nprev").toInt ();
+
+		}
 		emit signal_compile_kernel (fidx, fp.power, fp.nwords, max_nwords, &errstr);
 		gpu_handler->done_sem.acquire ();
 		if (!errstr.isEmpty ()) {
@@ -2102,7 +2205,8 @@ void MainWindow::slot_batchrender (bool)
 		temp_fd.set (fp);
 		temp_fd.generation = 0;
 		int spixels = 1 << samples;
-		int batch_size = std::max (400.0, 100000.0 / ((double)w * spixels * spixels));
+		double d = (double)w * spixels * spixels * n_prev;
+		int batch_size = std::max (20.0, 1000000.0 / d);
 		int steps = (h + batch_size - 1) / batch_size;
 		batch_size = h / steps;
 
@@ -2124,7 +2228,7 @@ void MainWindow::slot_batchrender (bool)
 
 			temp_fd.yoff = y0 * (1 << samples);
 			int this_h = std::min (h - y0, batch_size);
-			compute_fractal (temp_fd, temp_fd.nwords, w, this_h, h, maxiter,
+			compute_fractal (temp_fd, temp_fd.nwords, n_prev, w, this_h, h, maxiter,
 					 samples, rp.dem, false, true);
 			gpu_handler->done_sem.acquire ();
 			if (pdlg.wasCanceled ())
@@ -2353,6 +2457,7 @@ MainWindow::MainWindow ()
 	m_angles_group->addAction (ui->action_AngleNone);
 	m_angles_group->addAction (ui->action_AngleSmooth);
 	m_angles_group->addAction (ui->action_AngleBin);
+	m_angles_group->addAction (ui->action_SAC);
 
 	m_formula_group = new QActionGroup (this);
 	m_formula_group->addAction (ui->action_FormulaStandard);
@@ -2372,8 +2477,10 @@ MainWindow::MainWindow ()
 	ui->action_Shift10->setChecked (true);
 	ui->action_NFactor4->setChecked (true);
 	ui->action_StructDark->setChecked (true);
+	ui->action_Contrast->setChecked (true);
 	ui->action_FD2->setChecked (true);
 	enable_interface_for_formula (m_formula);
+	enable_interface_for_settings ();
 
 	ui->menu_View->insertAction (nullptr, ui->storedDock->toggleViewAction ());
 	ui->menu_View->insertAction (nullptr, ui->extraDock->toggleViewAction ());
@@ -2416,9 +2523,10 @@ MainWindow::MainWindow ()
 	connect (ui->action_StructLight, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_StructDark, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_StructBoth, &QAction::toggled, [this] (bool) { update_palette (); });
-	connect (ui->action_AngleNone, &QAction::toggled, [this] (bool) { update_views (); });
-	connect (ui->action_AngleSmooth, &QAction::toggled, [this] (bool) { update_views (); });
-	connect (ui->action_AngleBin, &QAction::toggled, [this] (bool) { update_views (); });
+	connect (ui->action_AngleNone, &QAction::toggled, this, &MainWindow::slot_disable_sac);
+	connect (ui->action_AngleSmooth, &QAction::toggled, this, &MainWindow::slot_disable_sac);
+	connect (ui->action_AngleBin, &QAction::toggled, this, &MainWindow::slot_disable_sac);
+	connect (ui->action_SAC, &QAction::toggled, this, &MainWindow::slot_enable_sac);
 
 	connect (ui->action_DEMColour, &QAction::toggled,
 		 [this] (bool) { if (!ui->action_DEMOff->isChecked ()) update_views (); });
@@ -2522,7 +2630,15 @@ MainWindow::MainWindow ()
 	connect (ui->action_Prefs, &QAction::triggered,
 		 [this] (bool) {
 			 PrefsDialog dlg (this);
-			 dlg.exec ();
+			 if (dlg.exec ()) {
+				 abort_computation ();
+				 m_recompile = true;
+				 m_inhibit_updates = true;
+				 enable_interface_for_settings ();
+				 slot_enable_sac (ui->action_SAC->isChecked ());
+				 m_inhibit_updates = false;
+				 restart_computation ();
+			 }
 		 });
 	connect (ui->action_About, &QAction::triggered, [=] (bool) { help_about (); });
 	connect (ui->action_AboutQt, &QAction::triggered, [=] (bool) { QMessageBox::aboutQt (this); });

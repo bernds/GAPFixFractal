@@ -23,7 +23,11 @@ struct frac_params
 	int power = 2;
 
 	uint32_t maxiter = 100;
+	// Adjusted during computation
 	uint32_t maxiter_found = 0;
+	// Adjusted during rendering
+	double min_stripeval = 0;
+	double max_stripeval = 1;
 
 	// Used for the initial position
 	int bounds_w = 0;
@@ -31,6 +35,8 @@ struct frac_params
 
 	uint32_t hybrid_code = 0;
 	int hybrid_len = 0;
+
+	int n_prev = 1;
 
 	void resize (int max_nwords)
 	{
@@ -67,6 +73,7 @@ struct frac_desc : public frac_params
 	/* Updated by the GUI and used to compute the actual rotation matrix.  */
 	double rotation_angle = 0;
 
+	double *pic_t;
 	double *pic_zprev;
 	double *pic_zder;
 	uint32_t *pic_result;

@@ -43,6 +43,7 @@ struct render_params
 	int sub_val;
 	int angle;
 	bool sub;
+	bool sac, sac_contrast;
 	bool dem_colour, angle_colour;
 	bool dem;
 	bool dem_shade;
@@ -136,6 +137,7 @@ class MainWindow: public QMainWindow
 	int m_generation = 0;
 	int m_nwords = 2;
 	int m_power;
+	int n_prev_requested = 1;
 
 	bool m_new_data_queued = false;
 	bool m_preview_uptodate = false;
@@ -180,7 +182,7 @@ class MainWindow: public QMainWindow
 	double shear_slider_value ();
 	double scale_slider_value ();
 	void build_points (frac_desc &, int w, int h);
-	void compute_fractal (frac_desc &, int nwords, int w, int h, int full_h,
+	void compute_fractal (frac_desc &, int nwords, int n_prev, int w, int h, int full_h,
 			      int maxiter, int ss, bool dem, bool preview, bool batch = false);
 	void render_fractal ();
 	void render_preview ();
@@ -224,6 +226,9 @@ class MainWindow: public QMainWindow
 	void store_params (bool);
 	void restore_params (const frac_params &);
 
+	void slot_enable_sac (bool);
+	void slot_disable_sac (bool);
+
 	void slot_save_as (bool);
 	void slot_save_params ();
 	void slot_load_params ();
@@ -238,6 +243,7 @@ class MainWindow: public QMainWindow
 	void preview_wheel_event (QWheelEvent *);
 
 	void enable_interface_for_formula (formula);
+	void enable_interface_for_settings ();
 	void init_formula (formula);
 	void formula_chosen (formula, int);
 	void choose_hybrid (bool);
