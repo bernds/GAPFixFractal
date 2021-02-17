@@ -23,6 +23,7 @@ struct frac_params
 	int power = 2;
 
 	uint32_t maxiter = 100;
+	uint32_t maxiter_found = 0;
 
 	// Used for the initial position
 	int bounds_w = 0;

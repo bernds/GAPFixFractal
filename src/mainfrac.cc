@@ -568,6 +568,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			int idx = (hcy - fd->yoff) * w + hcx;
 			if (result != 0) {
 				fd->pic_result[idx] += result;
+				fd->maxiter_found = std::max (fd->maxiter_found, fd->pic_result[idx]);
 				fd->pic_z[idx * 2] = to_double (&fd->host_z[i * z_size], fd->nwords);
 				fd->pic_z[idx * 2 + 1] = to_double (&fd->host_z[i * z_size + fd->nwords], fd->nwords);
 				if (fd->dem) {
@@ -893,6 +894,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 	if (fd.dem)
 		memset (fd.pic_zder, 0, 2 * npixels * sizeof (double));
 	fd.maxiter = preview ? iter_steps : maxiter;
+	fd.maxiter_found = 0;
 	build_points (fd, w, full_h);
 
 	QString errstr;
@@ -2409,6 +2411,7 @@ void MainWindow::slot_batchrender (bool)
 	QString pattern = dlg.get_file_template ();
 	int count = 1;
 	int samples = dlg.get_samples ();
+	int prev_maxiter_factor = dlg.get_prev_maxiter ();
 	bool preserve = dlg.get_preserve_aspect ();
 	double progress = 0;
 	double pro_step = 100. / m_stored.size ();
@@ -2472,9 +2475,14 @@ void MainWindow::slot_batchrender (bool)
 		renderer.next_rp = rp;
 		renderer.render_width = w;
 		renderer.result_image = QImage (w, h, QImage::Format_RGB32);
-		int maxiter = dlg.get_maxiter ();
-		if (maxiter == 0)
-			maxiter = default_maxiter;
+		int maxiter = default_maxiter;
+		int dlg_maxiter = dlg.get_maxiter ();
+		int prev_maxiter = fp.maxiter_found;
+		if (dlg_maxiter != 0)
+			maxiter = std::min (maxiter, default_maxiter);
+		if (prev_maxiter_factor != 0)
+			maxiter = std::min (maxiter, (int)(prev_maxiter / 100.0 * prev_maxiter_factor));
+		printf ("maxiter is %d (%d %d %d)\n", maxiter, default_maxiter, dlg_maxiter, prev_maxiter);
 		for (int y0 = 0; y0 < h; y0 += batch_size) {
 			pdlg.setValue (progress + pro_step * ((double)y0 / h));
 

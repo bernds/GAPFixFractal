@@ -156,7 +156,7 @@
    </item>
    <item>
     <widget class="QWidget" name="widget_3" native="true">
-     <layout class="QHBoxLayout" name="horizontalLayout_3">
+     <layout class="QGridLayout" name="gridLayout_2">
       <property name="leftMargin">
        <number>9</number>
       </property>
@@ -169,20 +169,7 @@
       <property name="bottomMargin">
        <number>0</number>
       </property>
-      <item>
-       <widget class="QCheckBox" name="maxiterCheckBox">
-        <property name="text">
-         <string>Limit iterations (approximate):</string>
-        </property>
-        <property name="checked">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLineEdit" name="maxiterEdit"/>
-      </item>
-      <item>
+      <item row="0" column="2">
        <spacer name="horizontalSpacer_3">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
@@ -194,6 +181,58 @@
          </size>
         </property>
        </spacer>
+      </item>
+      <item row="0" column="0">
+       <widget class="QCheckBox" name="maxiterCheckBox">
+        <property name="text">
+         <string>Limit iterations (approximate):</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="maxiterEdit"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="prevMaxiterCheckBox">
+        <property name="text">
+         <string>Limit iterations to previously found plus</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="prevMaxiterComboBox">
+        <item>
+         <property name="text">
+          <string>0%</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>50%</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>100%</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>150%</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>200%</string>
+         </property>
+        </item>
+       </widget>
       </item>
      </layout>
     </widget>

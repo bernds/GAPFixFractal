@@ -23,6 +23,7 @@ public:
 	int get_height ();
 	int get_samples ();
 	int get_maxiter () { return m_maxiter; }
+	int get_prev_maxiter ();
 	bool get_preserve_aspect ();
 	bool get_overwrite ();
 	QString get_file_template ();

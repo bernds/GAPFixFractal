@@ -101,6 +101,13 @@ int BatchRenderDialog::get_samples ()
 	return ui->sampleSpinBox->value ();
 }
 
+int BatchRenderDialog::get_prev_maxiter ()
+{
+	if (!ui->prevMaxiterCheckBox->isChecked ())
+		return 0;
+	return 100 + ui->prevMaxiterComboBox->currentIndex () * 50;
+}
+
 int BatchRenderDialog::get_width ()
 {
 	return ui->widthEdit->text ().toInt ();
