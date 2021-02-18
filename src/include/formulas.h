@@ -16,4 +16,9 @@ inline bool formula_supports_hybrid (formula f)
 	return f == formula::tricorn || f == formula::ship || f == formula::celtic;
 }
 
+inline bool formula_supports_dem (formula f)
+{
+	return f == formula::standard || f == formula::lambda || f == formula::mix;
+}
+
 #endif

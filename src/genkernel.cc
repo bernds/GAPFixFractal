@@ -1069,7 +1069,8 @@ void gen_inner_celtic (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2re
    The "actual" fractal named Lambda in other programs is c*(z^2 - z), with critical point 1/2.
    Seems to look identical except for scaling.  */
 
-void gen_inner_lambda (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
+void gen_inner_lambda (int size, int power, bool julia, bool dem,
+		       cplx_reg zreg, cplx_reg z2reg, cplx_val creg, cplx_reg zder)
 {
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, z2reg, power);
@@ -1078,6 +1079,22 @@ void gen_inner_lambda (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2re
 
 	cplx_val sum = emit_complex_sub (pwr, f);
 	cplx_val newz = emit_complex_mult (sum, creg);
+	if (dem) {
+		cplx_val dpwr = get_power (powers, power - 1);
+		cplx_val nrd = gen_mult_int (emit_complex_mult (dpwr, zder), power);
+		if (!julia) {
+			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
+			cplx_val m = emit_complex_mult (sum2, creg);
+			shared_ptr<expr> scaled_re = gen_mult (sum.re, make_shared<ldg_expr> ("%dem_step", size));
+			shared_ptr<expr> scaled_im = gen_mult (sum.im, make_shared<ldg_expr> ("%dem_step", size));
+			cplx_val scaled { scaled_re, scaled_im };
+			zder.store (emit_complex_add (scaled, m));
+		} else {
+			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
+			cplx_val m = emit_complex_mult (sum2, creg);
+			zder.store (m);
+		}
+	}
 
 	zreg.store (newz);
 	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
@@ -1129,20 +1146,36 @@ void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg z2reg, cplx_
 
 // Similar to lambda, but computes c(z^N - Nz - 2) + q
 
-void gen_inner_mix (int size, int stepsize, int power, bool /* julia */,
-		    cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
+void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
+		    cplx_reg zreg, cplx_reg z2reg, cplx_val creg, cplx_reg zder)
 {
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
 	cplx_val f = gen_mult_int (zreg, power);
-
+	cplx_val sum1 = emit_complex_sub (pwr, f);
+	cplx_val sum = sum1;
 	auto const2 = make_shared<const_expr<2>> (size);
-	auto sumr = make_shared<addsub_expr> ("sub", make_shared<addsub_expr> ("sub", pwr.re, f.re), const2);
-	auto sumi = make_shared<addsub_expr> ("sub", pwr.im, f.im);
-	cplx_val newz1 = emit_complex_mult ({ sumr, sumi }, creg);
+	sum.re = make_shared<addsub_expr> ("sub", sum.re, const2);
+	cplx_val newz1 = emit_complex_mult (sum, creg);
 	auto pq = cplx_ldc ("const_param_q", size, stepsize);
 	cplx_val newz = emit_complex_sub (newz1, pq);
+	if (dem) {
+		cplx_val dpwr = get_power (powers, power - 1);
+		cplx_val nrd = gen_mult_int (emit_complex_mult (dpwr, zder), power);
+		if (!julia) {
+			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
+			cplx_val m = emit_complex_mult (sum2, creg);
+			shared_ptr<expr> scaled_re = gen_mult (sum.re, make_shared<ldg_expr> ("%dem_step", size));
+			shared_ptr<expr> scaled_im = gen_mult (sum.im, make_shared<ldg_expr> ("%dem_step", size));
+			cplx_val scaled { scaled_re, scaled_im };
+			zder.store (emit_complex_add (scaled, m));
+		} else {
+			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
+			cplx_val m = emit_complex_mult (sum2, creg);
+			zder.store (m);
+		}
+	}
 
 	zreg.store (newz);
 	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
@@ -1172,10 +1205,10 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 		gen_inner_spider (size, power, zreg, z2reg, creg);
 		break;
 	case formula::lambda:
-		gen_inner_lambda (power, julia, zreg, z2reg, cval);
+		gen_inner_lambda (size, power, julia, dem, zreg, z2reg, cval, zder);
 		break;
 	case formula::mix:
-		gen_inner_mix (size, stepsize, power, julia, zreg, z2reg, cval);
+		gen_inner_mix (size, stepsize, power, julia, dem, zreg, z2reg, cval, zder);
 		break;
 	case formula::sqtwice_a:
 		gen_inner_sqtwice_a (power, julia, zreg, z2reg, cval);
@@ -1312,7 +1345,10 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	auto const0 = make_shared<const_expr<0>> (size);
 	auto const1 = make_shared<const_expr<1>> (size);
 	if (dem) {
-		gen_store ("%ar_zder", make_shared<ldg_expr> ("%dem_step", size));
+		if (julia)
+			gen_store ("%ar_zder", make_shared<ldg_expr> ("%dem_step", size));
+		else
+			gen_store ("%ar_zder", const0);
 		gen_store ("%ar_zderim", const0);
 	}
 
@@ -1461,7 +1497,7 @@ char *gen_mprec_funcs (formula f, int size, int stepsize, int power)
 
 	gen_kernel (f, result, size, stepsize, power, true, false);
 	gen_kernel (f, result, size, stepsize, power, false, false);
-	if (f == formula::standard) {
+	if (formula_supports_dem (f)) {
 		gen_kernel (f, result, size, stepsize, power, true, true);
 		gen_kernel (f, result, size, stepsize, power, false, true);
 	} else if (formula_supports_hybrid (f)) {

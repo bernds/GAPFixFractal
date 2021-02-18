@@ -784,7 +784,7 @@ void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_
 	// Locate the kernel entry poin
 	tryCuda (cuModuleGetFunction (&m_mandel, m_module, "iter_mandel"));
 	tryCuda (cuModuleGetFunction (&m_julia, m_module, "iter_julia"));
-	if (f == formula::standard) {
+	if (formula_supports_dem (f)) {
 		tryCuda (cuModuleGetFunction (&m_mandel_dem, m_module, "iter_mandel_dem"));
 		tryCuda (cuModuleGetFunction (&m_julia_dem, m_module, "iter_julia_dem"));
 	} else {
@@ -1889,14 +1889,14 @@ void MainWindow::enable_interface_for_formula (formula f)
 		       : ui->action_FormulaStandard);
 	fa->setChecked (true);
 
-	bool dem_allowed = f == formula::standard;
+	bool dem_allowed = formula_supports_dem (f);
 	ui->menuDEM->setEnabled (dem_allowed);
 	ui->action_DEMOff->setEnabled (dem_allowed);
 	ui->action_DEMDist->setEnabled (dem_allowed);
 	ui->action_DEMShading->setEnabled (dem_allowed);
 	ui->action_DEMBoth->setEnabled (dem_allowed);
-	ui->DEMGroup->setEnabled (f == formula::standard);
-	if (f != formula::standard)
+	ui->DEMGroup->setEnabled (dem_allowed);
+	if (!dem_allowed)
 		ui->action_DEMOff->setChecked (true);
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
 				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
