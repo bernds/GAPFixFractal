@@ -2002,7 +2002,7 @@ void MainWindow::slot_batchrender (bool)
 		temp_fd.set (fp);
 		temp_fd.generation = 0;
 		int spixels = 1 << samples;
-		int batch_size = std::max (400, (int)((double)w * spixels * spixels / 1024));
+		int batch_size = std::max (400.0, 100000.0 / ((double)w * spixels * spixels));
 		int steps = (h + batch_size - 1) / batch_size;
 		batch_size = h / steps;
 
