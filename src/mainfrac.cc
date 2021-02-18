@@ -1889,7 +1889,12 @@ void MainWindow::enable_interface_for_formula (formula f)
 		       : ui->action_FormulaStandard);
 	fa->setChecked (true);
 
-	ui->menuDEM->setEnabled (f == formula::standard);
+	bool dem_allowed = f == formula::standard;
+	ui->menuDEM->setEnabled (dem_allowed);
+	ui->action_DEMOff->setEnabled (dem_allowed);
+	ui->action_DEMDist->setEnabled (dem_allowed);
+	ui->action_DEMShading->setEnabled (dem_allowed);
+	ui->action_DEMBoth->setEnabled (dem_allowed);
 	ui->DEMGroup->setEnabled (f == formula::standard);
 	if (f != formula::standard)
 		ui->action_DEMOff->setChecked (true);
