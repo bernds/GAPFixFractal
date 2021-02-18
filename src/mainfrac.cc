@@ -626,13 +626,17 @@ static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double ni
 				     int slider)
 {
 	if (type == 1) {
-		niter = log (niter + 5);
-	} else if (type == 2) {
 		niter = sqrt (niter);
-	} else if (type == 3) {
+	} else if (type == 2) {
 		niter = cbrt (niter);
-	} else if (type == 4) {
+	} else if (type == 3) {
 		niter = pow (niter, 1/4.);
+	} else if (type == 4) {
+		niter = log (niter);
+	} else if (type == 5) {
+		niter = log (sqrt (niter));
+	} else if (type == 6) {
+		niter = log (log (niter));
 	}
 	niter *= interpolation_factor;
 	int x = niter / steps;
