@@ -1232,10 +1232,15 @@ static void gen_inner_hybrid (QString &result, generator &cg,
 
 	gen_inner (f, size, stepsize, power, julia, false, zreg, z2reg, creg, cplx_reg ());
 	result += cg.code ();
+
+	cplx_val cval = { creg.re, creg.im };
+	if (julia)
+		cval = cplx_ldc ("const_param_p", size, stepsize);
+
 	result += "\tbra\tloopend;\n";
 	result += "stditer:\n";
 	result += "\tadd.u32\t%hybrid_code, %hybrid_code, 1;\n";
-	gen_inner_standard (size, power, julia, false, zreg, z2reg, creg, cplx_reg ());
+	gen_inner_standard (size, power, julia, false, zreg, z2reg, cval, cplx_reg ());
 	result += cg.code ();
 	result += "loopend:\n";
 }
