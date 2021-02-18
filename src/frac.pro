@@ -17,6 +17,7 @@ SOURCES		      = batchrender.cc \
 			colors.cc \
                         genkernel.cc \
                         gradeditor.cc \
+                        gpuhandler.cc \
                         hybriddialog.cc \
 			mainfrac.cc \
                         util-widgets.cc \
