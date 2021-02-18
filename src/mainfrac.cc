@@ -575,8 +575,6 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 					fd->pic_zder[idx * 2] = to_double (&fd->host_zder[i * z_size], fd->nwords);
 					fd->pic_zder[idx * 2 + 1] = to_double (&fd->host_zder[i * z_size + fd->nwords], fd->nwords);
 				}
-				fd->pic_z2[idx * 2] = fd->host_z2[i * z_size + fd->nwords - 1];
-				fd->pic_z2[idx * 2 + 1] = fd->host_z2[i * z_size + 2 * fd->nwords - 1];
 				fd->pixels_done.set_bit (idx);
 				fd->n_completed++;
 			} else {
@@ -589,8 +587,6 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 						fd->pic_zder[idx * 2] = to_double (&fd->host_zder[i * z_size], fd->nwords);
 						fd->pic_zder[idx * 2 + 1] = to_double (&fd->host_zder[i * z_size + fd->nwords], fd->nwords);
 					}
-					fd->pic_z2[idx * 2] = fd->host_z2[i * z_size + fd->nwords - 1];
-					fd->pic_z2[idx * 2 + 1] = fd->host_z2[i * z_size + 2 * fd->nwords - 1];
 					fd->pixels_done.set_bit (idx);
 					fd->n_completed++;
 				} else if (i != j) {
@@ -827,7 +823,6 @@ void MainWindow::discard_fd_data (frac_desc &fd)
 	delete[] fd.host_coords;
 
 	delete[] fd.pic_z;
-	delete[] fd.pic_z2;
 	delete[] fd.pic_result;
 	delete[] fd.pic_iter_value;
 	fd.n_pixels = 0;
@@ -872,7 +867,6 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 		fd.pic_zder = nullptr;
 		if (fd.dem)
 			fd.pic_zder = new double[2 * npixels];
-		fd.pic_z2 = new uint32_t[2 * npixels];
 		fd.pic_result = new uint32_t[npixels];
 		fd.pixels_done = bit_array (npixels);
 		fd.pixels_started = bit_array (npixels);
@@ -887,7 +881,6 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 	fd.pixels_done.clear ();
 	fd.pixels_started.clear ();
 	memset (fd.pic_result, 0, npixels * sizeof (uint32_t));
-	memset (fd.pic_z2, 0, 2 * npixels * sizeof (uint32_t));
 	memset (fd.pic_z, 0, 2 * npixels * sizeof (double));
 	if (fd.pic_iter_value != nullptr)
 		memset (fd.pic_iter_value, 0, npixels * sizeof (double));
@@ -1188,8 +1181,10 @@ public:
 			double dem_shade = 1;
 			double dem_dist = 1;
 			if (rp.dem || rp.dem_shade) {
-				double re2 = fd->pic_z2[idx * 2];
-				double im2 = fd->pic_z2[idx * 2 + 1];
+				double re = fd->pic_z[idx * 2];
+				double im = fd->pic_z[idx * 2 + 1];
+				double re2 = re * re;
+				double im2 = im * im;
 				double rezder = fd->pic_zder[idx * 2];
 				double imzder = fd->pic_zder[idx * 2 + 1];
 				double rezder2 = rezder * rezder;

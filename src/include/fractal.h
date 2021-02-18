@@ -68,7 +68,6 @@ struct frac_desc : public frac_params
 
 	double *pic_z;
 	double *pic_zder;
-	uint32_t *pic_z2;
 	uint32_t *pic_result;
 
 	double *pic_iter_value;
