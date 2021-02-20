@@ -37,7 +37,7 @@
 const formula formula_table[] = {
 	formula::standard, formula::lambda, formula::spider, formula::tricorn,
 	formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b,
-	formula::celtic, formula::testing
+	formula::celtic, formula::magnet_a, formula::testing
 };
 
 constexpr int default_power = 2;
@@ -658,6 +658,9 @@ inline double iter_value_at (frac_desc *fd, int idx, int power)
 	double im2 = fd->pic_zprev[idx * 2 * n_prev + 1];
 	re2 *= re2;
 	im2 *= im2;
+	// Some attractor other than infinity.
+	if (re2 + im2 < 16)
+		return v;
 	double radius = 100;
 	double correction = log (0.5 * log ((double)re2 + im2) / log (radius)) / log (power);
 	fd->cmin = std::min (fd->cmin, correction);
@@ -1361,6 +1364,16 @@ void MainWindow::reset_coords (frac_desc &fd)
 		fd.width[max_nwords - 1] = 2;
 		fd.bounds_w = 2;
 		fd.bounds_h = 1;
+	} else if (m_formula == formula::magnet_a) {
+		if (!fd.julia)
+			fd.center_x[max_nwords - 1] = 1;
+		if (fd.julia)
+			fd.bounds_h = fd.bounds_w = 10;
+		else {
+			fd.bounds_w = 5;
+			fd.bounds_h = 6;
+		}
+		fd.width[max_nwords - 1] = fd.bounds_h;
 	}
 	if (m_formula == formula::standard && !fd.julia && power == 4) {
 		fd.center_x[max_nwords - 2] = 0xd0000000;
@@ -1429,6 +1442,7 @@ void MainWindow::enable_interface_for_formula (formula f)
 		       : f == formula::sqtwice_a ? ui->action_FormulaSqTwiceA
 		       : f == formula::sqtwice_b ? ui->action_FormulaSqTwiceB
 		       : f == formula::testing ? ui->action_FormulaTest
+		       : f == formula::magnet_a ? ui->action_FormulaMagnetA
 		       : ui->action_FormulaStandard);
 	fa->setChecked (true);
 
@@ -2181,7 +2195,9 @@ MainWindow::MainWindow ()
 
 	QString errstr;
 	m_power = default_power;
-	emit signal_compile_kernel (0, default_power, m_nwords, max_nwords, &errstr);
+	auto it = std::find (std::begin (formula_table), std::end (formula_table), m_formula);
+	int fidx = it - std::begin (formula_table);
+	emit signal_compile_kernel (fidx, default_power, m_nwords, max_nwords, &errstr);
 	gpu_handler->done_sem.acquire ();
 	if (!errstr.isEmpty ()) {
 		QMessageBox::critical (this, PACKAGE, errstr);
@@ -2289,13 +2305,14 @@ MainWindow::MainWindow ()
 	m_formula_group->addAction (ui->action_FormulaMix);
 	m_formula_group->addAction (ui->action_FormulaSqTwiceA);
 	m_formula_group->addAction (ui->action_FormulaSqTwiceB);
+	m_formula_group->addAction (ui->action_FormulaMagnetA);
 	m_formula_group->addAction (ui->action_FormulaTest);
 
 	ui->action_Shift10->setChecked (true);
 	ui->action_NFactor4->setChecked (true);
 	ui->action_StructDark->setChecked (true);
-	ui->action_FormulaStandard->setChecked (true);
 	ui->action_FD2->setChecked (true);
+	enable_interface_for_formula (m_formula);
 
 	ui->menu_View->insertAction (nullptr, ui->storedDock->toggleViewAction ());
 	ui->menu_View->insertAction (nullptr, ui->extraDock->toggleViewAction ());
@@ -2410,6 +2427,8 @@ MainWindow::MainWindow ()
 		 [this] (bool) { formula_chosen (formula::sqtwice_a, 2); });
 	connect (ui->action_FormulaSqTwiceB, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::sqtwice_b, 2); });
+	connect (ui->action_FormulaMagnetA, &QAction::triggered,
+		 [this] (bool) { formula_chosen (formula::magnet_a, 2); });
 	connect (ui->action_FormulaTest, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::testing, 2); });
 

@@ -250,10 +250,11 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			CUfunction kernel = (fd->julia
 					     ? (fd->hybrid_len != 0 ? m_julia_hybrid : fd->dem ? m_julia_dem : m_julia)
 					     : (fd->hybrid_len != 0 ? m_mandel_hybrid : fd->dem ? m_mandel_dem : m_mandel));
+			int scratch = formula_scratch_space (fd->fm, fd->nwords);
 			auto err = cuLaunchKernel (kernel,
 						   blocks, 1, 1,
 						   nthreads, 1, 1,
-						   0, 0, args, 0);
+						   scratch * nthreads, 0, args, 0);
 			if (err == CUDA_SUCCESS) {
 				printf ("launch success %d %d\n", blocks, nthreads);
 				break;

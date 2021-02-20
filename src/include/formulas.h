@@ -6,7 +6,7 @@
 
 enum class formula
 {
-	testing, standard, lambda, tricorn, spider, ship, mix, sqtwice_a, sqtwice_b, celtic
+	testing, standard, lambda, tricorn, spider, ship, mix, sqtwice_a, sqtwice_b, celtic, magnet_a
 };
 
 extern const formula formula_table[];
@@ -24,5 +24,17 @@ inline bool formula_supports_dem (formula f)
 inline int n_formula_cplx_vals (formula, bool dem)
 {
 	return dem ? 3 : 2;
+}
+
+inline int formula_scratch_space (formula f, int nwords)
+{
+	if (f == formula::magnet_a)
+		return nwords * 4 + 4;
+	return 0;
+}
+
+inline bool formula_test_fixpoint (formula f)
+{
+	return f == formula::magnet_a;
 }
 #endif

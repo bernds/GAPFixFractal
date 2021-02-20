@@ -145,6 +145,19 @@ public:
 	}
 };
 
+class round_cst_expr : public expr
+{
+public:
+	round_cst_expr (int len, uint32_t val) : expr (len)
+	{
+		m_values.push_back (QString ("%1").arg (val));
+	}
+	QString next_piece () override
+	{
+		return "0";
+	}
+};
+
 class ldg_expr : public expr
 {
 	QString m_addr;
@@ -209,6 +222,28 @@ public:
 		codegen->append_code (QString ("\tadd.u32\t%1, %1, %2;\n")
 				      .arg (m_addr, m_stride));
 		return r;
+	}
+};
+
+class from_float_expr : public expr
+{
+public:
+	from_float_expr (const QString &f64) : expr (2)
+	{
+		QString r0 = codegen->gen_reg ("u32");
+		QString r1 = codegen->gen_reg ("u32");
+		QString tmpf = codegen->gen_reg ("f64");
+		m_values.push_back (r0);
+		m_values.push_back (r1);
+		codegen->append_code (QString ("\tcvt.rzi.u32.f64\t%1, %2;\n").arg (r1, f64));
+		codegen->append_code (QString ("\tcvt.rn.f64.u32\t%1, %2;\n").arg (tmpf, r1));
+		codegen->append_code (QString ("\tsub.f64\t%1, %2, %1;\n").arg (tmpf, f64));
+		codegen->append_code (QString ("\tmul.f64\t%1, %1, 4294967296.0;\n").arg (tmpf));
+		codegen->append_code (QString ("\tcvt.rzi.u32.f64\t%1, %2;\n").arg (r0, tmpf));
+	}
+	QString next_piece () override
+	{
+		abort ();
 	}
 };
 
@@ -769,6 +804,102 @@ void gen_store (reg_expr *dst, shared_ptr<expr> ex)
 	}
 }
 
+// Store v into scratch, normalized so that 1/2 <= stored < 1
+// We store one extra word so as to not lose precision. scratch needs to be
+// sized appropriately.
+QString emit_normalize (shared_ptr<expr> v, const QString &scratch)
+{
+	QString predreg = codegen->gen_reg ("pred", "nzfound");
+	QString ptr = codegen->gen_reg ("u32", "ptr");
+	QString endptr = codegen->gen_reg ("u32", "endptr");
+	QString amt1 = codegen->gen_reg ("u32", "amt1");
+	QString amt = codegen->gen_reg ("u32", "amt");
+	QString lastp = codegen->gen_reg ("u32", "lastp");
+	QString store = codegen->gen_reg ("u32", "store");
+
+	int len = v->length ();
+
+	codegen->append_move ("u32", ptr, scratch);
+	codegen->append_move ("u32", amt, "0");
+	codegen->append_move ("u32", amt1, "0");
+	codegen->append_move ("u32", lastp, "0");
+	codegen->append_code (QString ("\tadd.u32\t%1, %2, %3;\n").arg (endptr, ptr).arg (len * 4));
+	codegen->append_code (QString ("\tsetp.ne.u32\t%1, 0, 0;\n").arg (predreg));
+
+	for (int i = 0; i < len + 1; i++) {
+		QString p = i >= len ? "0" : v->get_piece_high (i);
+		QString lab = codegen->gen_label ("pastfirst");
+		codegen->append_code (QString ("@%1\tbra\t\t%2;\n").arg (predreg, lab));
+		codegen->append_code (QString ("\tsetp.ne.u32\t%1, %2, 0;\n").arg (predreg, p));
+		codegen->append_code (QString ("@!%1\tadd.u32\t\t%2, %2, 32;\n").arg (predreg, amt1));
+		codegen->append_code (QString ("@%1\tbfind.shiftamt.u32\t%2, %3;\n").arg (predreg, amt, p));
+		codegen->append_code (lab + ":\n");
+		codegen->append_code (QString("\tshf.l.clamp.b32\t%1,%2,%3,%4;\n")
+				      .arg (store, p, lastp, amt));
+		codegen->append_code (QString("@%1\tst.shared.u32\t[%2], %3;\n")
+				      .arg (predreg, endptr, store));
+		codegen->append_code (QString("@!%1\tst.shared.u32\t[%2], 0;\n")
+				      .arg (predreg, ptr));
+		codegen->append_code (QString("@!%1\tadd.u32\t%2, %2, 4;\n")
+				      .arg (predreg, ptr));
+		codegen->append_code (QString("@%1\tsub.u32\t%2, %2, 4;\n")
+				      .arg (predreg, endptr));
+		codegen->append_move ("u32", lastp, p);
+	}
+	codegen->append_code (QString ("\tadd.u32\t\t%1, %1, %2;\n").arg (amt, amt1));
+	return amt;
+}
+
+shared_ptr<expr> emit_normalize_amt (shared_ptr<expr> v, const QString &amt, const QString &scratch, int len)
+{
+	QString predreg = codegen->gen_reg ("pred", "skip");
+	QString predreg2 = codegen->gen_reg ("pred", "skip");
+	QString ptr = codegen->gen_reg ("u32", "ptr");
+	QString endptr = codegen->gen_reg ("u32", "endptr");
+	QString lastp = codegen->gen_reg ("u32", "lastp");
+	QString store = codegen->gen_reg ("u32", "store");
+	QString discarded = codegen->gen_reg ("u32", "discarded");
+
+	int vlen = v->length ();
+
+	codegen->append_move ("u32", ptr, scratch);
+	codegen->append_move ("u32", lastp, "0");
+	codegen->append_move ("u32", discarded, "0");
+	codegen->append_code (QString ("\tadd.u32\t%1, %2, %3;\n").arg (endptr, ptr).arg (len * 4 - 4));
+
+	QString endlab = codegen->gen_label ("stend");
+	for (int i = 0; i < vlen; i++) {
+		QString p = v->get_piece_high (i);
+		codegen->append_code (QString ("\tsetp.lt.u32\t%1, %2, 32;\n").arg (predreg, amt));
+		codegen->append_code (QString("@!%1\tsub.u32\t%2, %2, 32;\n")
+				      .arg (predreg, amt));
+		codegen->append_code (QString("\tshf.l.wrap.b32\t%1,%2,%3,%4;\n")
+				      .arg (store, p, lastp, amt));
+		codegen->append_code (QString("@%1\tst.shared.u32\t[%2], %3;\n")
+				      .arg (predreg, endptr, store));
+		codegen->append_code (QString("@!%1\tor.b32\t%2, %2, %3;\n")
+				      .arg (predreg, discarded, store));
+		if (i + 1 >= len) {
+			codegen->append_code (QString ("\tsetp.eq.u32\t%1, %2, %3;\n").arg (predreg2, ptr, endptr));
+			codegen->append_code (QString ("@%1\tbra\t%2;\n").arg (predreg2, endlab));
+		}
+
+		codegen->append_code (QString("@%1\tsub.u32\t%2, %2, 4;\n")
+				      .arg (predreg, endptr));
+		codegen->append_move ("u32", lastp, p);
+	}
+	codegen->append_code (endlab + ":\n");
+	auto v1 = make_shared<lds_expr> (scratch, "4", len);
+	auto reg = make_shared<reg_expr> (len, "namt");
+	gen_store (&*reg, v1);
+	QString allok = codegen->gen_label ("allok");
+	codegen->append_code (QString ("\tsetp.eq.u32\t%1, %2, 0;\n").arg (predreg2, discarded));
+	codegen->append_code (QString ("@%1\tbra\t%2;\n").arg (predreg2, allok));
+	codegen->append_move ("u32", reg->get_piece_high (0), "0x7FFFFFFF");
+	codegen->append_code (allok + ":\n");
+	return reg;
+}
+
 constexpr int karatsuba_cutoff = 12;
 /*
     n := half length
@@ -816,13 +947,18 @@ shared_ptr<expr> gen_mult_karatsuba_1 (shared_ptr<expr> a, shared_ptr<expr> b)
 	return sum;
 }
 
-shared_ptr<expr> gen_mult_unsigned (shared_ptr<expr> a, shared_ptr<expr> b)
+shared_ptr<expr> gen_mult_unsigned (shared_ptr<expr> a, shared_ptr<expr> b, bool truncate = true)
 {
+	shared_ptr<expr> raw_mult;
 	if (a->length () < karatsuba_cutoff)
-		return make_shared<trunc_expr> (make_shared<mult_expr> (a, b), a->length ());
-
-	auto me = gen_mult_karatsuba_1 (a, b);
-	return make_shared<trunc_expr> (make_shared<lowpart_expr> (me, 1, me->length () - 1), a->length ());
+		raw_mult = make_shared<mult_expr> (a, b);
+	else {
+		auto me = gen_mult_karatsuba_1 (a, b);
+		raw_mult = make_shared<lowpart_expr> (me, 1, me->length () - 1);
+	}
+	if (truncate)
+		return make_shared<trunc_expr> (raw_mult, a->length ());
+	return raw_mult;
 }
 
 struct real_val;
@@ -950,11 +1086,11 @@ public:
 };
 
 template<class R1, class R2>
-real_val gen_mult (R1 &a, R2 &b, bool abs_required = true)
+real_val gen_mult (R1 &a, R2 &b, bool abs_required = true, bool truncate = true)
 {
 	shared_ptr<expr> aop = a.abs_val ();
 	shared_ptr<expr> bop = b.abs_val ();
-	auto prod = gen_mult_unsigned (aop, bop);
+	auto prod = gen_mult_unsigned (aop, bop, truncate);
 	if (!abs_required || &a == &b)
 		return prod;
 
@@ -989,6 +1125,74 @@ QString convert_to_float (shared_ptr<expr> v)
 		first = false;
 	}
 	return dstreg;
+}
+
+real_val emit_newton_iteration (real_val &d, real_val &xi, int dlen, const QString &name)
+{
+	// Compute Xi + Xi (1 - D * Xi)
+	auto mult = gen_mult_unsigned (d, xi);
+	auto const1 = make_shared<const_expr<1>> (mult->length ());
+	real_val sub (make_shared<addsub_expr> ("sub", const1, mult));
+	real_val subt (make_shared<trunc_expr> (sub, dlen));
+	auto result = make_shared<addsub_expr> ("add", xi, gen_mult (subt, xi));
+	result->set_destreg (name);
+	return real_val { result };
+}
+
+shared_ptr<expr> invert (const QString &addr, int len)
+{
+	real_val d (make_shared<lds_expr> (addr, "4", len));
+	int est_n = len > 2 ? 3 : 2;
+	auto d2 = make_shared<trunc_expr> (d, est_n);
+	QString flt = convert_to_float (d2);
+	codegen->append_code (QString ("\tdiv.rz.f64\t%1, 1.0, %1;\n").arg (flt));
+	real_val estimate (make_shared<padlow_expr> (make_shared<from_float_expr> (flt), len));
+	for (int nwords = 1; nwords + 1 < len; nwords *= 2) {
+		estimate = emit_newton_iteration (d, estimate, len, QString ("est%1").arg (nwords));
+	}
+	if (estimate.ex ()->length () > len)
+		return make_shared<trunc_expr> (estimate, len);
+	return estimate;
+}
+
+std::pair<shared_ptr<expr>, QString> gen_inverse (shared_ptr<expr> d, const QString &scratch)
+{
+	QString shift_amt = emit_normalize (d, scratch);
+	QString zpred = codegen->gen_reg ("pred", "divz");
+	int len = d->length ();
+	// QString lab = codegen->gen_label ("divz");
+	// codegen->append_code (QString ("\tsetp.ge.u32\t%1, %2, %3;\n").arg (zpred, shift_amt).arg (len * 32));
+	// codegen->append_code (QString ("@%1\tbra\t\t%2;\n").arg (zpred, lab));
+	auto inverse = invert (scratch, len + 1);
+	inverse->calculate_full ();
+	// codegen->append_code (QString ("%1:\n").arg (lab));
+	return { inverse, shift_amt };
+}
+
+shared_ptr<expr> gen_div (shared_ptr<expr> n, shared_ptr<expr> d, const QString &scratch)
+{
+	auto na = make_shared<abs_expr> (n);
+	auto da = make_shared<abs_expr> (d);
+	auto [ inverse, shift_amt ] = gen_inverse (da, scratch);
+	int len = da->length ();
+	auto nanorm = emit_normalize_amt (na, shift_amt, scratch, len + 1);
+	nanorm->set_destreg ("nanorm");
+	auto q1 = make_shared<mult_expr> (nanorm, inverse);
+	q1->set_destreg ("q1_");
+	auto q1r = make_shared<addsub_expr> ("add", q1, make_shared<round_cst_expr> (1 + len, 0x80000000));
+	q1r->set_destreg ("q1r_");
+#if 0
+	/* Now we have an estimate of the result of the division. Perform one more iteration:
+	   q2 = q1 + inv(n - d*q1).  */
+	auto dapad = make_shared<padlow_expr> (da, len + 1);
+	auto dq1 = gen_mult (dapad, make_shared<trunc_expr> (q1, len + 1));
+	auto nmdq1 = make_shared<addsub_expr> ("sub", nanorm, dq1);
+	auto addend = make_shared<mult_expr> (nmdq1, inverse);
+	auto q2 = make_shared<addsub_expr> ("add", q1, addend);
+	auto q2r = make_shared<addsub_expr> ("add", q2, make_shared<round_cst_expr> (1 + len, 0x80000000));
+#endif
+	// auto pos_result = emit_normalize_amt (q1, shift_amt, scratch, len + 1);
+	return make_shared<mult_sign_fixup_expr> (make_shared<trunc_expr> (q1r, len), na, da);
 }
 
 void gen_coord_muladd (QString &result, int dstsize, int srcsize)
@@ -1289,6 +1493,51 @@ cplx_val gen_mult_int (C &v, int factor)
 	return result;
 }
 
+shared_ptr<expr> gen_mult_by_inverse (shared_ptr<expr> v, shared_ptr<expr> inverse,
+				      const QString &scratch, const QString &shift_amt)
+{
+	auto va = make_shared<abs_expr> (v);
+	int len = inverse->length () - 1;
+	auto vanorm = emit_normalize_amt (va, shift_amt, scratch, len + 1);
+	vanorm->set_destreg ("vanorm");
+	auto q1 = make_shared<mult_expr> (vanorm, inverse);
+	q1->set_destreg ("q1_");
+	auto q1r = make_shared<addsub_expr> ("add", q1, make_shared<round_cst_expr> (1 + len, 0x80000000));
+	q1r->set_destreg ("q1r_");
+	// auto pos_result = emit_normalize_amt (q1, shift_amt, scratch, len + 1);
+	auto result = make_shared<reg_expr> (len);
+	gen_cond_negate (&*result, &*make_shared<trunc_expr> (q1r, len), va->get_pred ());
+	return result;
+}
+
+cplx_val emit_complex_div (cplx_val &n, cplx_val &d)
+{
+	auto rp1_expr = gen_mult (n.re, d.re, true, false);
+	auto rp2_expr = gen_mult (n.im, d.im, true, false);
+
+	auto ip2_expr = gen_mult (n.re, d.im, true, false);
+	auto ip1_expr = gen_mult (n.im, d.re, true, false);
+
+	auto nre = make_shared<addsub_expr> ("add", rp1_expr, rp2_expr);
+	auto nim = make_shared<addsub_expr> ("sub", ip1_expr, ip2_expr);
+
+	auto d2re = d.re.squared ();
+	auto d2im = d.im.squared ();
+	auto d_sum = make_shared<addsub_expr> ("add", d2re, d2im);
+#if 0
+	auto [ inv, shift_amt ] = gen_inverse (d_sum, "%scratch");
+	// auto rre = gen_div (nre, d_sum, "%ar_z2");
+	auto rre = gen_mult_by_inverse (nre, inv, "%scratch", shift_amt);
+	rre->calculate_full ();
+	auto rim = gen_mult_by_inverse (nim, inv, "%scratch", shift_amt);
+	rim->calculate_full ();
+#else
+	auto rre = gen_div (nre, d_sum, "%scratch");
+	auto rim = gen_div (nim, d_sum, "%scratch");
+#endif
+	return { rre, rim };
+}
+
 template<class C>
 void build_powers (array<cplx_val, 20> &powers, C &z, int power)
 {
@@ -1466,6 +1715,21 @@ void gen_inner_sqtwice_b (int power, bool /* julia */, cplx_reg zreg, cplx_val c
 	zreg.store (newz);
 }
 
+void gen_inner_magnet_a (int size, int power, bool /* julia */, cplx_reg zreg, cplx_val creg)
+{
+	cplx_val pwr = emit_complex_sqr (zreg);
+	cplx_val newz1 = emit_complex_add (pwr, creg);
+	auto const1 = make_shared<const_expr<1>> (size);
+	auto const2 = make_shared<const_expr<2>> (size);
+	newz1.set_re (make_shared<addsub_expr> ("sub", newz1.re, const1));
+	cplx_val dnewz1 = gen_mult_int (zreg, 2);
+	cplx_val dnewz2 = emit_complex_add (dnewz1, creg);
+	dnewz2.set_re (make_shared<addsub_expr> ("sub", dnewz2.re, const2));
+	auto d = emit_complex_div (newz1, dnewz2);
+	auto newz = emit_complex_sqr (d);
+	zreg.store (newz);
+}
+
 void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg creg)
 {
 	array<cplx_val, 20> powers;
@@ -1525,6 +1789,9 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 {
 	switch (f) {
 	default:
+	case formula::magnet_a:
+		gen_inner_magnet_a (size, power, julia, zreg, cval);
+		break;
 	case formula::standard:
 		gen_inner_standard (size, power, julia, dem, zreg, cval, zder);
 		break;
@@ -1593,6 +1860,37 @@ static void gen_store_zprev (QString &result, real_reg &zr, real_reg &zi, int n_
 	result += QString ("\tst.f64\t[%prevaddr + 8], %1;\n").arg (fzim);
 }
 
+static void gen_compare_and_branch (QString &result, real_reg &r1, real_reg &r2, const QString &predreg, const QString &tmpreg, const QString &neq_label, const QString distance)
+{
+	int len = r1.ex ()->length ();
+	for (int i = 0; i < len; i++) {
+		QString p1 = r1.ex ()->get_piece_high (i);
+		QString p2 = r2.ex ()->get_piece_high (i);
+		if (i + 1 < len) {
+			result += QString ("\tsetp.ne.u32\t%1, %2, %3;\n").arg (predreg, p1, p2);
+		} else {
+			result += QString ("\tsub.u32\t%1, %2, %3;\n").arg (tmpreg, p1, p2);
+			result += QString ("\tabs.s32\t%1, %1;\n").arg (tmpreg);
+			result += QString ("\tsetp.ge.u32\t%1, %2, %3;\n").arg (predreg, tmpreg, distance);
+		}
+		result += QString ("@%1\tbra\t\t%2;\n").arg (predreg, neq_label);
+	}
+}
+
+static void gen_test_and_branch (QString &result, real_val &r1, const QString &predreg, const QString &tmpreg, const QString &neq_label, const QString distance)
+{
+	int len = r1.ex ()->length ();
+	for (int i = 0; i < len; i++) {
+		QString p1 = r1.ex ()->get_piece_high (i);
+		if (i + 1 < len) {
+			result += QString ("\tsetp.ne.u32\t%1, %2, 0;\n").arg (predreg, p1);
+		} else {
+			result += QString ("\tsetp.ge.u32\t%1, %2, %3;\n").arg (predreg, p1, distance);
+		}
+		result += QString ("@%1\tbra\t\t%2;\n").arg (predreg, neq_label);
+	}
+}
+
 void gen_kernel (formula f, QString &result, int size, int stepsize, int power, int n_prev,
 		 bool julia, bool dem, bool hybrid = false)
 {
@@ -1611,7 +1909,7 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	QString kernel_init = R"(
 	.reg.s32 %idx, %tidx, %ctaidx, %ntidx;
 
-	.reg.u32 %iter;
+	.reg.u32 %iter, %scratch, %scratchoff;
 	mov.u32         %ntidx, %ntid.x;
 	mov.u32         %ctaidx, %ctaid.x;
 	mov.u32         %tidx, %tid.x;
@@ -1634,12 +1932,16 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	mul.lo.u64	%addroff, %addridx, %3;
 	add.u64		%ar_zprev, %ar_zprev, %addroff;
 
+	mov.u32		%scratch, shared;
+	mul.lo.u32	%scratchoff, %tidx, %4;
+	add.u32		%scratch, %scratch, %scratchoff;
+
 	.reg.u64	%ar_zim, %ar_t, %ar_tim;
 	add.u64		%ar_zim, %ar_z, %1;
 	add.u64		%ar_t, %ar_zim, %1;
 	add.u64		%ar_tim, %ar_t, %1;
 )";
-	result += kernel_init.arg (size * 4).arg (size * 2 * n_formula_cplx_vals (f, dem)).arg (n_prev * 8 * 2);;
+	result += kernel_init.arg (size * 4).arg (size * 2 * n_formula_cplx_vals (f, dem)).arg (n_prev * 8 * 2).arg (4 * size + 4);
 
 	if (dem) {
 		result += QString (R"(
@@ -1739,12 +2041,20 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 		zderi.store (make_shared<ldg_expr> ("%ar_zderim", size));
 	}
 
+	bool fixpoints = formula_test_fixpoint (f);
+#if 0
+	real_reg zlastr = fixpoints ? real_reg (size, "zlastr", true) : real_reg ();
+	real_reg zlasti = fixpoints ? real_reg (size, "zlasti", true) : real_reg ();
+	cplx_reg zlastreg (zlastr, zlasti);
+#endif
+
 	result += cg.code ();
 
 	cplx_reg zreg (zr, zi);
 	cplx_reg zder (zderr, zderi);
 	cplx_reg creg (cr, ci);
 	cplx_val cval = creg;
+
 	if (julia)
 		cval = cplx_ldc ("const_param_p", size, stepsize);
 
@@ -1761,6 +2071,11 @@ loop:
 
 )";
 
+#if 0
+	if (fixpoints)
+		zlastreg.store (zreg);
+#endif
+
 	if (n_prev > 1)
 		gen_store_zprev (result, zr, zi, n_prev);
 
@@ -1771,18 +2086,35 @@ loop:
 
 	result += cg.code ();
 
+	if (fixpoints) {
+		/* This is a hack for Magnet A, which is currently the only formula that needs this
+		   check: both infinity and (1,0) are attractors.
+		   The first attempt was to test the difference between zlast and z, but that caused
+		   artifacts.  */
+		result += "\t.reg.u32\t%diff;\n";
+		result += "\t.reg.pred\t%fp_neq;\n";
+		auto constm1 = make_shared<const_expr<-1>> (size);
+		real_val zrm1 (make_shared<addsub_expr> ("add", zr, constm1));
+		real_val dist (make_shared<addsub_expr> ("add", gen_mult (zrm1, zrm1), zi.squared ()));
+		dist.ex ()->calculate_full ();
+		result += cg.code ();
+		gen_test_and_branch (result, dist, "%fp_neq", "%diff", "skip2", "16");
+		result += "\tbra\t\tbailout;\n";
+	}
 	QString z2r_high = zr.squared ()->get_piece_high (0);
 	QString z2i_high = zi.squared ()->get_piece_high (0);
 	QString loop_end = R"(
+skip2:
 	.reg.u32 %sqsum;
 	add.u32		%sqsum, %1, %2;
 	.reg.pred	%cont;
 	setp.lt.u32	%cont, %sqsum, %3;
 @%cont	bra		skip;
-
-	st.global.u32	[%ar_result], %niter;
+bailout:
 )";
-	result += loop_end.arg (z2r_high, z2i_high, dem ? "100" : "10000");
+	result += loop_end.arg (z2r_high, z2i_high, dem || f == formula::testing ? "100" : "10000");
+
+	result += "\tst.global.u32\t[%ar_result], %niter;\n";
 
 	gen_store_zprev (result, zr, zi, n_prev);
 	result += cg.code ();
@@ -1822,7 +2154,7 @@ char *gen_mprec_funcs (formula f, int size, int stepsize, int power, int n_prev)
 	result += QString (R"(	.version	6.2
 	.target	sm_61
 	.address_size 64
-	// .extern .shared .align 4 .b8 shared[];
+	.extern .shared .align 4 .b8 shared[];
 	.const .align 4 .u32 const_origin_x[%1];
 	.const .align 4 .u32 const_origin_y[%1];
 	.const .align 4 .u32 const_param_p[%1];
