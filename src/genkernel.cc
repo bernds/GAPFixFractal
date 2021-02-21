@@ -497,10 +497,25 @@ public:
 			codegen->append_move ("u32", res, res_in);
 			return res;
 		}
-		QString current_r = sqr ? "0" : res_in;
-		QString current_c = sqr ? "0" : carry_in;
-		QString current_c2 = "0";
 		int n_steps = sqr ? (n_prods + 1) / 2 : n_prods;
+		bool use_inreg = !sqr || n_prods == 1;
+		if (!use_inreg) {
+			for (int j = 0; j < n_steps; j++) {
+				int idx1 = first_i + j;
+				int idx2 = first_i + n_prods - j - 1;
+				QString t1 = m_a->get_piece_high (m_parts_len - idx1 - 1);
+				QString t2 = m_b->get_piece_high (m_parts_len - idx2 - 1);
+				if (t1 != "0" && t2 != "0")
+					break;
+				if (j + 1 == n_prods / 2) {
+					use_inreg = true;
+					break;
+				}
+			}
+		}
+		QString current_r = use_inreg ? res_in : "0";
+		QString current_c = use_inreg ? carry_in : "0";
+		QString current_c2 = "0";
 		for (int j = 0; j < n_steps; j++) {
 			int idx1 = first_i + j;
 			int idx2 = first_i + n_prods - j - 1;
@@ -528,19 +543,19 @@ public:
 			current_r = res;
 			current_c = m_carry;
 			current_c2 = m_carry2;
-			if (sqr && j + 1 == n_prods / 2) {
+			if (!use_inreg && j + 1 == n_prods / 2) {
 				codegen->append_code (QString ("\tadd.cc.u32 %1, %1, %1;\n").arg (res));
 				codegen->append_code (QString ("\taddc.cc.u32 %1, %1, %1;\n").arg (m_carry));
 				codegen->append_code (QString ("\taddc.u32 %1, %1, %1;\n").arg (m_carry2));
 			}
 		}
 		if (current_r == "0") {
-			if (sqr) {
+			if (!use_inreg) {
 				current_r = res_in;
-				m_carry = carry_in;
-				m_carry2 = "0";
+				current_c = carry_in;
+				current_c2 = "0";
 			}
-		} else if (sqr) {
+		} else if (!use_inreg) {
 			codegen->append_code (QString ("\tadd.cc.u32 %1, %1, %2;\n").arg (res, res_in));
 			codegen->append_code (QString ("\taddc.cc.u32 %1, %1, %2;\n").arg (m_carry, carry_in));
 			codegen->append_code (QString ("\taddc.u32 %1, %1, 0;\n").arg (m_carry2));
