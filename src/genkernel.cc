@@ -99,6 +99,18 @@ public:
 			return "0";
 		return get_piece (m_len - v - 1);
 	}
+	virtual uint32_t nonzero_bits (size_t v)
+	{
+		if (v >= m_len)
+			return 0;
+		return ~(uint32_t)0;
+	}
+	uint32_t nonzero_bits_high (size_t v)
+	{
+		if (v >= m_len)
+			return 0;
+		return nonzero_bits (m_len - v - 1);
+	}
 	virtual QString next_piece () = 0;
 };
 
@@ -202,13 +214,13 @@ public:
 
 class addsub_expr : public expr
 {
-	QString m_op;
+	QString m_op, m_cond;
 	shared_ptr<expr> m_a, m_b;
 	bool nonzero_added = false;
 public:
-	addsub_expr (const QString &op, shared_ptr<expr> srca, shared_ptr<expr> srcb) :
+	addsub_expr (const QString &op, shared_ptr<expr> srca, shared_ptr<expr> srcb, QString cond = QString ()) :
 		expr (std::max (srca->length (), srcb->length ())),
-		m_op (op), m_a (srca), m_b (srcb)
+		m_op (op), m_cond (cond.isEmpty () ? "" : "@" + cond), m_a (srca), m_b (srcb)
 	{
 		srca->require_carry ();
 		srcb->require_carry ();
@@ -225,11 +237,35 @@ public:
 			return a;
 
 		QString dst = get_destreg ("u32");
-		codegen->append_code (QString ("\t%1%2.cc.u32\t%3,%4,%5;\n")
-				      .arg (m_op, nonzero_added ? "c" : "", dst, a, b));
+		codegen->append_code (QString ("%1\t%2%3.cc.u32\t%4,%5,%6;\n")
+				      .arg (m_cond, m_op, nonzero_added ? "c" : "", dst, a, b));
 		nonzero_added = true;
 		return dst;
 	}
+	uint32_t nonzero_bits (size_t v) override
+	{
+		if (m_op != "add")
+			return expr::nonzero_bits (v);
+		uint32_t anz = m_a->nonzero_bits (v);
+		uint32_t bnz = m_b->nonzero_bits (v);
+		uint32_t result = ~(uint32_t) 0;
+		uint32_t testbits = (uint32_t)1 << 30;
+		uint32_t test = anz | bnz;
+		for (int i = 0; i < 31; i++) {
+			if (test & testbits)
+				return result;
+			result >>= 1;
+		}
+		if (v == 0)
+			return 1;
+		anz = m_a->nonzero_bits (v - 1);
+		bnz = m_b->nonzero_bits (v - 1);
+		uint32_t testbit = (uint32_t)1 << 31;
+		if (((anz | bnz) & testbit) == 0)
+			return 0;
+		return 1;
+	}
+
 };
 
 template<int N>
@@ -312,6 +348,12 @@ public:
 			return "0";
 		return m_op->get_piece (idx + m_op->length () - m_len);
 	}
+	uint32_t nonzero_bits (size_t v) override
+	{
+		if ((int)v < length () - m_op->length ())
+			return 0;
+		return m_op->nonzero_bits (v + m_op->length () - m_len);
+	}
 };
 
 class padhigh_expr : public expr
@@ -334,6 +376,12 @@ public:
 			return "0";
 		return m_op->get_piece (idx);
 	}
+	uint32_t nonzero_bits (size_t v) override
+	{
+		if (v >= m_op->length ())
+			return 0;
+		return m_op->nonzero_bits (v);
+	}
 };
 
 class trunc_expr : public expr
@@ -352,6 +400,10 @@ public:
 	QString next_piece () override
 	{
 		return m_op->get_piece (m_op->length () - m_len + m_values.size ());
+	}
+	uint32_t nonzero_bits (size_t v) override
+	{
+		return m_op->nonzero_bits (m_op->length () - m_len + v);
 	}
 };
 
@@ -374,6 +426,12 @@ public:
 		if (idx < m_low->length ())
 			return m_low->get_piece (idx);
 		return m_high->get_piece (idx - m_low->length ());
+	}
+	uint32_t nonzero_bits (size_t v) override
+	{
+		if (v < m_low->length ())
+			return m_low->nonzero_bits (v);
+		return m_high->nonzero_bits (v - m_low->length ());
 	}
 };
 
@@ -478,15 +536,18 @@ public:
 	}
 };
 
+
 class mult_expr : public expr
 {
 	int m_parts_len;
 	shared_ptr<expr> m_a, m_b;
 	QString m_carry, m_carry2;
-
+	vector<QString> m_preds_a, m_preds_b;
+	bool m_skip_ones;
 public:
-	mult_expr (shared_ptr<expr> srca, shared_ptr<expr> srcb, int discard_top = 1) :
-		expr (2 * std::max (srca->length (), srcb->length ()) - discard_top), m_a (srca), m_b (srcb)
+	mult_expr (shared_ptr<expr> srca, shared_ptr<expr> srcb, int discard_top = 1, bool skip_ones = false) :
+		expr (2 * std::max (srca->length (), srcb->length ()) - discard_top), m_a (srca), m_b (srcb),
+		m_skip_ones (skip_ones)
 	{
 		m_parts_len = std::max (srca->length (), srcb->length ());
 		srca->require_carry ();
@@ -519,7 +580,9 @@ public:
 				int idx2 = first_i + n_prods - j - 1;
 				QString t1 = m_a->get_piece_high (m_parts_len - idx1 - 1);
 				QString t2 = m_b->get_piece_high (m_parts_len - idx2 - 1);
-				if (t1 != "0" && t2 != "0")
+				uint32_t nza = m_a->nonzero_bits_high (m_parts_len - idx1 - 1);
+				uint32_t nzb = m_b->nonzero_bits_high (m_parts_len - idx2 - 1);
+				if (t1 != "0" && t2 != "0" && ((nza != 1 && nzb != 1) || !m_skip_ones))
 					break;
 				if (j + 1 == n_prods / 2) {
 					use_inreg = true;
@@ -535,28 +598,30 @@ public:
 			int idx2 = first_i + n_prods - j - 1;
 			QString t1 = m_a->get_piece_high (m_parts_len - idx1 - 1);
 			QString t2 = m_b->get_piece_high (m_parts_len - idx2 - 1);
-			if (t1 == "0" || t2 == "0")
-				continue;
-			if (res.isEmpty ()) {
-				res = get_destreg ("u32");
-				m_carry = codegen->gen_reg ("u32", "carry");
-				m_carry2 = codegen->gen_reg ("u32", "carry2_");
+			uint32_t nza = m_a->nonzero_bits_high (m_parts_len - idx1 - 1);
+			uint32_t nzb = m_b->nonzero_bits_high (m_parts_len - idx2 - 1);
+			if (t1 != "0" && t2 != "0" && ((nza != 1 && nzb != 1) || !m_skip_ones)) {
+				if (res.isEmpty ()) {
+					res = get_destreg ("u32");
+					m_carry = codegen->gen_reg ("u32", "carry");
+					m_carry2 = codegen->gen_reg ("u32", "carry2_");
+				}
+				if (current_r == "0") {
+					codegen->append_code (QString ("\tmul.lo.u32 %1, %2, %3;\n").arg (res, t1, t2));
+					codegen->append_code (QString ("\tmul.hi.u32 %1, %2, %3;\n").arg (m_carry, t1, t2));
+					codegen->append_code (QString ("\tmov.u32 %1, 0;\n").arg (m_carry2));
+				} else {
+					codegen->append_code (QString ("\tmad.lo.cc.u32 %1, %2, %3, %4;\n")
+							      .arg (res, t1, t2, current_r));
+					codegen->append_code (QString ("\tmadc.hi.cc.u32 %1, %2, %3, %4;\n")
+							      .arg (m_carry, t1, t2, current_c));
+					codegen->append_code (QString ("\taddc.u32 %1, %2, 0;\n")
+							      .arg (m_carry2, current_c2));
+				}
+				current_r = res;
+				current_c = m_carry;
+				current_c2 = m_carry2;
 			}
-			if (current_r == "0") {
-				codegen->append_code (QString ("\tmul.lo.u32 %1, %2, %3;\n").arg (res, t1, t2));
-				codegen->append_code (QString ("\tmul.hi.u32 %1, %2, %3;\n").arg (m_carry, t1, t2));
-				codegen->append_code (QString ("\tmov.u32 %1, 0;\n").arg (m_carry2));
-			} else {
-				codegen->append_code (QString ("\tmad.lo.cc.u32 %1, %2, %3, %4;\n")
-						      .arg (res, t1, t2, current_r));
-				codegen->append_code (QString ("\tmadc.hi.cc.u32 %1, %2, %3, %4;\n")
-						      .arg (m_carry, t1, t2, current_c));
-				codegen->append_code (QString ("\taddc.u32 %1, %2, 0;\n")
-						      .arg (m_carry2, current_c2));
-			}
-			current_r = res;
-			current_c = m_carry;
-			current_c2 = m_carry2;
 			if (!use_inreg && j + 1 == n_prods / 2) {
 				codegen->append_code (QString ("\tadd.cc.u32 %1, %1, %1;\n").arg (res));
 				codegen->append_code (QString ("\taddc.cc.u32 %1, %1, %1;\n").arg (m_carry));
@@ -584,6 +649,96 @@ public:
 		m_carry = current_c;
 		m_carry2 = current_c2;
 		return current_r;
+	}
+};
+
+/* An alternative way to do a plain non-Karatsuba multiplication.
+   This one uses the nonzero_bits mechanism to identify cases where one of the words involved
+   is either zero or one: in that case, a conditional add is all that's required, rather than
+   a multiplication.
+   This case arises in the Karatsuba algorithm, where (al + ah) is multiplied by (bl + bh),
+   and the sums are one word wider than their addends, but the high word is always either zero
+   or one.  */
+class mult_special_expr : public expr
+{
+	shared_ptr<expr> m_a, m_b, m_tmpm;
+
+public:
+	mult_special_expr (shared_ptr<expr> srca, shared_ptr<expr> srcb, int discard_top = 1) :
+		expr (2 * std::max (srca->length (), srcb->length ()) - discard_top), m_a (srca), m_b (srcb)
+	{
+		srca->require_carry ();
+		srcb->require_carry ();
+		m_tmpm = make_shared<mult_expr> (m_a, m_b, discard_top, true);
+
+	}
+	QString next_piece () override
+	{
+		// Generate everything in one go.
+		if (m_values.size () > 0)
+			abort ();
+		m_tmpm->set_destreg (m_dstreg);
+		bool any_found = false;
+		size_t alen = m_a->length ();
+		size_t blen = m_b->length ();
+		for (size_t i = 0; i < alen; i++)
+			any_found |= m_a->nonzero_bits (i) == 1;
+		for (size_t i = 0; i < blen; i++)
+			any_found |= m_b->nonzero_bits (i) == 1;
+		for (size_t i = 0; i < m_tmpm->length (); i++) {
+			QString p = m_tmpm->get_piece (i);
+			if (p == "0" && any_found) {
+				p = codegen->gen_reg ("u32", "mresz");
+				codegen->append_move ("u32", p, "0");
+			}
+			m_values.push_back (p);
+		}
+		if (!any_found)
+			return m_values[0];
+		for (size_t i = 0; i < alen; i++)
+			if (m_a->nonzero_bits_high (i) == 1) {
+				QString pred = codegen->gen_reg ("pred", "one");
+				QString lab = codegen->gen_label ("onelab");
+				codegen->append_code (QString ("\tsetp.ne.u32\t%1, %2, 0;\n")
+						      .arg (pred, m_a->get_piece_high (i)));
+				codegen->append_code (QString ("@!%1\tbra\t%2;\n").arg (pred, lab));
+				bool usecc = false;
+				for (size_t j = 0; j < blen + 1; j++) {
+					size_t idx = (alen - i - 1) + j;
+					if (idx >= m_values.size ())
+						break;
+					QString src = j < blen ? m_b->get_piece (j) : "0";
+					if (src != "0" || usecc)
+						codegen->append_code (QString ("\tadd%1.cc.u32\t%2, %2, %3;\n")
+								      .arg (usecc ? "c" : "", m_values[idx], src));
+					usecc = src != "0" || usecc;
+				}
+				codegen->append_code (lab + ":\n");
+			} 
+		for (size_t i = 0; i < blen; i++)
+			if (m_b->nonzero_bits_high (i) == 1) {
+				QString pred = codegen->gen_reg ("pred", "one");
+				QString lab = codegen->gen_label ("onelab");
+				codegen->append_code (QString ("\tsetp.ne.u32\t%1, %2, 0;\n")
+						      .arg (pred, m_b->get_piece_high (i)));
+				codegen->append_code (QString ("@!%1\tbra\t%2;\n").arg (pred, lab));
+				bool usecc = false;
+				for (size_t j = 0; j < alen + 1; j++) {
+					size_t idx = (blen - i - 1) + j;
+					if (idx >= m_values.size ())
+						break;
+					QString src = j < alen ? m_a->get_piece (j) : "0";
+					// Avoid duplicate pieces.
+					if (m_a->nonzero_bits (j) == 1)
+						src = "0";
+					if (src != "0" || usecc)
+						codegen->append_code (QString ("\tadd%1.cc.u32\t%2, %2, %3;\n")
+								      .arg (usecc ? "c" : "", m_values[idx], src));
+					usecc = src != "0" || usecc;
+				}
+				codegen->append_code (lab + ":\n");
+			}
+		return m_values[0];
 	}
 };
 
@@ -616,9 +771,9 @@ constexpr int karatsuba_cutoff = 12;
  */
 shared_ptr<expr> gen_mult_karatsuba_1 (shared_ptr<expr> a, shared_ptr<expr> b)
 {
-	if (a->length () < karatsuba_cutoff)
-		return make_shared<mult_expr> (a, b, 0);
-
+	if (a->length () < karatsuba_cutoff) {
+		return make_shared<mult_special_expr> (a, b, 0);
+	}
 	int half = (a->length () + 1) / 2;
 	int full = 2 * half;
 
@@ -1471,8 +1626,8 @@ loop:
 	result += loop_end.arg (z2r_high, z2i_high, dem ? "100" : "10000");
 	gen_store ("%ar_z", zr_reg);
 	gen_store ("%ar_zim", zi_reg);
-	gen_store ("%ar_z2", z2r_reg);
-	gen_store ("%ar_z2im", z2i_reg);
+	// gen_store ("%ar_z2", gen_mult (zr_reg, zr_reg));
+	// gen_store ("%ar_z2im", gen_mult_simple (zr_reg, zr_reg));
 	if (dem) {
 		gen_store ("%ar_zder", zderr_reg);
 		gen_store ("%ar_zderim", zderi_reg);
@@ -1492,6 +1647,8 @@ skip:
 	result += "\tst.global.u32\t[%ar_result], 0;\n";
 	gen_store ("%ar_z", zr_reg);
 	gen_store ("%ar_zim", zi_reg);
+	// gen_store ("%ar_z2", gen_mult (zr_reg, zr_reg));
+	// gen_store ("%ar_z2im", gen_mult_simple (zr_reg, zr_reg));
 	if (f == formula::spider) {
 		gen_store ("%ar_t", cr_reg);
 		gen_store ("%ar_tim", ci_reg);
