@@ -19,7 +19,7 @@ using std::make_shared;
 class generator
 {
 	int m_tmp = 0;
-
+	int m_lbl_tmp = 0;
 public:
 	QString m_code, m_regs;
 
@@ -28,6 +28,11 @@ public:
 		QString r = QString ("%%1%2").arg (nm).arg (m_tmp++);
 		if (declare)
 			m_regs += QString ("\t.reg.%1\t%2;\n").arg (type).arg (r);
+		return r;
+	}
+	QString gen_label (QString nm = "lbl")
+	{
+		QString r = QString ("%1%2").arg (nm).arg (m_lbl_tmp++);
 		return r;
 	}
 	void append_code (const QString &c)
