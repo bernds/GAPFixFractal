@@ -444,28 +444,37 @@ class mult_sign_fixup_expr : public expr
 {
 	shared_ptr<expr> m_op;
 	shared_ptr<abs_expr> m_sgn1, m_sgn2;
-	QString m_our_pred;
 
 public:
 	mult_sign_fixup_expr (shared_ptr<expr> op, shared_ptr<abs_expr> sgn1, shared_ptr<abs_expr> sgn2)
 		: expr (op->length ()), m_op (op), m_sgn1 (sgn1), m_sgn2 (sgn2)
 	{
-		op->require_carry ();
 	}
 	QString next_piece () override
 	{
-		if (m_our_pred.isEmpty ()) {
-			m_our_pred = codegen->gen_reg ("pred", "flip");
-			codegen->append_code (QString ("\txor.pred\t%1, %2, %3;\n")
-					      .arg (m_our_pred, m_sgn1->get_pred (), m_sgn2->get_pred ()));
+		if (m_values.size () > 0)
+			abort ();
+		m_op->calculate_full ();
+
+		QString pred = codegen->gen_reg ("pred", "flip");
+		QString lab = codegen->gen_label ("flip");
+		codegen->append_code (QString ("\txor.pred\t%1, %2, %3;\n")
+				      .arg (pred, m_sgn1->get_pred (), m_sgn2->get_pred ()));
+		for (size_t i = 0; i < length (); i++) {
+			QString op = m_op->get_piece (m_values.size ());
+			QString dst = get_destreg ("u32");
+			codegen->append_move ("u32", dst, op);
+			m_values.push_back (dst);
 		}
-		QString op = m_op->get_piece (m_values.size ());
-		QString dst = get_destreg ("u32");
-		size_t idx = m_values.size ();
-		codegen->append_move ("u32", dst, op);
-		codegen->append_code (QString ("@%1\tsub%2.cc.u32\t%3, 0, %3;\n")
-				      .arg (m_our_pred, idx == 0 ? "" : "c", dst));
-		return dst;
+		codegen->append_code (QString ("@!%1\tbra\t%2;\n").arg (pred, lab));
+		for (size_t i = 0; i < length (); i++) {
+			QString dst = m_values[i];
+			codegen->append_code (QString ("\tsub%1.cc.u32\t%2, 0, %2;\n")
+					      .arg (i == 0 ? "" : "c", dst));
+			m_values.push_back (dst);
+		}
+		codegen->append_code (lab + ":\n");
+		return m_values[0];
 	}
 };
 
