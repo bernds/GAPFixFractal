@@ -46,6 +46,7 @@ struct render_params
 	bool dem_colour;
 	bool dem;
 	bool dem_shade;
+	uint32_t dem_start, dem_stop;
 	double dem_param, dem_strength;
 	// Used for stored parameters, holds either the aspect set in the GUI,
 	// or, if that is disabled, the image dimensions.
@@ -123,6 +124,9 @@ class MainWindow: public QMainWindow
 	frac_desc m_fd_mandel;
 	frac_desc m_fd_julia;
 
+	/* Color gradient for DEM.  */
+	uint32_t m_dem_start = 0xFFFFFF;
+	uint32_t m_dem_stop = 0;
 	QImage m_img_mandel, m_img_julia;
 	// Minimum niter values, computed during rendering
 	double m_min_mandel = 0, m_min_julia = 0;
@@ -204,6 +208,9 @@ class MainWindow: public QMainWindow
 	void do_reset (bool);
 	void zoom_in (bool = false);
 	void zoom_out (bool = false);
+
+	void choose_dem_color (int);
+	void update_dem_color_buttons ();
 
 	void set_render_params (render_params &);
         void slot_new_data (frac_desc *, int, bool);

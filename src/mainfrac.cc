@@ -7,6 +7,7 @@
 
 #include <utility>
 
+#include <QColorDialog>
 #include <QProgressDialog>
 #include <QVector>
 #include <QFileDialog>
@@ -719,7 +720,6 @@ public:
 			if (rp.sub)
 				v -= minimum - rp.sub_val;
 			double dem_shade = 1;
-			double dem_dist = 1;
 			if (rp.dem || rp.dem_shade) {
 				double re = fd->pic_z[idx * 2];
 				double im = fd->pic_z[idx * 2 + 1];
@@ -754,20 +754,27 @@ public:
 				if (rp.dem) {
 					double divisor = sqrt (rezder2 + imzder2);
 					double dist = divisor == 0 ? rp.dem_param + 1 : log (re2 + im2) * sqrt (re2 + im2) / divisor;
+					double dem_dist = 0;
 					if (dist > rp.dem_param)
 						dem_dist = 1;
-					else
+					else {
 						dem_dist = dist / rp.dem_param;
-					// The result by itself seems too steep to be useful for rendering
-					// shades of grey. Could make this configurable, but taking cbrt
-					// gives images that I find pleasing.
-					dem_dist = cbrt (dem_dist);
-					dem_dist = 1 - (1 - dem_dist) * rp.dem_strength;
+						// The result by itself seems too steep to be useful for rendering
+						// shades of grey. Could make this configurable, but taking cbrt
+						// gives images that I find pleasing.
+						dem_dist = cbrt (dem_dist);
+						dem_dist = 1 - (1 - dem_dist) * rp.dem_strength;
+						uint32_t v = color_merge (rp.dem_start, rp.dem_stop, dem_dist);
+						r += (v >> 16) & 255;
+						g += (v >> 8) & 255;
+						b += v & 255;
+						return;
+					}
 				}
 				if (!rp.dem_colour) {
-					r += dem_dist * dem_shade * 0xFF;
-					g += dem_dist * dem_shade * 0xFF;
-					b += dem_dist * dem_shade * 0xFF;
+					r += dem_shade * 255;
+					g += dem_shade * 255;
+					b += dem_shade * 255;
 					return;
 				}
 			}
@@ -807,7 +814,7 @@ public:
 				}
 				col = QColor::fromHsl (ch, cs, cl).rgb ();
 			}
-			double dem_factor = dem_dist * dem_shade;
+			double dem_factor = dem_shade;
 			r += ((col >> 16) & 0xFF) * dem_factor;
 			g += ((col >> 8) & 0xFF) * dem_factor;
 			b += (col & 0xFF) * dem_factor;
@@ -984,6 +991,8 @@ void MainWindow::set_render_params (render_params &p)
 	p.dem_colour = ui->action_DEMColour->isChecked ();
 	p.dem_param = ui->demParamSpinBox->value () * (1 << ui->sampleSpinBox->value ());
 	p.dem_strength = ui->demStrengthSpinBox->value ();
+	p.dem_start = m_dem_start;
+	p.dem_stop = m_dem_stop;
 	p.aspect = chosen_aspect ();
 }
 
@@ -1477,6 +1486,30 @@ void MainWindow::update_dem_settings (QAction *)
 		update_settings (false);
 	else
 		update_views ();
+}
+
+void MainWindow::update_dem_color_buttons ()
+{
+	QPixmap p (16, 16);
+	p.fill (QColor::fromRgb (m_dem_start));
+	QIcon i1 (p);
+	ui->DEMStartButton->setIcon (i1);
+	QPixmap p2 (16, 16);
+	p2.fill (QColor::fromRgb (m_dem_stop));
+	QIcon i2 (p2);
+	ui->DEMEndButton->setIcon (i2);
+}
+
+void MainWindow::choose_dem_color (int col)
+{
+	QColor old = QColor::fromRgb (col == 0 ? m_dem_start : m_dem_stop);
+	QColor n = QColorDialog::getColor (old, this, tr ("Choose a color for the DEM gradient"));
+	if (col == 0)
+		m_dem_start = n.rgb ();
+	else
+		m_dem_stop = n.rgb ();
+	update_dem_color_buttons ();
+	update_views ();
 }
 
 void MainWindow::do_reset (bool)
@@ -2294,6 +2327,10 @@ MainWindow::MainWindow ()
 	connect (ui->colStepSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
 	connect (m_sub_group, &QActionGroup::triggered, [this] (QAction *) { update_views (); });
 	connect (m_dem_group, &QActionGroup::triggered, this, &MainWindow::update_dem_settings);
+
+	update_dem_color_buttons ();
+	connect (ui->DEMStartButton, &QToolButton::clicked, [this] (bool) { choose_dem_color (0); });
+	connect (ui->DEMEndButton, &QToolButton::clicked, [this] (bool) { choose_dem_color (1); });
 
 	connect (ui->structureGroup, &QGroupBox::toggled, [this] (bool) { update_palette (); });
 	connect (ui->structureSlider, &QSlider::valueChanged, [this] (bool) { update_palette (); });
