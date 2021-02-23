@@ -1556,20 +1556,11 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 		nm += "_dem";
 	if (hybrid)
 		nm += "_hybrid";
-	if (dem) {
-		gen_kernel_header (result, nm,
-				   "u64", "ar_z", "u64", "ar_z2",
-				   "u64", "ar_coords", "u64", "ar_step", "u64", "ar_t",
-				   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init",
-				   "u32", "hybrid_code", "u32", "hybrid_mask",
-				   "u64", "ar_zder");
-	} else {
-		gen_kernel_header (result, nm,
-				   "u64", "ar_z", "u64", "ar_z2",
-				   "u64", "ar_coords", "u64", "ar_step", "u64", "ar_t",
-				   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init",
-				   "u32", "hybrid_code", "u32", "hybrid_mask");
-	}
+	gen_kernel_header (result, nm,
+			   "u64", "ar_z", "u64", "ar_coords", "u64", "ar_step",
+			   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init",
+			   "u32", "hybrid_code", "u32", "hybrid_mask");
+
 	QString kernel_init = R"(
 	.reg.s32 %idx, %tidx, %ctaidx, %ntidx;
 
@@ -1592,20 +1583,18 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	add.u64		%ar_coords, %ar_coords, %addroff;
 	mul.lo.u64	%addroff, %addroff, %2;
 	add.u64		%ar_z, %ar_z, %addroff;
-	add.u64		%ar_z2, %ar_z2, %addroff;
-	add.u64		%ar_t, %ar_t, %addroff;
 
-	.reg.u64	%ar_zim, %ar_z2im, %ar_tim;
+	.reg.u64	%ar_zim, %ar_t, %ar_tim;
 	add.u64		%ar_zim, %ar_z, %1;
-	add.u64		%ar_z2im, %ar_z2, %1;
+	add.u64		%ar_t, %ar_zim, %1;
 	add.u64		%ar_tim, %ar_t, %1;
 )";
-	result += kernel_init.arg (size * 4).arg (size * 2);
+	result += kernel_init.arg (size * 4).arg (size * 2 * n_formula_cplx_vals (f, dem));
 
 	if (dem) {
 		result += QString (R"(
-	.reg.u64	%ar_zderim, %dem_step;
-	add.u64		%ar_zder, %ar_zder, %addroff;
+	.reg.u64	%ar_zder, %ar_zderim, %dem_step;
+	add.u64		%ar_zder, %ar_tim, %1;
 	add.u64		%ar_zderim, %ar_zder, %1;
 	add.u64		%dem_step, %ar_step, %2;
 )").arg (size * 4).arg (stepsize * 4 - size * 4);

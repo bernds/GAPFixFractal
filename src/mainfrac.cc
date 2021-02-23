@@ -398,10 +398,7 @@ void MainWindow::discard_fd_data (frac_desc &fd)
 	if (fd.n_pixels == 0)
 		return;
 
-	delete[] fd.host_z;
-	delete[] fd.host_zder;
-	delete[] fd.host_t;
-	delete[] fd.host_z2;
+	delete[] fd.host_cplxvals;
 	delete[] fd.host_result;
 	delete[] fd.host_coords;
 
@@ -422,13 +419,15 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 	// We need to ensure nthreads is always big enough to handle the initial_setup phase.
 	int nthreads = w * h;
 	int npixels = w * h * ss * ss;
-	if (fd.dem != isdem || fd.samples != ss
+	int nvals = n_formula_cplx_vals (fd.fm, isdem);
+	if (fd.nvals_allocated != nvals || fd.samples != ss
 	    || fd.n_pixels != npixels
 	    || fd.n_threads != nthreads
 	    || fd.nwords != nwords)
 	{
 		discard_fd_data (fd);
 
+		fd.nvals_allocated = nvals;
 		fd.dem = isdem;
 		fd.pixel_width = w * ss;
 		fd.pixel_height = h * ss;
@@ -436,13 +435,8 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 		fd.n_threads = nthreads;
 		fd.nwords = nwords;
 		fd.samples = ss;
-
-		fd.host_t = new uint32_t[nwords * 2 * nthreads];
-		fd.host_z = new uint32_t[nwords * 2 * nthreads];
-		fd.host_zder = nullptr;
-		if (fd.dem)
-			fd.host_zder = new uint32_t[nwords * 2 * nthreads];
-		fd.host_z2 = new uint32_t[nwords * 2 * nthreads];
+		int nvals = n_formula_cplx_vals (fd.fm, isdem);
+		fd.host_cplxvals = new uint32_t[nwords * 2 * nvals * nthreads];
 		fd.host_coords = new uint32_t[nthreads];
 		fd.host_result = new uint32_t[nthreads];
 

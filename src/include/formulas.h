@@ -21,4 +21,8 @@ inline bool formula_supports_dem (formula f)
 	return f == formula::standard || f == formula::lambda || f == formula::mix;
 }
 
+inline int n_formula_cplx_vals (formula, bool dem)
+{
+	return dem ? 3 : 2;
+}
 #endif
