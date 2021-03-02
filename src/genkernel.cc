@@ -466,6 +466,24 @@ public:
 	}
 };
 
+void gen_cond_negate (expr *dest, expr *src, QString pred)
+{
+	int len = dest->length ();
+	assert (len == src->length ());
+	QString lab = codegen->gen_label ("flip");
+	for (size_t i = 0; i < len; i++) {
+		QString sr = src->get_piece (i);
+		QString dr = dest->get_piece (i);
+		codegen->append_move ("u32", dr, sr);
+	}
+	codegen->append_code (QString ("@!%1\tbra\t%2;\n").arg (pred, lab));
+	for (size_t i = 0; i < len; i++) {
+		QString dr = dest->get_piece (i);
+		codegen->append_code (QString ("\tsub%1.cc.u32\t%2, 0, %2;\n").arg (i == 0 ? "" : "c", dr));
+	}
+	codegen->append_code (lab + ":\n");
+}
+
 class abs_expr : public expr
 {
 	shared_ptr<expr> m_op;
@@ -478,14 +496,16 @@ public:
 	}
 	QString next_piece () override
 	{
+		assert (m_values.size () == 0);
+		m_op->calculate_full ();
+
 		QString p = get_pred ();
-		size_t idx = m_values.size ();
-		QString op = m_op->get_piece (idx);
-		QString dst = get_destreg ("u32");
-		codegen->append_move ("u32", dst, op);
-		codegen->append_code (QString ("@%1\tsub%2.cc.u32\t%3, 0, %3;\n")
-				      .arg (p, idx == 0 ? "" : "c", dst));
-		return dst;
+		for (size_t i = 0; i < length (); i++) {
+			QString dst = get_destreg ("u32");
+			m_values.push_back (dst);
+		}
+		gen_cond_negate (&*this, &*m_op, p);
+		return m_values[0];
 	}
 	QString get_pred ()
 	{
@@ -510,8 +530,7 @@ public:
 	}
 	QString next_piece () override
 	{
-		if (m_values.size () > 0)
-			abort ();
+		assert (m_values.size () == 0);
 		m_op->calculate_full ();
 
 		QString pred = codegen->gen_reg ("pred", "flip");
@@ -519,19 +538,10 @@ public:
 		codegen->append_code (QString ("\txor.pred\t%1, %2, %3;\n")
 				      .arg (pred, m_sgn1->get_pred (), m_sgn2->get_pred ()));
 		for (size_t i = 0; i < length (); i++) {
-			QString op = m_op->get_piece (m_values.size ());
 			QString dst = get_destreg ("u32");
-			codegen->append_move ("u32", dst, op);
 			m_values.push_back (dst);
 		}
-		codegen->append_code (QString ("@!%1\tbra\t%2;\n").arg (pred, lab));
-		for (size_t i = 0; i < length (); i++) {
-			QString dst = m_values[i];
-			codegen->append_code (QString ("\tsub%1.cc.u32\t%2, 0, %2;\n")
-					      .arg (i == 0 ? "" : "c", dst));
-			m_values.push_back (dst);
-		}
-		codegen->append_code (lab + ":\n");
+		gen_cond_negate (this, &*m_op, pred);
 		return m_values[0];
 	}
 };
