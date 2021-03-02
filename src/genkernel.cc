@@ -1192,13 +1192,13 @@ cplx_val emit_complex_sub (const cplx_val &v1, const cplx_val &v2)
 }
 
 void gen_inner_standard (int size, int power, bool julia, bool dem,
-			 cplx_reg zreg, cplx_reg z2reg, cplx_val creg, cplx_reg zder)
+			 cplx_reg zreg, cplx_reg z2reg, cplx_val cval, cplx_reg zder)
 {
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
 
-	cplx_val newz = emit_complex_add (pwr, creg);
+	cplx_val newz = emit_complex_add (pwr, cval);
 	if (dem) {
 		cplx_val dpwr = get_power (powers, power - 1);
 		cplx_val nrd = emit_complex_mult (dpwr, zder);
@@ -1215,7 +1215,7 @@ void gen_inner_standard (int size, int power, bool julia, bool dem,
 
 // Burning ship, because why not set zre and zim to their absolute values before
 // continuing.
-void gen_inner_ship (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
+void gen_inner_ship (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
 {
 	auto zar = make_shared<abs_expr> (zreg.re);
 	auto zai = make_shared<abs_expr> (zreg.im);
@@ -1223,7 +1223,7 @@ void gen_inner_ship (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg,
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
-	cplx_val newz = emit_complex_add (pwr, creg);
+	cplx_val newz = emit_complex_add (pwr, cval);
 
 	zreg.store (newz);
 	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
@@ -1232,12 +1232,12 @@ void gen_inner_ship (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg,
 /* Tricorn, also known as Mandelbar.
    Like the default function except the conjugate is taken after the final step
    before assigning Z.  */
-void gen_inner_tricorn (int size, int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
+void gen_inner_tricorn (int size, int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
 {
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
-	cplx_val newz = emit_complex_add (pwr, creg);
+	cplx_val newz = emit_complex_add (pwr, cval);
 
 	auto const0 = make_shared<const_expr<0>> (size);
 	newz.im = make_shared<addsub_expr> ("sub", const0, newz.im);
@@ -1246,13 +1246,13 @@ void gen_inner_tricorn (int size, int power, bool /* julia */, cplx_reg zreg, cp
 	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
-void gen_inner_celtic (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
+void gen_inner_celtic (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
 {
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
 	pwr.re = make_shared<abs_expr> (pwr.re);
-	cplx_val newz = emit_complex_add (pwr, creg);
+	cplx_val newz = emit_complex_add (pwr, cval);
 
 	zreg.store (newz);
 	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
@@ -1264,7 +1264,7 @@ void gen_inner_celtic (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2re
    Seems to look identical except for scaling.  */
 
 void gen_inner_lambda (int size, int power, bool julia, bool dem,
-		       cplx_reg zreg, cplx_reg z2reg, cplx_val creg, cplx_reg zder)
+		       cplx_reg zreg, cplx_reg z2reg, cplx_val cval, cplx_reg zder)
 {
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, z2reg, power);
@@ -1272,20 +1272,20 @@ void gen_inner_lambda (int size, int power, bool julia, bool dem,
 	cplx_val f = gen_mult_int (zreg, power);
 
 	cplx_val sum = emit_complex_sub (pwr, f);
-	cplx_val newz = emit_complex_mult (sum, creg);
+	cplx_val newz = emit_complex_mult (sum, cval);
 	if (dem) {
 		cplx_val dpwr = get_power (powers, power - 1);
 		cplx_val nrd = gen_mult_int (emit_complex_mult (dpwr, zder), power);
 		if (!julia) {
 			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
-			cplx_val m = emit_complex_mult (sum2, creg);
+			cplx_val m = emit_complex_mult (sum2, cval);
 			shared_ptr<expr> scaled_re = gen_mult (sum.re, make_shared<ldg_expr> ("%dem_step", size));
 			shared_ptr<expr> scaled_im = gen_mult (sum.im, make_shared<ldg_expr> ("%dem_step", size));
 			cplx_val scaled { scaled_re, scaled_im };
 			zder.store (emit_complex_add (scaled, m));
 		} else {
 			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
-			cplx_val m = emit_complex_mult (sum2, creg);
+			cplx_val m = emit_complex_mult (sum2, cval);
 			zder.store (m);
 		}
 	}
@@ -1294,12 +1294,12 @@ void gen_inner_lambda (int size, int power, bool julia, bool dem,
 	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
-void gen_inner_sqtwice_a (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
+void gen_inner_sqtwice_a (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
 {
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, z2reg, power);
 	cplx_val pwr = get_power (powers, power);
-	cplx_val newz1 = emit_complex_add (pwr, creg);
+	cplx_val newz1 = emit_complex_add (pwr, cval);
 	cplx_val newz = emit_complex_sqr (newz1);
 
 	zreg.store (newz);
@@ -1307,10 +1307,10 @@ void gen_inner_sqtwice_a (int power, bool /* julia */, cplx_reg zreg, cplx_reg z
 }
 
 
-void gen_inner_sqtwice_b (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val creg)
+void gen_inner_sqtwice_b (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
 {
 	cplx_val pwr = emit_complex_sqr (zreg);
-	cplx_val newz1 = emit_complex_add (pwr, creg);
+	cplx_val newz1 = emit_complex_add (pwr, cval);
 
 	array<cplx_val, 20> powers_b;
 	build_powers (powers_b, newz1, cplx_val (), power);
@@ -1341,7 +1341,7 @@ void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg z2reg, cplx_
 // Similar to lambda, but computes c(z^N - Nz - 2) + q
 
 void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
-		    cplx_reg zreg, cplx_reg z2reg, cplx_val creg, cplx_reg zder)
+		    cplx_reg zreg, cplx_reg z2reg, cplx_val cval, cplx_reg zder)
 {
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, z2reg, power);
@@ -1351,7 +1351,7 @@ void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
 	cplx_val sum = sum1;
 	auto const2 = make_shared<const_expr<2>> (size);
 	sum.re = make_shared<addsub_expr> ("sub", sum.re, const2);
-	cplx_val newz1 = emit_complex_mult (sum, creg);
+	cplx_val newz1 = emit_complex_mult (sum, cval);
 	auto pq = cplx_ldc ("const_param_q", size, stepsize);
 	cplx_val newz = emit_complex_sub (newz1, pq);
 	if (dem) {
@@ -1359,14 +1359,14 @@ void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
 		cplx_val nrd = gen_mult_int (emit_complex_mult (dpwr, zder), power);
 		if (!julia) {
 			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
-			cplx_val m = emit_complex_mult (sum2, creg);
+			cplx_val m = emit_complex_mult (sum2, cval);
 			shared_ptr<expr> scaled_re = gen_mult (sum.re, make_shared<ldg_expr> ("%dem_step", size));
 			shared_ptr<expr> scaled_im = gen_mult (sum.im, make_shared<ldg_expr> ("%dem_step", size));
 			cplx_val scaled { scaled_re, scaled_im };
 			zder.store (emit_complex_add (scaled, m));
 		} else {
 			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
-			cplx_val m = emit_complex_mult (sum2, creg);
+			cplx_val m = emit_complex_mult (sum2, cval);
 			zder.store (m);
 		}
 	}
@@ -1376,11 +1376,8 @@ void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
 }
 
 static void gen_inner (formula f, int size, int stepsize, int power, bool julia, bool dem,
-		       cplx_reg zreg, cplx_reg z2reg, cplx_reg creg, cplx_reg zder)
+		       cplx_reg zreg, cplx_reg z2reg, cplx_reg creg, cplx_val cval, cplx_reg zder)
 {
-	cplx_val cval = { creg.re, creg.im };
-	if (julia)
-		cval = cplx_ldc ("const_param_p", size, stepsize);
 	switch (f) {
 	default:
 	case formula::standard:
@@ -1415,7 +1412,7 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 
 static void gen_inner_hybrid (QString &result, generator &cg,
 			      formula f, int size, int stepsize, int power, bool julia,
-			      cplx_reg zreg, cplx_reg z2reg, cplx_reg creg)
+			      cplx_reg zreg, cplx_reg z2reg, cplx_reg creg, cplx_val cval)
 {
 	result += "\t.reg.u32 %hval;\n";
 	result += "\t.reg.pred %hpred;\n";
@@ -1424,12 +1421,8 @@ static void gen_inner_hybrid (QString &result, generator &cg,
 	result += "\tsetp.ne.u32\t%hpred, %hval, 0;\n";
 	result += "@%hpred\tbra.uni\tstditer;\n";
 
-	gen_inner (f, size, stepsize, power, julia, false, zreg, z2reg, creg, cplx_reg ());
+	gen_inner (f, size, stepsize, power, julia, false, zreg, z2reg, creg, cval, cplx_reg ());
 	result += cg.code ();
-
-	cplx_val cval = { creg.re, creg.im };
-	if (julia)
-		cval = cplx_ldc ("const_param_p", size, stepsize);
 
 	result += "\tbra\tloopend;\n";
 	result += "stditer:\n";
@@ -1600,6 +1593,14 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 		gen_store (&*z2i_reg, arzim2);
 	}
 
+	cplx_reg zreg = { zr_reg, zi_reg };
+	cplx_reg z2reg = { z2r_reg, z2i_reg };
+	cplx_reg zder = { zderr_reg, zderi_reg };
+	cplx_reg creg = { cr_reg, ci_reg };
+	cplx_val cval = creg;
+	if (julia)
+		cval = cplx_ldc ("const_param_p", size, stepsize);
+
 	result += cg.code ();
 
 	result += R"(
@@ -1611,15 +1612,11 @@ loop:
 	add.u32		%niter, %niter, 1;
 
 )";
-	cplx_reg zreg = { zr_reg, zi_reg };
-	cplx_reg z2reg = { z2r_reg, z2i_reg };
-	cplx_reg creg = { cr_reg, ci_reg };
-	cplx_reg zder = { zderr_reg, zderi_reg };
 
 	if (hybrid)
-		gen_inner_hybrid (result, cg, f, size, stepsize, power, julia, zreg, z2reg, creg);
+		gen_inner_hybrid (result, cg, f, size, stepsize, power, julia, zreg, z2reg, creg, cval);
 	else
-		gen_inner (f, size, stepsize, power, julia, dem, zreg, z2reg, creg, zder);
+		gen_inner (f, size, stepsize, power, julia, dem, zreg, z2reg, creg, cval, zder);
 
 	result += cg.code ();
 
