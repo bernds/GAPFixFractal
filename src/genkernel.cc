@@ -452,17 +452,9 @@ public:
 	}
 	QString next_piece () override
 	{
-#if 0
-		int idx = m_values.size ();
-		int m_op_idx = m_op->length () - m_off - m_len + idx;
-		if (m_op_idx < 0)
-			return "0";
-		return m_op->get_piece (m_op_idx);
-#else
 		int idx = m_values.size ();
 		int rev = m_len - idx - 1;
 		return m_op->get_piece_high (rev + m_off);
-#endif
 	}
 };
 
@@ -487,10 +479,10 @@ void gen_cond_negate (expr *dest, expr *src, QString pred)
 class abs_expr : public expr
 {
 	shared_ptr<expr> m_op;
-	QString m_pred;
+	QString m_pred, m_pred_reg;
 public:
-	abs_expr (shared_ptr<expr> src)
-		: expr (src->length ()), m_op (src)
+	abs_expr (shared_ptr<expr> src, QString pred = QString ())
+		: expr (src->length ()), m_op (src), m_pred_reg (pred)
 	{
 		src->require_carry ();
 	}
@@ -510,7 +502,7 @@ public:
 	QString get_pred ()
 	{
 		if (m_pred.isEmpty ()) {
-			m_pred = codegen->gen_reg ("pred", "isn");
+			m_pred = m_pred_reg.isEmpty () ? codegen->gen_reg ("pred", "isn") : m_pred_reg;
 			QString high = m_op->get_piece_high (0);
 			codegen->append_code (QString ("\tsetp.lt.s32\t%1, %2, 0;\n").arg (m_pred, high));
 		}
@@ -521,11 +513,15 @@ public:
 class mult_sign_fixup_expr : public expr
 {
 	shared_ptr<expr> m_op;
-	shared_ptr<abs_expr> m_sgn1, m_sgn2;
+	QString m_sgn1, m_sgn2;
 
 public:
 	mult_sign_fixup_expr (shared_ptr<expr> op, shared_ptr<abs_expr> sgn1, shared_ptr<abs_expr> sgn2)
-		: expr (op->length ()), m_op (op), m_sgn1 (sgn1), m_sgn2 (sgn2)
+		: expr (op->length ()), m_op (op), m_sgn1 (sgn1->get_pred ()), m_sgn2 (sgn2->get_pred ())
+	{
+	}
+	mult_sign_fixup_expr (shared_ptr<expr> op, const QString &pred1, const QString &pred2)
+		: expr (op->length ()), m_op (op), m_sgn1 (pred1), m_sgn2 (pred2)
 	{
 	}
 	QString next_piece () override
@@ -535,8 +531,7 @@ public:
 
 		QString pred = codegen->gen_reg ("pred", "flip");
 		QString lab = codegen->gen_label ("flip");
-		codegen->append_code (QString ("\txor.pred\t%1, %2, %3;\n")
-				      .arg (pred, m_sgn1->get_pred (), m_sgn2->get_pred ()));
+		codegen->append_code (QString ("\txor.pred\t%1, %2, %3;\n").arg (pred, m_sgn1, m_sgn2));
 		for (size_t i = 0; i < length (); i++) {
 			QString dst = get_destreg ("u32");
 			m_values.push_back (dst);
@@ -752,21 +747,25 @@ public:
 	}
 };
 
-shared_ptr<expr> gen_mult_simple (shared_ptr<expr> a, shared_ptr<expr> b, bool abs_required = true)
+void gen_store (const QString &dst, shared_ptr<expr> ex)
 {
-	shared_ptr<abs_expr> aa;
-	shared_ptr<expr> aop = abs_required ? (aa = make_shared<abs_expr> (a)) : a;
-	if (a == b) {
-		return make_shared<trunc_expr> (make_shared<mult_expr> (aop, aop), a->length ());
-	} else {
-		shared_ptr<abs_expr> ba;
-		shared_ptr<expr> bop = abs_required ? (ba = make_shared<abs_expr> (b)) : b;
+	int len = ex->length ();
+	QString addr = dst; // codegen->gen_reg ("u64", "addr");
+	// codegen->append_move ("u64", addr, dst);
+	for (int i = 0; i < len; i++) {
+		QString val = ex->get_piece (i);
+		codegen->append_code (QString ("\tst.global.u32\t[%1 + %2], %3;\n")
+				      .arg (addr).arg (i * 4).arg (val));
+	}
+}
 
-		auto me = make_shared<mult_expr> (aop, bop);
-		auto te = make_shared<trunc_expr> (me, a->length ());
-		if (!abs_required)
-			return te;
-		return make_shared<mult_sign_fixup_expr> (te, aa, ba);
+void gen_store (reg_expr *dst, shared_ptr<expr> ex)
+{
+	int len = ex->length ();
+	for (int i = 0; i < len; i++) {
+		QString dstp = dst->get_piece (i);
+		QString val = ex->get_piece (i);
+		codegen->append_move ("u32", dstp, val);
 	}
 }
 
@@ -817,43 +816,151 @@ shared_ptr<expr> gen_mult_karatsuba_1 (shared_ptr<expr> a, shared_ptr<expr> b)
 	return sum;
 }
 
-shared_ptr<expr> gen_mult (shared_ptr<expr> a, shared_ptr<expr> b)
+shared_ptr<expr> gen_mult_unsigned (shared_ptr<expr> a, shared_ptr<expr> b)
 {
 	if (a->length () < karatsuba_cutoff)
-		return gen_mult_simple (a, b);
+		return make_shared<trunc_expr> (make_shared<mult_expr> (a, b), a->length ());
 
-	auto aa = make_shared<abs_expr> (a);
-	auto ba = a == b ? aa : make_shared<abs_expr> (b);
-	aa->set_destreg ("aabs");
-	if (ba != aa)
-		ba->set_destreg ("babs");
-	auto me = gen_mult_karatsuba_1 (aa, ba);
-	auto te = make_shared<trunc_expr> (make_shared<lowpart_expr> (me, 1, me->length () - 1), a->length ());
-	if (a == b)
-		return te;
-	return make_shared<mult_sign_fixup_expr> (te, aa, ba);
+	auto me = gen_mult_karatsuba_1 (a, b);
+	return make_shared<trunc_expr> (make_shared<lowpart_expr> (me, 1, me->length () - 1), a->length ());
 }
 
-void gen_store (const QString &dst, shared_ptr<expr> ex)
-{
-	int len = ex->length ();
-	QString addr = dst; // codegen->gen_reg ("u64", "addr");
-	// codegen->append_move ("u64", addr, dst);
-	for (int i = 0; i < len; i++) {
-		QString val = ex->get_piece (i);
-		codegen->append_code (QString ("\tst.global.u32\t[%1 + %2], %3;\n")
-				      .arg (addr).arg (i * 4).arg (val));
-	}
-}
+struct real_val;
 
-void gen_store (reg_expr *dst, shared_ptr<expr> ex)
+/* A structure for information about a real-valued reg, and optionally some of its
+   related values: abs_val and neg_pred can hold a sign/magnitude representation,
+   which is often useful, and square_val can be used to keep the square of the
+   value around.  */
+class real_reg
 {
-	int len = ex->length ();
-	for (int i = 0; i < len; i++) {
-		QString dstp = dst->get_piece (i);
-		QString val = ex->get_piece (i);
-		codegen->append_move ("u32", dstp, val);
+	shared_ptr<reg_expr> m_reg;
+	shared_ptr<reg_expr> m_abs_val;
+	shared_ptr<reg_expr> m_square_val;
+	QString m_neg_pred;
+	friend class real_val;
+
+public:
+	real_reg () = default;
+	real_reg (int size, const QString &name, bool keep_abs = false, bool keep_square = false)
+		: m_reg (make_shared<reg_expr> (size, name)),
+		  m_abs_val (keep_abs || keep_square ? make_shared<reg_expr> (size, name + "a") : nullptr),
+		  m_square_val (keep_square ? make_shared<reg_expr> (size, name + "sq") : nullptr),
+		  m_neg_pred (keep_abs ? codegen->gen_reg ("pred", name + "n") : nullptr)
+	{
 	}
+	void store (shared_ptr<expr> val)
+	{
+		gen_store (&*m_reg, val);
+		if (!m_neg_pred.isEmpty () || m_square_val != nullptr) {
+			auto absexp = make_shared<abs_expr> (val, m_neg_pred);
+			if (!m_neg_pred.isEmpty ())
+				gen_store (&*m_abs_val, absexp);
+			if (m_square_val != nullptr)
+				gen_store (&*m_square_val, gen_mult_unsigned (absexp, absexp));
+		}
+	}
+	operator shared_ptr<expr> () const
+	{
+		return m_reg;
+	}
+	shared_ptr<expr> ex () const
+	{
+		return m_reg;
+	}
+	shared_ptr<expr> squared ()
+	{
+		if (m_square_val == nullptr) {
+			if (m_abs_val != nullptr)
+				return gen_mult_unsigned (m_abs_val, m_abs_val);
+			auto absv = abs_val ();
+			return gen_mult_unsigned (absv, absv);
+		}
+		return m_square_val;
+	}
+	shared_ptr<expr> abs_val ()
+	{
+		if (m_abs_val == nullptr)
+			return make_shared<abs_expr> (m_reg, m_neg_pred);
+		return m_abs_val;
+	}
+	QString neg_pred ()
+	{
+		if (!m_neg_pred.isEmpty ())
+			return m_neg_pred;
+
+		QString pred = codegen->gen_reg ("pred", "neg");
+		codegen->append_code (QString ("\tsetp.lt.s32\t%1, %2, 0;\n").arg (pred, m_reg->get_piece_high (0)));
+		return pred;
+	}
+};
+
+class real_val
+{
+	shared_ptr<expr> m_val;
+	shared_ptr<expr> m_abs_val;
+	shared_ptr<expr> m_square_val;
+	QString m_neg_pred;
+
+public:
+	real_val (const real_reg &reg) : m_val (reg.m_reg), m_abs_val (reg.m_abs_val), m_square_val (reg.m_square_val), m_neg_pred (reg.m_neg_pred)
+	{
+	}
+	real_val (shared_ptr<expr> expr) : m_val (expr)
+	{
+	}
+	real_val (shared_ptr<expr> expr, const QString &pred) : m_abs_val (expr), m_neg_pred (pred)
+	{
+	}
+	real_val () = default;
+	operator shared_ptr<expr> () const
+	{
+		return ex ();
+	}
+	shared_ptr<expr> ex () const
+	{
+		if (m_val != nullptr)
+			return m_val;
+		shared_ptr<expr> dst = make_shared<reg_expr> (m_abs_val->length (), "sgn");
+		gen_cond_negate (&*dst, &*m_abs_val, m_neg_pred);
+		return dst;
+	}
+	shared_ptr<expr> squared ()
+	{
+		if (m_square_val == nullptr) {
+			auto absv = abs_val ();
+			m_square_val = gen_mult_unsigned (absv, absv);
+		}
+		return m_square_val;
+	}
+	shared_ptr<expr> abs_val ()
+	{
+		if (m_abs_val == nullptr)
+			m_abs_val = make_shared<abs_expr> (m_val, m_neg_pred);
+		return m_abs_val;
+	}
+	QString neg_pred ()
+	{
+		if (m_neg_pred.isEmpty ()) {
+			m_neg_pred = codegen->gen_reg ("pred", "neg");
+			codegen->append_code (QString ("\tsetp.lt.s32\t%1, %2, 0;\n")
+					      .arg (m_neg_pred, m_val->get_piece_high (0)));
+		}
+		return m_neg_pred;
+	}
+};
+
+template<class R1, class R2>
+real_val gen_mult (R1 &a, R2 &b, bool abs_required = true)
+{
+	shared_ptr<expr> aop = a.abs_val ();
+	shared_ptr<expr> bop = b.abs_val ();
+	auto prod = gen_mult_unsigned (aop, bop);
+	if (!abs_required || &a == &b)
+		return prod;
+
+	QString pred = codegen->gen_reg ("pred", "sfix");
+	codegen->append_code (QString ("\txor.pred\t%1, %2, %3;\n").arg (pred, a.neg_pred (), b.neg_pred ()));
+	return real_val (prod, pred);
 }
 
 void gen_coord_muladd (QString &result, int dstsize, int srcsize)
@@ -1060,13 +1167,13 @@ void gen_kernel_header (QString &result, const QString &name, ARGS... in_args)
 	for (size_t i = 0; i < args.size (); i += 2)
 		result += QString ("\tld.param.%1 %%2, [%in_%3];\n").arg (args[i]).arg (args[i + 1]).arg (args[i + 1]);
 }
-struct cplx_val;
 
+struct cplx_val;
 struct cplx_reg
 {
-	shared_ptr<reg_expr> re;
-	shared_ptr<reg_expr> im;
-	cplx_reg (shared_ptr<reg_expr> r, shared_ptr<reg_expr> i) : re (r), im (i)
+	real_reg re;
+	real_reg im;
+	cplx_reg (const real_reg &r, const real_reg &i) : re (r), im (i)
 	{
 	}
 	cplx_reg () = default;
@@ -1075,90 +1182,105 @@ struct cplx_reg
 
 struct cplx_val
 {
-	shared_ptr<expr> re;
-	shared_ptr<expr> im;
+	real_val re;
+	real_val im;
+	cplx_val (const real_val &r, const real_val &i) : re (r), im (i)
+	{
+	}
 	cplx_val (shared_ptr<expr> r, shared_ptr<expr> i) : re (r), im (i)
 	{
 	}
 	cplx_val (const cplx_reg &reg) : re (reg.re), im (reg.im)
 	{
 	}
+	void set_re (shared_ptr<expr> v)
+	{
+		re = real_val (v);
+	}
+	void set_im (shared_ptr<expr> v)
+	{
+		im = real_val (v);
+	}
 	cplx_val () = default;
 };
 
 void cplx_reg::store (const cplx_val &v)
 {
-	gen_store (&*re, v.re);
-	gen_store (&*im, v.im);
+	re.store (v.re);
+	im.store (v.im);
 }
 
-cplx_val emit_complex_sqr (const cplx_val &v, cplx_val v_squared = cplx_val ())
+template<class C>
+cplx_val emit_complex_sqr (C &v)
 {
-	if (v_squared.re == nullptr)
-		v_squared.re = gen_mult (v.re, v.re);
-	if (v_squared.im == nullptr)
-		v_squared.im = gen_mult (v.im, v.im);
+	auto sqre = v.re.squared ();
+	auto sqim = v.im.squared ();
 
 	// zr <- z2r - z2i
 	// zi <- zr * zi * 2
 
 	auto tmp = gen_mult (v.re, v.im);
 
-	auto re = make_shared<addsub_expr> ("sub", v_squared.re, v_squared.im);
+	auto re = make_shared<addsub_expr> ("sub", sqre, sqim);
 	auto im = make_shared<addsub_expr> ("add", tmp, tmp);
 	return { re, im };
 }
 
-cplx_val emit_complex_mult (const cplx_val &va, const cplx_val &vb)
+cplx_val emit_complex_mult (cplx_val &va, cplx_val &vb)
 {
 	// (a+ib) * (c+id) = ac - bd + i(bc + ad)
-	auto rp1_expr = gen_mult (va.re, vb.re);
-	auto rp2_expr = gen_mult (va.im, vb.im);
+	real_val rp1_expr = gen_mult (va.re, vb.re);
+	real_val rp2_expr = gen_mult (va.im, vb.im);
 
-	auto ip1_expr = gen_mult (va.re, vb.im);
-	auto ip2_expr = gen_mult (va.im, vb.re);
+	real_val ip1_expr = gen_mult (va.re, vb.im);
+	real_val ip2_expr = gen_mult (va.im, vb.re);
 
 	auto re = make_shared<addsub_expr> ("sub", rp1_expr, rp2_expr);
 	auto im = make_shared<addsub_expr> ("add", ip1_expr, ip2_expr);
 	return { re, im };
 }
 
-cplx_val gen_mult_int (cplx_val v, int factor)
+template<class C>
+cplx_val gen_mult_int (C &v, int factor)
 {
 	cplx_val result;
+	bool first = true;
 	for (int i = 0; i < 10; i++)
 		if (factor & (1 << i)) {
-			shared_ptr<expr> shfr = i == 0 ? v.re : make_shared<lshift_expr> (v.re, i);
-			shared_ptr<expr> shfi = i == 0 ? v.im : make_shared<lshift_expr> (v.im, i);
-			if (result.re == nullptr) {
+			shared_ptr<expr> shfr = i == 0 ? v.re.ex () : make_shared<lshift_expr> (v.re, i);
+			shared_ptr<expr> shfi = i == 0 ? v.im.ex () : make_shared<lshift_expr> (v.im, i);
+			if (first) {
 				result = { shfr, shfi };
+				first = false;
 			} else {
-				result.re = make_shared<addsub_expr> ("add", result.re, shfr);
-				result.im = make_shared<addsub_expr> ("add", result.im, shfi);
+				auto re = make_shared<addsub_expr> ("add", result.re, shfr);
+				auto im = make_shared<addsub_expr> ("add", result.im, shfi);
+				result = { re, im };
 			}
 		}
 	return result;
 }
 
-
-void build_powers (array<cplx_val, 20> &powers, const cplx_val &z, const cplx_val &z_squared, int power)
+template<class C>
+void build_powers (array<cplx_val, 20> &powers, C &z, int power)
 {
 	powers[0] = z;
-
-	powers[1] = emit_complex_sqr (z, z_squared);
+	powers[1] = emit_complex_sqr (z);
 	int pidx = 2;
 	for (int p = 4; p <= power; p *= p, pidx++) {
 		powers[pidx] = emit_complex_sqr (powers[pidx - 1]);
 	}
 }
 
-cplx_val get_power (const array<cplx_val, 20> &powers, int power)
+cplx_val get_power (array<cplx_val, 20> &powers, int power)
 {
 	cplx_val v;
+	bool first = true;
 	for (int i = 0; i < 10; i++)
 		if (power & (1 << i)) {
-			if (v.re == nullptr) {
+			if (first) {
 				v = powers[i];
+				first = false;
 			} else {
 				v = emit_complex_mult (powers[i], v);
 			}
@@ -1192,70 +1314,67 @@ cplx_val emit_complex_sub (const cplx_val &v1, const cplx_val &v2)
 }
 
 void gen_inner_standard (int size, int power, bool julia, bool dem,
-			 cplx_reg zreg, cplx_reg z2reg, cplx_val cval, cplx_reg zder)
+			 cplx_reg zreg, cplx_val cval, cplx_reg zder)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, zreg, z2reg, power);
+	build_powers (powers, zreg, power);
 	cplx_val pwr = get_power (powers, power);
 
 	cplx_val newz = emit_complex_add (pwr, cval);
 	if (dem) {
 		cplx_val dpwr = get_power (powers, power - 1);
-		cplx_val nrd = emit_complex_mult (dpwr, zder);
+		cplx_val zdval (zder);
+		cplx_val nrd = emit_complex_mult (dpwr, zdval);
 		nrd = gen_mult_int (nrd, power);
 		if (!julia) {
-			nrd.re = make_shared<addsub_expr> ("add", nrd.re,
-							   make_shared<ldg_expr> ("%dem_step", size));
+			nrd.set_re (make_shared<addsub_expr> ("add", nrd.re,
+							      make_shared<ldg_expr> ("%dem_step", size)));
 		}
 		zder.store (nrd);
 	}
 	zreg.store (newz);
-	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 // Burning ship, because why not set zre and zim to their absolute values before
 // continuing.
-void gen_inner_ship (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
+void gen_inner_ship (int power, bool /* julia */, cplx_reg zreg, cplx_val cval)
 {
 	auto zar = make_shared<abs_expr> (zreg.re);
 	auto zai = make_shared<abs_expr> (zreg.im);
 	zreg.store ({ zar, zai});
 	array<cplx_val, 20> powers;
-	build_powers (powers, zreg, z2reg, power);
+	build_powers (powers, zreg, power);
 	cplx_val pwr = get_power (powers, power);
 	cplx_val newz = emit_complex_add (pwr, cval);
 
 	zreg.store (newz);
-	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 /* Tricorn, also known as Mandelbar.
    Like the default function except the conjugate is taken after the final step
    before assigning Z.  */
-void gen_inner_tricorn (int size, int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
+void gen_inner_tricorn (int size, int power, bool /* julia */, cplx_reg zreg, cplx_val cval)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, zreg, z2reg, power);
+	build_powers (powers, zreg, power);
 	cplx_val pwr = get_power (powers, power);
 	cplx_val newz = emit_complex_add (pwr, cval);
 
 	auto const0 = make_shared<const_expr<0>> (size);
-	newz.im = make_shared<addsub_expr> ("sub", const0, newz.im);
+	newz.set_im (make_shared<addsub_expr> ("sub", const0, newz.im));
 
 	zreg.store (newz);
-	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
-void gen_inner_celtic (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
+void gen_inner_celtic (int power, bool /* julia */, cplx_reg zreg, cplx_val cval)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, zreg, z2reg, power);
+	build_powers (powers, zreg, power);
 	cplx_val pwr = get_power (powers, power);
-	pwr.re = make_shared<abs_expr> (pwr.re);
+	pwr.set_re (make_shared<abs_expr> (pwr.re));
 	cplx_val newz = emit_complex_add (pwr, cval);
 
 	zreg.store (newz);
-	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 /* c*(z^N - Nz)
@@ -1264,10 +1383,10 @@ void gen_inner_celtic (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2re
    Seems to look identical except for scaling.  */
 
 void gen_inner_lambda (int size, int power, bool julia, bool dem,
-		       cplx_reg zreg, cplx_reg z2reg, cplx_val cval, cplx_reg zder)
+		       cplx_reg zreg, cplx_val cval, cplx_reg zder)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, zreg, z2reg, power);
+	build_powers (powers, zreg, power);
 	cplx_val pwr = get_power (powers, power);
 	cplx_val f = gen_mult_int (zreg, power);
 
@@ -1275,55 +1394,54 @@ void gen_inner_lambda (int size, int power, bool julia, bool dem,
 	cplx_val newz = emit_complex_mult (sum, cval);
 	if (dem) {
 		cplx_val dpwr = get_power (powers, power - 1);
-		cplx_val nrd = gen_mult_int (emit_complex_mult (dpwr, zder), power);
+		cplx_val zdval (zder);
+		cplx_val m1 = emit_complex_mult (dpwr, zdval);
+		cplx_val nrd = gen_mult_int (m1, power);
+		cplx_val f = gen_mult_int (zder, power);
+		cplx_val sum2 = emit_complex_sub (nrd, f);
+		cplx_val m = emit_complex_mult (sum2, cval);
 		if (!julia) {
-			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
-			cplx_val m = emit_complex_mult (sum2, cval);
-			shared_ptr<expr> scaled_re = gen_mult (sum.re, make_shared<ldg_expr> ("%dem_step", size));
-			shared_ptr<expr> scaled_im = gen_mult (sum.im, make_shared<ldg_expr> ("%dem_step", size));
+			real_val step (make_shared<ldg_expr> ("%dem_step", size));
+			shared_ptr<expr> scaled_re = gen_mult (sum.re, step);
+			shared_ptr<expr> scaled_im = gen_mult (sum.im, step);
 			cplx_val scaled { scaled_re, scaled_im };
 			zder.store (emit_complex_add (scaled, m));
 		} else {
-			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
-			cplx_val m = emit_complex_mult (sum2, cval);
 			zder.store (m);
 		}
 	}
 
 	zreg.store (newz);
-	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
-void gen_inner_sqtwice_a (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
+void gen_inner_sqtwice_a (int power, bool /* julia */, cplx_reg zreg, cplx_val cval)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, zreg, z2reg, power);
+	build_powers (powers, zreg, power);
 	cplx_val pwr = get_power (powers, power);
 	cplx_val newz1 = emit_complex_add (pwr, cval);
 	cplx_val newz = emit_complex_sqr (newz1);
 
 	zreg.store (newz);
-	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 
-void gen_inner_sqtwice_b (int power, bool /* julia */, cplx_reg zreg, cplx_reg z2reg, cplx_val cval)
+void gen_inner_sqtwice_b (int power, bool /* julia */, cplx_reg zreg, cplx_val cval)
 {
 	cplx_val pwr = emit_complex_sqr (zreg);
 	cplx_val newz1 = emit_complex_add (pwr, cval);
 
 	array<cplx_val, 20> powers_b;
-	build_powers (powers_b, newz1, cplx_val (), power);
+	build_powers (powers_b, newz1, power);
 	cplx_val newz = get_power (powers_b, power);
 
 	zreg.store (newz);
-	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
-void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg z2reg, cplx_reg creg)
+void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg creg)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, zreg, z2reg, power);
+	build_powers (powers, zreg, power);
 	cplx_val pwr = get_power (powers, power);
 
 	cplx_val newz = emit_complex_add (pwr, creg);
@@ -1331,37 +1449,37 @@ void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg z2reg, cplx_
 	auto prhalf = make_shared<arshift_expr<1>> (creg.re);
 	auto pihalf = make_shared<arshift_expr<1>> (creg.im);
 	cplx_val np = emit_complex_add ({ prhalf, pihalf}, newz);
-	newz.re->calculate_full ();
-	newz.im->calculate_full ();
 	zreg.store (newz);
-	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 	creg.store (np);
 }
 
 // Similar to lambda, but computes c(z^N - Nz - 2) + q
 
 void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
-		    cplx_reg zreg, cplx_reg z2reg, cplx_val cval, cplx_reg zder)
+		    cplx_reg zreg, cplx_val cval, cplx_reg zder)
 {
 	array<cplx_val, 20> powers;
-	build_powers (powers, zreg, z2reg, power);
+	build_powers (powers, zreg, power);
 	cplx_val pwr = get_power (powers, power);
 	cplx_val f = gen_mult_int (zreg, power);
 	cplx_val sum1 = emit_complex_sub (pwr, f);
 	cplx_val sum = sum1;
 	auto const2 = make_shared<const_expr<2>> (size);
-	sum.re = make_shared<addsub_expr> ("sub", sum.re, const2);
+	sum.set_re (make_shared<addsub_expr> ("sub", sum.re, const2));
 	cplx_val newz1 = emit_complex_mult (sum, cval);
 	auto pq = cplx_ldc ("const_param_q", size, stepsize);
 	cplx_val newz = emit_complex_sub (newz1, pq);
 	if (dem) {
 		cplx_val dpwr = get_power (powers, power - 1);
-		cplx_val nrd = gen_mult_int (emit_complex_mult (dpwr, zder), power);
+		cplx_val zdval (zder);
+		cplx_val m1 = emit_complex_mult (dpwr, zdval);
+		cplx_val nrd = gen_mult_int (m1, power);
 		if (!julia) {
 			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
 			cplx_val m = emit_complex_mult (sum2, cval);
-			shared_ptr<expr> scaled_re = gen_mult (sum.re, make_shared<ldg_expr> ("%dem_step", size));
-			shared_ptr<expr> scaled_im = gen_mult (sum.im, make_shared<ldg_expr> ("%dem_step", size));
+			real_val step (make_shared<ldg_expr> ("%dem_step", size));
+			shared_ptr<expr> scaled_re = gen_mult (sum.re, step);
+			shared_ptr<expr> scaled_im = gen_mult (sum.im, step);
 			cplx_val scaled { scaled_re, scaled_im };
 			zder.store (emit_complex_add (scaled, m));
 		} else {
@@ -1372,47 +1490,46 @@ void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
 	}
 
 	zreg.store (newz);
-	z2reg.store ({ gen_mult (newz.re, newz.re), gen_mult (newz.im, newz.im) });
 }
 
 static void gen_inner (formula f, int size, int stepsize, int power, bool julia, bool dem,
-		       cplx_reg zreg, cplx_reg z2reg, cplx_reg creg, cplx_val cval, cplx_reg zder)
+		       cplx_reg zreg, cplx_reg creg, cplx_val cval, cplx_reg zder)
 {
 	switch (f) {
 	default:
 	case formula::standard:
-		gen_inner_standard (size, power, julia, dem, zreg, z2reg, cval, zder);
+		gen_inner_standard (size, power, julia, dem, zreg, cval, zder);
 		break;
 	case formula::tricorn:
-		gen_inner_tricorn (size, power, julia, zreg, z2reg, cval);
+		gen_inner_tricorn (size, power, julia, zreg, cval);
 		break;
 	case formula::ship:
-		gen_inner_ship (power, julia, zreg, z2reg, cval);
+		gen_inner_ship (power, julia, zreg, cval);
 		break;
 	case formula::celtic:
-		gen_inner_celtic (power, julia, zreg, z2reg, cval);
+		gen_inner_celtic (power, julia, zreg, cval);
 		break;
 	case formula::spider:
-		gen_inner_spider (size, power, zreg, z2reg, creg);
+		gen_inner_spider (size, power, zreg, creg);
 		break;
 	case formula::lambda:
-		gen_inner_lambda (size, power, julia, dem, zreg, z2reg, cval, zder);
+		gen_inner_lambda (size, power, julia, dem, zreg, cval, zder);
 		break;
 	case formula::mix:
-		gen_inner_mix (size, stepsize, power, julia, dem, zreg, z2reg, cval, zder);
+		gen_inner_mix (size, stepsize, power, julia, dem, zreg, cval, zder);
 		break;
 	case formula::sqtwice_a:
-		gen_inner_sqtwice_a (power, julia, zreg, z2reg, cval);
+		gen_inner_sqtwice_a (power, julia, zreg, cval);
 		break;
 	case formula::sqtwice_b:
-		gen_inner_sqtwice_b (power, julia, zreg, z2reg, cval);
+		gen_inner_sqtwice_b (power, julia, zreg, cval);
 		break;
 	}
 }
 
 static void gen_inner_hybrid (QString &result, generator &cg,
 			      formula f, int size, int stepsize, int power, bool julia,
-			      cplx_reg zreg, cplx_reg z2reg, cplx_reg creg, cplx_val cval)
+			      cplx_reg zreg, cplx_reg creg, cplx_val cval)
 {
 	result += "\t.reg.u32 %hval;\n";
 	result += "\t.reg.pred %hpred;\n";
@@ -1421,13 +1538,13 @@ static void gen_inner_hybrid (QString &result, generator &cg,
 	result += "\tsetp.ne.u32\t%hpred, %hval, 0;\n";
 	result += "@%hpred\tbra.uni\tstditer;\n";
 
-	gen_inner (f, size, stepsize, power, julia, false, zreg, z2reg, creg, cval, cplx_reg ());
+	gen_inner (f, size, stepsize, power, julia, false, zreg, creg, cval, cplx_reg ());
 	result += cg.code ();
 
 	result += "\tbra\tloopend;\n";
 	result += "stditer:\n";
 	result += "\tadd.u32\t%hybrid_code, %hybrid_code, 1;\n";
-	gen_inner_standard (size, power, julia, false, zreg, z2reg, cval, cplx_reg ());
+	gen_inner_standard (size, power, julia, false, zreg, cval, cplx_reg ());
 	result += cg.code ();
 	result += "loopend:\n";
 }
@@ -1509,20 +1626,20 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	generator cg;
 	codegen = &cg;
 
-	auto incoord_x = make_shared<ldg_expr> ("%ar_t", size);
-	auto incoord_y = make_shared<ldg_expr> ("%ar_tim", size);
-	auto originx = make_shared<ldc_expr> (QString ("const_origin_x + %1")
-					      .arg (stepsize * 4 - size * 4), size);
-	auto originy = make_shared<ldc_expr> (QString ("const_origin_y + %1")
-					      .arg (stepsize * 4 - size * 4), size);
-	auto mat00 = make_shared<ldc_expr> (QString ("const_matrix00 + %1")
-					    .arg (stepsize * 4 - size * 4), size);
-	auto mat01 = make_shared<ldc_expr> (QString ("const_matrix01 + %1")
-					    .arg (stepsize * 4 - size * 4), size);
-	auto mat10 = make_shared<ldc_expr> (QString ("const_matrix10 + %1")
-					    .arg (stepsize * 4 - size * 4), size);
-	auto mat11 = make_shared<ldc_expr> (QString ("const_matrix11 + %1")
-					    .arg (stepsize * 4 - size * 4), size);
+	real_val incoord_x (make_shared<ldg_expr> ("%ar_t", size));
+	real_val incoord_y (make_shared<ldg_expr> ("%ar_tim", size));
+	real_val originx (make_shared<ldc_expr> (QString ("const_origin_x + %1")
+						 .arg (stepsize * 4 - size * 4), size));
+	real_val originy (make_shared<ldc_expr> (QString ("const_origin_y + %1")
+						 .arg (stepsize * 4 - size * 4), size));
+	real_val mat00 (make_shared<ldc_expr> (QString ("const_matrix00 + %1")
+					       .arg (stepsize * 4 - size * 4), size));
+	real_val mat01 (make_shared<ldc_expr> (QString ("const_matrix01 + %1")
+					       .arg (stepsize * 4 - size * 4), size));
+	real_val mat10 (make_shared<ldc_expr> (QString ("const_matrix10 + %1")
+					       .arg (stepsize * 4 - size * 4), size));
+	real_val mat11 (make_shared<ldc_expr> (QString ("const_matrix11 + %1")
+					       .arg (stepsize * 4 - size * 4), size));
 
 	auto coord_x1 = make_shared<addsub_expr> ("add", gen_mult (incoord_x, mat00), gen_mult (incoord_y, mat01));
 	auto coord_y1 = make_shared<addsub_expr> ("add", gen_mult (incoord_x, mat10), gen_mult (incoord_y, mat11));
@@ -1564,39 +1681,27 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 
 	result += "notfirst:\n";
 
-	auto cr_reg = make_shared<reg_expr> (size, "cr");
-	auto ci_reg = make_shared<reg_expr> (size, "ci");
-	gen_store (&*cr_reg, make_shared<ldg_expr> ("%ar_t", size));
-	gen_store (&*ci_reg, make_shared<ldg_expr> ("%ar_tim", size));
-	auto zr_reg = make_shared<reg_expr> (size, "zr");
-	auto zi_reg = make_shared<reg_expr> (size, "zi");
-	gen_store (&*zr_reg, make_shared<ldg_expr> ("%ar_z", size));
-	gen_store (&*zi_reg, make_shared<ldg_expr> ("%ar_zim", size));
-	auto z2r_reg = make_shared<reg_expr> (size, "z2r");
-	auto z2i_reg = make_shared<reg_expr> (size, "z2i");
-	shared_ptr<reg_expr> zderr_reg, zderi_reg;
+	real_reg cr (size, "cr", true);
+	real_reg ci (size, "ci", true);
+	real_reg zr (size, "zr", true, true);
+	real_reg zi (size, "zi", true, true);
+
+	cr.store (make_shared<ldg_expr> ("%ar_t", size));
+	ci.store (make_shared<ldg_expr> ("%ar_tim", size));
+	zr.store (make_shared<ldg_expr> ("%ar_z", size));
+	zi.store (make_shared<ldg_expr> ("%ar_zim", size));
+	real_reg zderr = dem ? real_reg (size, "zderr", true) : real_reg ();
+	real_reg zderi = dem ? real_reg (size, "zderi", true) : real_reg ();
 	if (dem) {
-		zderr_reg = make_shared<reg_expr> (size, "zderr");
-		zderi_reg = make_shared<reg_expr> (size, "zderi");
-		gen_store (&*zderr_reg, make_shared<ldg_expr> ("%ar_zder", size));
-		gen_store (&*zderi_reg, make_shared<ldg_expr> ("%ar_zderim", size));
+		zderr.store (make_shared<ldg_expr> ("%ar_zder", size));
+		zderi.store (make_shared<ldg_expr> ("%ar_zderim", size));
 	}
 
 	result += cg.code ();
 
-	{
-		auto arz = make_shared<ldg_expr> ("%ar_z", size);
-		auto arz2 = gen_mult (arz, arz);
-		gen_store (&*z2r_reg, arz2);
-		auto arzim = make_shared<ldg_expr> ("%ar_zim", size);
-		auto arzim2 = gen_mult (arzim, arzim);
-		gen_store (&*z2i_reg, arzim2);
-	}
-
-	cplx_reg zreg = { zr_reg, zi_reg };
-	cplx_reg z2reg = { z2r_reg, z2i_reg };
-	cplx_reg zder = { zderr_reg, zderi_reg };
-	cplx_reg creg = { cr_reg, ci_reg };
+	cplx_reg zreg (zr, zi);
+	cplx_reg zder (zderr, zderi);
+	cplx_reg creg (cr, ci);
 	cplx_val cval = creg;
 	if (julia)
 		cval = cplx_ldc ("const_param_p", size, stepsize);
@@ -1614,14 +1719,14 @@ loop:
 )";
 
 	if (hybrid)
-		gen_inner_hybrid (result, cg, f, size, stepsize, power, julia, zreg, z2reg, creg, cval);
+		gen_inner_hybrid (result, cg, f, size, stepsize, power, julia, zreg, creg, cval);
 	else
-		gen_inner (f, size, stepsize, power, julia, dem, zreg, z2reg, creg, cval, zder);
+		gen_inner (f, size, stepsize, power, julia, dem, zreg, creg, cval, zder);
 
 	result += cg.code ();
 
-	QString z2r_high = z2r_reg->get_piece_high (0);
-	QString z2i_high = z2i_reg->get_piece_high (0);
+	QString z2r_high = zr.squared ()->get_piece_high (0);
+	QString z2i_high = zi.squared ()->get_piece_high (0);
 	QString loop_end = R"(
 
 	.reg.u32 %sqsum;
@@ -1631,13 +1736,11 @@ loop:
 @%cont	bra		skip;
 )";
 	result += loop_end.arg (z2r_high, z2i_high, dem ? "100" : "10000");
-	gen_store ("%ar_z", zr_reg);
-	gen_store ("%ar_zim", zi_reg);
-	// gen_store ("%ar_z2", gen_mult (zr_reg, zr_reg));
-	// gen_store ("%ar_z2im", gen_mult_simple (zr_reg, zr_reg));
+	gen_store ("%ar_z", zr);
+	gen_store ("%ar_zim", zi);
 	if (dem) {
-		gen_store ("%ar_zder", zderr_reg);
-		gen_store ("%ar_zderim", zderi_reg);
+		gen_store ("%ar_zder", zderr);
+		gen_store ("%ar_zderim", zderi);
 	}
 	result += cg.code ();
 
@@ -1652,17 +1755,15 @@ skip:
 @%again	bra		loop;
 )";
 	result += "\tst.global.u32\t[%ar_result], 0;\n";
-	gen_store ("%ar_z", zr_reg);
-	gen_store ("%ar_zim", zi_reg);
-	// gen_store ("%ar_z2", gen_mult (zr_reg, zr_reg));
-	// gen_store ("%ar_z2im", gen_mult_simple (zr_reg, zr_reg));
+	gen_store ("%ar_z", zr);
+	gen_store ("%ar_zim", zi);
 	if (f == formula::spider) {
-		gen_store ("%ar_t", cr_reg);
-		gen_store ("%ar_tim", ci_reg);
+		gen_store ("%ar_t", cr);
+		gen_store ("%ar_tim", ci);
 	}
 	if (dem) {
-		gen_store ("%ar_zder", zderr_reg);
-		gen_store ("%ar_zderim", zderi_reg);
+		gen_store ("%ar_zder", zderr);
+		gen_store ("%ar_zderim", zderi);
 	}
 	result += cg.code ();
 	result += "}\n";
