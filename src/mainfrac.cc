@@ -389,6 +389,7 @@ double MainWindow::scale_slider_value ()
 
 void MainWindow::discard_fd_data (frac_desc &fd)
 {
+	fd.generation++;
 	// Do this always even if there is nothing to free.
 	// Calling invalidate and Waiting on done_sem also ensures that we are not within
 	// slot_start_kernel.
@@ -1614,43 +1615,41 @@ void MainWindow::slot_save_as (bool)
 		QMessageBox::warning (this, PACKAGE, tr ("Failed to save image!"));
 }
 
-void MainWindow::slot_save_params (bool)
+void MainWindow::slot_save_params ()
 {
-	bool old_paused = m_paused;
-	m_paused = true;
+	bool_changer (m_paused, true);
 	abort_computation ();
 
 	QFileDialog dlg (this, tr ("Save parameters"), "", "GFF fractal params (*.fparm)");
 	dlg.setAcceptMode (QFileDialog::AcceptSave);
 	dlg.setDefaultSuffix (".fparm");
 	if (!dlg.exec ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 
 	QStringList flist = dlg.selectedFiles ();
 	if (flist.isEmpty ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 	QString filename = flist[0];
 	auto fd =  current_fd ();
 	QFile f (filename);
-	f.open (QIODevice::WriteOnly);
+	if (!f.open (QIODevice::WriteOnly)) {
+                QMessageBox::warning (this, PACKAGE, QObject::tr ("Cannot open parameter file for saving."));
+                return;
+	}
 	QDataStream s (&f);
 	s << fd;
+	if (!f.flush ()) {
+                QMessageBox::warning (this, PACKAGE, QObject::tr ("Error while saving to file."));
+                return;
+	}
 	f.close ();
-
-	m_paused = old_paused;
-	restart_computation ();
 }
 
-void MainWindow::slot_load_params (bool)
+void MainWindow::slot_load_params ()
 {
-	bool old_paused = m_paused;
-	m_paused = true;
+	bool_changer (m_paused, true);
 	abort_computation ();
 
 	QFileDialog dlg (this, tr ("Load parameters"), "", "GFF fractal params (*.fparm)");
@@ -1658,22 +1657,16 @@ void MainWindow::slot_load_params (bool)
 	dlg.setFileMode (QFileDialog::ExistingFile);
 	dlg.setDefaultSuffix (".fparm");
 	if (!dlg.exec ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 
 	QStringList flist = dlg.selectedFiles ();
 	if (flist.isEmpty ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 	QString filename = flist[0];
 
 	if (filename.isEmpty ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 
@@ -1686,49 +1679,45 @@ void MainWindow::slot_load_params (bool)
 	f.close ();
 
 	restore_params (newfd);
-	m_paused = old_paused;
 
 	m_recompile = true;
-	restart_computation ();
 }
 
-void MainWindow::slot_save_palette (bool)
+void MainWindow::slot_save_palette ()
 {
-	bool old_paused = m_paused;
-	m_paused = true;
+	bool_changer (m_paused, true);
 	abort_computation ();
 
 	QFileDialog dlg (this, tr ("Save parameters"), "", "GFF fractal palette (*.fpal)");
 	dlg.setAcceptMode (QFileDialog::AcceptSave);
 	dlg.setDefaultSuffix (".fpal");
 	if (!dlg.exec ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 
 	QStringList flist = dlg.selectedFiles ();
 	if (flist.isEmpty ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 	QString filename = flist[0];
 	auto fd =  current_fd ();
 	QFile f (filename);
-	f.open (QIODevice::WriteOnly);
+	if (!f.open (QIODevice::WriteOnly)) {
+                QMessageBox::warning (this, PACKAGE, QObject::tr ("Cannot open palette file for saving."));
+                return;
+	}
 	QDataStream s (&f);
 	s << m_custom_palette;
+	if (!f.flush ()) {
+                QMessageBox::warning (this, PACKAGE, QObject::tr ("Error while saving to file."));
+                return;
+	}
 	f.close ();
-
-	m_paused = old_paused;
-	restart_computation ();
 }
 
-void MainWindow::slot_load_palette (bool)
+void MainWindow::slot_load_palette ()
 {
-	bool old_paused = m_paused;
-	m_paused = true;
+	bool_changer (m_paused, true);
 	abort_computation ();
 
 	QFileDialog dlg (this, tr ("Load parameters"), "", "GFF fractal palette (*.fpal)");
@@ -1736,22 +1725,16 @@ void MainWindow::slot_load_palette (bool)
 	dlg.setFileMode (QFileDialog::ExistingFile);
 	dlg.setDefaultSuffix (".fpal");
 	if (!dlg.exec ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 
 	QStringList flist = dlg.selectedFiles ();
 	if (flist.isEmpty ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 	QString filename = flist[0];
 
 	if (filename.isEmpty ()) {
-		m_paused = old_paused;
-		restart_computation ();
 		return;
 	}
 
@@ -1764,7 +1747,6 @@ void MainWindow::slot_load_palette (bool)
 
 	if (ui->gradComboBox->currentIndex () == ui->gradComboBox->count () - 1)
 		update_palette ();
-	m_paused = old_paused;
 }
 
 void MainWindow::restore_params (const frac_params &p)
@@ -2437,10 +2419,10 @@ MainWindow::MainWindow ()
 
 	ui->action_SavePalette->setEnabled (m_custom_palette.size () > 0);
 	connect (ui->action_SaveImageAs, &QAction::triggered, this, &MainWindow::slot_save_as);
-	connect (ui->action_SaveParams, &QAction::triggered, this, &MainWindow::slot_save_params);
-	connect (ui->action_LoadParams, &QAction::triggered, this, &MainWindow::slot_load_params);
-	connect (ui->action_SavePalette, &QAction::triggered, this, &MainWindow::slot_save_palette);
-	connect (ui->action_LoadPalette, &QAction::triggered, this, &MainWindow::slot_load_palette);
+	connect (ui->action_SaveParams, &QAction::triggered, [this] (bool) { slot_save_params (); restart_computation (); });
+	connect (ui->action_LoadParams, &QAction::triggered, [this] (bool) { slot_load_params (); restart_computation (); });
+	connect (ui->action_SavePalette, &QAction::triggered, [this] (bool) { slot_save_palette (); restart_computation (); });
+	connect (ui->action_LoadPalette, &QAction::triggered, [this] (bool) { slot_load_palette (); restart_computation (); });
 	connect (ui->action_GradEditor, &QAction::triggered, this, &MainWindow::gradient_edit);
 	connect (ui->action_BatchRender, &QAction::triggered, this, &MainWindow::slot_batchrender);
 

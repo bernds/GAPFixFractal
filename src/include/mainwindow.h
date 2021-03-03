@@ -222,10 +222,10 @@ class MainWindow: public QMainWindow
 	void restore_params (const frac_params &);
 
 	void slot_save_as (bool);
-	void slot_save_params (bool);
-	void slot_load_params (bool);
-	void slot_save_palette (bool);
-	void slot_load_palette (bool);
+	void slot_save_params ();
+	void slot_load_params ();
+	void slot_save_palette ();
+	void slot_load_palette ();
 	void slot_batchrender (bool);
 
 	void gradient_edit (bool);
