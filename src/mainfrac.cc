@@ -37,7 +37,7 @@
 const formula formula_table[] = {
 	formula::standard, formula::lambda, formula::spider, formula::tricorn,
 	formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b,
-	formula::celtic, formula::magnet_a, formula::testing
+	formula::celtic, formula::magnet_a, formula::facing, formula::testing
 };
 
 constexpr int default_power = 2;
@@ -1038,6 +1038,8 @@ void MainWindow::autoprec (frac_desc &fd)
 	if (i > 0 && step[i] < (dem ? 128 : 32))
 		i--;
 	int required = max_nwords - i;
+	if (fd.fm == formula::facing && required < max_nwords)
+		required++;
 	if (required > m_nwords) {
 		m_nwords = required;
 		ui->precSpinBox->setValue (m_nwords);
@@ -1375,6 +1377,14 @@ void MainWindow::reset_coords (frac_desc &fd)
 			fd.bounds_h = 6;
 		}
 		fd.width[max_nwords - 1] = fd.bounds_h;
+	} else if (m_formula == formula::facing) {
+		if (fd.julia)
+			fd.bounds_h = fd.bounds_w = 3;
+		else if (power == 2)
+			fd.bounds_h = fd.bounds_w = 2;
+		else
+			fd.bounds_h = fd.bounds_w = 1;
+		fd.width[max_nwords - 1] = fd.bounds_w;
 	}
 	if (m_formula == formula::standard && !fd.julia && power == 4) {
 		fd.center_x[max_nwords - 2] = 0xd0000000;
@@ -1422,12 +1432,13 @@ void MainWindow::init_formula (formula f)
 		one[max_nwords - 1] = 1;
 		m_fd_mandel.critpoint = one;
 	}
-	if (f == formula::mix) {
+	if (f == formula::mix || f == formula::facing) {
 		vpvec one = cplx_zero;
 		one[max_nwords - 1] = 1;
 		m_fd_mandel.critpoint = one;
-		set_q (2, 0);
 	}
+	if (f == formula::mix)
+		set_q (2, 0);
 }
 
 void MainWindow::enable_interface_for_formula (formula f)
@@ -1444,6 +1455,7 @@ void MainWindow::enable_interface_for_formula (formula f)
 		       : f == formula::sqtwice_b ? ui->action_FormulaSqTwiceB
 		       : f == formula::testing ? ui->action_FormulaTest
 		       : f == formula::magnet_a ? ui->action_FormulaMagnetA
+		       : f == formula::facing ? ui->action_FormulaFacing
 		       : ui->action_FormulaStandard);
 	fa->setChecked (true);
 
@@ -1458,7 +1470,7 @@ void MainWindow::enable_interface_for_formula (formula f)
 		ui->action_DEMOff->setChecked (true);
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
 				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
-				      || f == formula::celtic || f == formula::testing);
+				      || f == formula::celtic || f == formula::facing || f == formula::testing);
 	ui->menuHybrid->setEnabled (formula_supports_hybrid (f));
 	ui->action_HybridOff->setChecked (true);
 
@@ -2288,6 +2300,7 @@ MainWindow::MainWindow ()
 	m_formula_group->addAction (ui->action_FormulaSqTwiceA);
 	m_formula_group->addAction (ui->action_FormulaSqTwiceB);
 	m_formula_group->addAction (ui->action_FormulaMagnetA);
+	m_formula_group->addAction (ui->action_FormulaFacing);
 	m_formula_group->addAction (ui->action_FormulaTest);
 
 	ui->action_Shift10->setChecked (true);
@@ -2411,6 +2424,8 @@ MainWindow::MainWindow ()
 		 [this] (bool) { formula_chosen (formula::sqtwice_b, 2); });
 	connect (ui->action_FormulaMagnetA, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::magnet_a, 2); });
+	connect (ui->action_FormulaFacing, &QAction::triggered,
+		 [this] (bool) { formula_chosen (formula::facing, 2); });
 	connect (ui->action_FormulaTest, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::testing, 2); });
 

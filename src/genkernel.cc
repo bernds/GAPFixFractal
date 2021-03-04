@@ -1730,6 +1730,17 @@ void gen_inner_magnet_a (int size, int power, bool /* julia */, cplx_reg zreg, c
 	zreg.store (newz);
 }
 
+void gen_inner_facing (int size, int power, bool /* julia */, cplx_reg zreg, cplx_val creg)
+{
+	cplx_val zval = zreg;
+	auto q = emit_complex_div (creg, zval);
+	auto sum = emit_complex_add (zreg, q);
+	array<cplx_val, 20> powers;
+	build_powers (powers, sum, power);
+	cplx_val pwr = get_power (powers, power);
+	zreg.store (pwr);
+}
+
 void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg creg)
 {
 	array<cplx_val, 20> powers;
@@ -1789,9 +1800,6 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 {
 	switch (f) {
 	default:
-	case formula::magnet_a:
-		gen_inner_magnet_a (size, power, julia, zreg, cval);
-		break;
 	case formula::standard:
 		gen_inner_standard (size, power, julia, dem, zreg, cval, zder);
 		break;
@@ -1818,6 +1826,12 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 		break;
 	case formula::sqtwice_b:
 		gen_inner_sqtwice_b (power, julia, zreg, cval);
+		break;
+	case formula::magnet_a:
+		gen_inner_magnet_a (size, power, julia, zreg, cval);
+		break;
+	case formula::facing:
+		gen_inner_facing (size, power, julia, zreg, cval);
 		break;
 	}
 }
@@ -2007,8 +2021,13 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 						    .arg (stepsize * 4 - size * 4), size);
 		auto criti = make_shared<ldc_expr> (QString ("const_critpoint + %1")
 						    .arg (2 * stepsize * 4 - size * 4), size);
-		gen_store ("%ar_z", critr);
-		gen_store ("%ar_zim", criti);
+		if (f == formula::facing) {
+			gen_store ("%ar_z", coord_x);
+			gen_store ("%ar_zim", coord_y);
+		} else {
+			gen_store ("%ar_z", critr);
+			gen_store ("%ar_zim", criti);
+		}
 	} else {
 		if (f == formula::spider) {
 			cplx_val parm_p = cplx_ldc ("const_param_p", size, stepsize);
@@ -2042,11 +2061,9 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	}
 
 	bool fixpoints = formula_test_fixpoint (f);
-#if 0
 	real_reg zlastr = fixpoints ? real_reg (size, "zlastr", true) : real_reg ();
 	real_reg zlasti = fixpoints ? real_reg (size, "zlasti", true) : real_reg ();
 	cplx_reg zlastreg (zlastr, zlasti);
-#endif
 
 	result += cg.code ();
 
@@ -2057,7 +2074,9 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 
 	if (julia)
 		cval = cplx_ldc ("const_param_p", size, stepsize);
-
+	if (f == formula::facing) {
+		cval = emit_complex_sqr (cval);
+	}
 	result += cg.code ();
 
 	result += R"(
@@ -2071,10 +2090,8 @@ loop:
 
 )";
 
-#if 0
 	if (fixpoints)
 		zlastreg.store (zreg);
-#endif
 
 	if (n_prev > 1)
 		gen_store_zprev (result, zr, zi, n_prev);
@@ -2086,7 +2103,7 @@ loop:
 
 	result += cg.code ();
 
-	if (fixpoints) {
+	if (f == formula::magnet_a) {
 		/* This is a hack for Magnet A, which is currently the only formula that needs this
 		   check: both infinity and (1,0) are attractors.
 		   The first attempt was to test the difference between zlast and z, but that caused
@@ -2096,6 +2113,16 @@ loop:
 		auto constm1 = make_shared<const_expr<-1>> (size);
 		real_val zrm1 (make_shared<addsub_expr> ("add", zr, constm1));
 		real_val dist (make_shared<addsub_expr> ("add", gen_mult (zrm1, zrm1), zi.squared ()));
+		dist.ex ()->calculate_full ();
+		result += cg.code ();
+		gen_test_and_branch (result, dist, "%fp_neq", "%diff", "skip2", "16");
+		result += "\tbra\t\tbailout;\n";
+	} else if (fixpoints) {
+		result += "\t.reg.u32\t%diff;\n";
+		result += "\t.reg.pred\t%fp_neq;\n";
+		real_val zrdelta (make_shared<addsub_expr> ("sub", zr, zlastr));
+		real_val zidelta (make_shared<addsub_expr> ("sub", zi, zlasti));
+		real_val dist (make_shared<addsub_expr> ("add", zrdelta.squared (), zidelta.squared ()));
 		dist.ex ()->calculate_full ();
 		result += cg.code ();
 		gen_test_and_branch (result, dist, "%fp_neq", "%diff", "skip2", "16");
