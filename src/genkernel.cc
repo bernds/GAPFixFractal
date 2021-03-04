@@ -852,6 +852,8 @@ QString emit_normalize (shared_ptr<expr> v, const QString &scratch)
 
 shared_ptr<expr> emit_normalize_amt (shared_ptr<expr> v, const QString &amt, const QString &scratch, int len)
 {
+	QString amtreg = codegen->gen_reg ("u32", "amtcp");
+	codegen->append_move ("u32", amtreg, amt);
 	QString predreg = codegen->gen_reg ("pred", "skip");
 	QString predreg2 = codegen->gen_reg ("pred", "skip");
 	QString ptr = codegen->gen_reg ("u32", "ptr");
@@ -870,11 +872,11 @@ shared_ptr<expr> emit_normalize_amt (shared_ptr<expr> v, const QString &amt, con
 	QString endlab = codegen->gen_label ("stend");
 	for (int i = 0; i < vlen; i++) {
 		QString p = v->get_piece_high (i);
-		codegen->append_code (QString ("\tsetp.lt.u32\t%1, %2, 32;\n").arg (predreg, amt));
+		codegen->append_code (QString ("\tsetp.lt.u32\t%1, %2, 32;\n").arg (predreg, amtreg));
 		codegen->append_code (QString("@!%1\tsub.u32\t%2, %2, 32;\n")
-				      .arg (predreg, amt));
+				      .arg (predreg, amtreg));
 		codegen->append_code (QString("\tshf.l.wrap.b32\t%1,%2,%3,%4;\n")
-				      .arg (store, p, lastp, amt));
+				      .arg (store, p, lastp, amtreg));
 		codegen->append_code (QString("@%1\tst.shared.u32\t[%2], %3;\n")
 				      .arg (predreg, endptr, store));
 		codegen->append_code (QString("@!%1\tor.b32\t%2, %2, %3;\n")
@@ -1524,17 +1526,11 @@ cplx_val emit_complex_div (cplx_val &n, cplx_val &d)
 	auto d2re = d.re.squared ();
 	auto d2im = d.im.squared ();
 	auto d_sum = make_shared<addsub_expr> ("add", d2re, d2im);
-#if 0
 	auto [ inv, shift_amt ] = gen_inverse (d_sum, "%scratch");
-	// auto rre = gen_div (nre, d_sum, "%ar_z2");
 	auto rre = gen_mult_by_inverse (nre, inv, "%scratch", shift_amt);
 	rre->calculate_full ();
 	auto rim = gen_mult_by_inverse (nim, inv, "%scratch", shift_amt);
 	rim->calculate_full ();
-#else
-	auto rre = gen_div (nre, d_sum, "%scratch");
-	auto rim = gen_div (nim, d_sum, "%scratch");
-#endif
 	return { rre, rim };
 }
 
