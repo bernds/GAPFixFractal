@@ -348,10 +348,9 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			break;
 		if (last_n_completed == 0 && fd->n_completed != 0)
 			iter_scale_factor = 1;
-		else if (ms < 1000) {
-			iter_scale_factor = std::min (iter_scale_factor * 1000. / ms, 100.);
-		} else if (ms > 2000)
-			iter_scale_factor = std::max (1.0, iter_scale_factor / 2);
+		else if (ms < 500 || ms > 1000) {
+			iter_scale_factor = std::max (0.1, std::min (iter_scale_factor * 500. / ms, 100.));
+		}
 
 	}
 	if (batch)
