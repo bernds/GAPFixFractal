@@ -1726,6 +1726,8 @@ void gen_inner_magnet_a (int size, int power, bool /* julia */, cplx_reg zreg, c
 	zreg.store (newz);
 }
 
+// (z + 1/z)^n
+// Generates Mandelbrot shapes facing each other in a ring.
 void gen_inner_facing (int size, int power, bool /* julia */, cplx_reg zreg, cplx_val creg)
 {
 	cplx_val zval = zreg;
@@ -1735,6 +1737,21 @@ void gen_inner_facing (int size, int power, bool /* julia */, cplx_reg zreg, cpl
 	build_powers (powers, sum, power);
 	cplx_val pwr = get_power (powers, power);
 	zreg.store (pwr);
+}
+
+// c(z^n + z^-n), critical point 1. Called "Cczcpaczcp" in Saturn.
+// Similar ring shape to the other "Facing" formula.
+void gen_inner_facing_b (int size, int power, bool /* julia */, cplx_reg zreg, cplx_val creg)
+{
+	array<cplx_val, 20> powers;
+	build_powers (powers, zreg, power);
+	cplx_val pwr = get_power (powers, power);
+
+	auto q = emit_complex_div (creg, pwr);
+	auto prod = emit_complex_mult (pwr, creg);
+	auto sum = emit_complex_add (prod, q);
+
+	zreg.store (sum);
 }
 
 void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg creg)
@@ -1828,6 +1845,9 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 		break;
 	case formula::facing:
 		gen_inner_facing (size, power, julia, zreg, cval);
+		break;
+	case formula::facing_b:
+		gen_inner_facing_b (size, power, julia, zreg, cval);
 		break;
 	}
 }

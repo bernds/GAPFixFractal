@@ -149,6 +149,7 @@
      <addaction name="action_FormulaSqTwiceB"/>
      <addaction name="action_FormulaMagnetA"/>
      <addaction name="action_FormulaFacing"/>
+     <addaction name="action_FormulaFacingB"/>
      <addaction name="action_FormulaTest"/>
      <addaction name="menuHybrid"/>
     </widget>
@@ -1871,10 +1872,21 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Rational Facing (&quot;Zazbcgd&quot;)</string>
+    <string>Family z ↦ (z + 1/z)ⁿ (&quot;Facing A&quot;/&quot;Zazbcgd&quot;)</string>
    </property>
    <property name="toolTip">
-    <string>Rational Facing</string>
+    <string>Family z ↦ (z + 1/z)ⁿ (&quot;Facing A&quot;/&quot;Zazbcgd&quot;)</string>
+   </property>
+  </action>
+  <action name="action_FormulaFacingB">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Family z ↦ c(zⁿ + z⁻ⁿ)/2 (&quot;Facing B&quot;/&quot;Cczcpaczcp&quot;)</string>
+   </property>
+   <property name="toolTip">
+    <string>Family z ↦ c(zⁿ + z⁻ⁿ) (&quot;Facing B&quot;/&quot;Cczcpaczcp&quot;)</string>
    </property>
   </action>
  </widget>
