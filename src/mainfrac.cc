@@ -1778,9 +1778,13 @@ void MainWindow::slot_load_palette ()
 void MainWindow::restore_params (const frac_params &p)
 {
 	abort_computation ();
-	discard_fd_data (m_fd_mandel);
-	discard_fd_data (m_fd_julia);
 
+	{
+		QMutexLocker render_lock (&m_renderer->mutex);
+		QMutexLocker preview_lock (&m_preview_renderer->mutex);
+		discard_fd_data (m_fd_mandel);
+		discard_fd_data (m_fd_julia);
+	}
 	m_inhibit_updates = true;
 
 	m_fd_mandel.param_q = p.param_q;
