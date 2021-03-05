@@ -280,6 +280,23 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		int full_h = fd->full_height;
 		size_t z_size = fd->nwords * 2 * n_cplxvals;
 		size_t deroff = fd->nwords * 2 * 2;
+		int compact_count = 0;
+		int compact_first = 0;
+		auto compact = [&fd, &compact_count, &compact_first, z_size] (int j) -> int {
+			int c = compact_count;
+			int f = compact_first;
+			compact_first += c + 1;
+			if (c == 0)
+				return c;
+			constexpr int prev_size = 2 * n_prev;
+			memmove (&fd->host_coords[j], &fd->host_coords[f], 4 * compact_count);
+			memmove (&fd->host_cplxvals[j * z_size], &fd->host_cplxvals[f * z_size], z_size * 4 * compact_count);
+			memmove (&fd->host_zprev[j * prev_size], &fd->host_zprev[f * prev_size],
+				prev_size * sizeof (double) * compact_count);
+			memmove (&fd->host_zpidx[j], &fd->host_zpidx[f], 4 * compact_count);
+			compact_count = 0;
+			return c;
+		};
 		for (uint32_t i = 0; i < maxidx; i++) {
 			uint32_t coord = fd->host_coords[i];
 			int32_t hcx = (int16_t)(coord & 65535);
@@ -289,6 +306,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			int result = fd->host_result[i];
 			int idx = (hcy - fd->yoff) * w + hcx;
 			if (result != 0) {
+				j += compact (j);
 				fd->pic_result[idx] += result;
 				fd->maxiter_found = std::max (fd->maxiter_found, fd->pic_result[idx]);
 				if (fd->dem) {
@@ -306,6 +324,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			} else {
 				fd->pic_result[idx] += count;
 				if (fd->pic_result[idx] >= fd->maxiter) {
+					j += compact (j);
 					fd->pic_result[idx] = 0;
 					if (fd->dem) {
 						fd->pic_zder[idx * 2] = to_double (&fd->host_cplxvals[i * z_size + deroff], fd->nwords);
@@ -314,17 +333,14 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 					fd->pixels_done.set_bit (idx);
 					fd->n_completed++;
 				} else if (i != j) {
-					constexpr int prev_size = 2 * n_prev;
-					fd->host_coords[j] = coord;
-					memcpy (&fd->host_cplxvals[j * z_size], &fd->host_cplxvals[i * z_size], z_size * 4);
-					memcpy (&fd->host_zprev[j * prev_size],
-						&fd->host_zprev[i * prev_size], prev_size * sizeof (double));
-					fd->host_zpidx[j] = fd->host_zpidx[i];
+					compact_count++;
+				} else {
 					j++;
-				} else
-					j++;
+					compact_first++;
+				}
 			}
 		}
+		j += compact (j);
 		printf ("left with %d out of %d, completed %d vs %d in %d ms\n", j, maxidx, fd->n_completed, fd->n_pixels, (int)ms);
 		fd->start_idx = j;
 
