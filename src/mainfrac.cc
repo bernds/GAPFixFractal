@@ -29,6 +29,7 @@
 #include "colors.h"
 
 #include "batchrender.h"
+#include "settings.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
@@ -1608,7 +1609,9 @@ void MainWindow::update_aspect ()
 
 void MainWindow::slot_save_as (bool)
 {
-	QFileDialog dlg (this, tr ("Save image file"), "", "PNG (*.png)");
+	QSettings settings;
+	QString ipath = settings.value ("paths/images").toString ();
+	QFileDialog dlg (this, tr ("Save image file"), ipath, "PNG (*.png)");
 	dlg.setAcceptMode (QFileDialog::AcceptSave);
 	dlg.setDefaultSuffix (".png");
 	if (!dlg.exec ()) {
@@ -1635,7 +1638,9 @@ void MainWindow::slot_save_params ()
 	bool_changer (m_paused, true);
 	abort_computation ();
 
-	QFileDialog dlg (this, tr ("Save parameters"), "", "GFF fractal params (*.fparm)");
+	QSettings settings;
+	QString ppath = settings.value ("paths/params").toString ();
+	QFileDialog dlg (this, tr ("Save parameters"), ppath, "GFF fractal params (*.fparm)");
 	dlg.setAcceptMode (QFileDialog::AcceptSave);
 	dlg.setDefaultSuffix (".fparm");
 	if (!dlg.exec ()) {
@@ -1667,7 +1672,9 @@ void MainWindow::slot_load_params ()
 	bool_changer (m_paused, true);
 	abort_computation ();
 
-	QFileDialog dlg (this, tr ("Load parameters"), "", "GFF fractal params (*.fparm)");
+	QSettings settings;
+	QString ppath = settings.value ("paths/params").toString ();
+	QFileDialog dlg (this, tr ("Load parameters"), ppath, "GFF fractal params (*.fparm)");
 	dlg.setAcceptMode (QFileDialog::AcceptOpen);
 	dlg.setFileMode (QFileDialog::ExistingFile);
 	dlg.setDefaultSuffix (".fparm");
@@ -1703,7 +1710,9 @@ void MainWindow::slot_save_palette ()
 	bool_changer (m_paused, true);
 	abort_computation ();
 
-	QFileDialog dlg (this, tr ("Save parameters"), "", "GFF fractal palette (*.fpal)");
+	QSettings settings;
+	QString cpath = settings.value ("paths/palettes").toString ();
+	QFileDialog dlg (this, tr ("Save parameters"), cpath, "GFF fractal palette (*.fpal)");
 	dlg.setAcceptMode (QFileDialog::AcceptSave);
 	dlg.setDefaultSuffix (".fpal");
 	if (!dlg.exec ()) {
@@ -1735,7 +1744,9 @@ void MainWindow::slot_load_palette ()
 	bool_changer (m_paused, true);
 	abort_computation ();
 
-	QFileDialog dlg (this, tr ("Load parameters"), "", "GFF fractal palette (*.fpal)");
+	QSettings settings;
+	QString cpath = settings.value ("paths/palettes").toString ();
+	QFileDialog dlg (this, tr ("Load parameters"), cpath, "GFF fractal palette (*.fpal)");
 	dlg.setAcceptMode (QFileDialog::AcceptOpen);
 	dlg.setFileMode (QFileDialog::ExistingFile);
 	dlg.setDefaultSuffix (".fpal");
@@ -2447,6 +2458,11 @@ MainWindow::MainWindow ()
 	connect (ui->action_GradEditor, &QAction::triggered, this, &MainWindow::gradient_edit);
 	connect (ui->action_BatchRender, &QAction::triggered, this, &MainWindow::slot_batchrender);
 
+	connect (ui->action_Prefs, &QAction::triggered,
+		 [this] (bool) {
+			 PrefsDialog dlg (this);
+			 dlg.exec ();
+		 });
 	connect (ui->action_About, &QAction::triggered, [=] (bool) { help_about (); });
 	connect (ui->action_AboutQt, &QAction::triggered, [=] (bool) { QMessageBox::aboutQt (this); });
 

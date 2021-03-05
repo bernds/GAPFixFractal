@@ -257,10 +257,17 @@
      <string>&amp;View</string>
     </property>
    </widget>
+   <widget class="QMenu" name="menuSettings">
+    <property name="title">
+     <string>&amp;Settings</string>
+    </property>
+    <addaction name="action_Prefs"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuF_ractal"/>
    <addaction name="menu_Colouring"/>
    <addaction name="menu_View"/>
+   <addaction name="menuSettings"/>
    <addaction name="menu_Help"/>
   </widget>
   <widget class="QDockWidget" name="controlsDock">
@@ -1887,6 +1894,11 @@
    </property>
    <property name="toolTip">
     <string>Family z ↦ c(zⁿ + z⁻ⁿ) (&quot;Facing B&quot;/&quot;Cczcpaczcp&quot;)</string>
+   </property>
+  </action>
+  <action name="action_Prefs">
+   <property name="text">
+    <string>Edit &amp;preferences...</string>
    </property>
   </action>
  </widget>
