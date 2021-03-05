@@ -671,26 +671,6 @@ inline double iter_value_at (frac_desc *fd, int idx, int power)
 	return v + 5 - correction;
 }
 
-void MainWindow::precompute_iter_value (frac_desc *fd)
-{
-	bool sub = !ui->action_ShiftNone->isChecked ();
-	double minimum = 0;
-	if (fd->pic_iter_value == nullptr)
-		fd->pic_iter_value = new double[fd->n_pixels];
-	for (int i = 0; i < fd->n_pixels; i++) {
-		if (!fd->pic_pixels_done.test_bit (i))
-			continue;
-		double v = iter_value_at (fd, i, fd->power);
-		if (v > 0 && (minimum == 0 || v < minimum))
-			minimum = v;
-		fd->pic_iter_value[i] = v;
-	}
-	if (sub)
-		for (int i = 0; i < fd->n_pixels; i++)
-			if (fd->pic_pixels_done.test_bit (i) && fd->pic_iter_value[i] != 0)
-				fd->pic_iter_value[i] -= minimum;
-}
-
 class runner : public QRunnable
 {
 	QSemaphore *completion_sem;
@@ -897,11 +877,6 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 		return;
 
 	fd->pic_pixels_done = fd->pixels_done;
-#if 0
-	double *precomputed = fd->pic_iter_value;
-	if (precomputed)
-		rp.sub = false;
-#endif
 
 	int power = power_from_fp (*fd);
 
@@ -1106,10 +1081,6 @@ void MainWindow::slot_new_data (frac_desc *fd, int generation, bool success)
 		gpu_handler->processing_data = true;
 		gpu_handler->data_available = false;
 	}
-
-	if (0 && ui->action_Precompute->isChecked ())
-		precompute_iter_value (fd);
-
 
 	if (fd != &current_fd ()) {
 		m_preview_uptodate = true;
@@ -2197,10 +2168,6 @@ MainWindow::MainWindow ()
 	set_rotation (m_fd_mandel, 0);
 	set_rotation (m_fd_julia, 0);
 
-	// Old code that used to speed things up a little by precomputing smooth iter_values
-	// Could potentially still be useful, but not as much as before.
-	ui->action_Precompute->setVisible (false);
-	ui->action_Precompute->setChecked (true);
 #ifndef TESTING
 	ui->action_FormulaTest->setVisible (false);
 #endif

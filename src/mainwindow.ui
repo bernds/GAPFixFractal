@@ -242,8 +242,6 @@
     <addaction name="action_EAngle"/>
     <addaction name="separator"/>
     <addaction name="action_GradEditor"/>
-    <addaction name="separator"/>
-    <addaction name="action_Precompute"/>
    </widget>
    <widget class="QMenu" name="menu_Help">
     <property name="title">
@@ -1500,14 +1498,6 @@
   <action name="action_LoadParams">
    <property name="text">
     <string>&amp;Load parameters...</string>
-   </property>
-  </action>
-  <action name="action_Precompute">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Use more &amp;memory for speedup</string>
    </property>
   </action>
   <action name="action_StructLight">
