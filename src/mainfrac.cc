@@ -1578,6 +1578,13 @@ void MainWindow::do_pause (bool on)
 		restart_computation ();
 }
 
+void MainWindow::do_wind_down (bool)
+{
+	frac_desc &fd = current_fd ();
+	QMutexLocker lock (&gpu_handler->data_mutex);
+	fd.maxiter = fd.maxiter_found;
+}
+
 void MainWindow::zoom_out (bool)
 {
 	int factor = ui->zoomSpinBox->value () * 10;
@@ -2409,6 +2416,7 @@ MainWindow::MainWindow ()
 	connect (ui->action_Reset, &QAction::triggered, this, &MainWindow::do_reset);
 
 	connect (ui->pauseButton, &QPushButton::toggled, this, &MainWindow::do_pause);
+	connect (ui->windDownButton, &QPushButton::toggled, this, &MainWindow::do_wind_down);
 	connect (ui->zinButton, &QPushButton::clicked, this, &MainWindow::zoom_in);
 	connect (ui->zoutButton, &QPushButton::clicked, this, &MainWindow::zoom_out);
 	connect (ui->storeButton, &QPushButton::clicked, [this] (bool) { store_params (false); });

@@ -1078,6 +1078,19 @@
        </property>
       </widget>
      </item>
+     <item>
+      <widget class="QPushButton" name="windDownButton">
+       <property name="toolTip">
+        <string>&lt;p&gt;Click here when the image looks good and you think additional calculations won't do much to change it anymore. The program will use the current highest found iteration count as the maximum. This causes the calculation to end faster (but not immediately).&lt;/p&gt;</string>
+       </property>
+       <property name="text">
+        <string>Wind down</string>
+       </property>
+       <property name="checkable">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
     </layout>
    </widget>
   </widget>

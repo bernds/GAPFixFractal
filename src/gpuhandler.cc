@@ -165,9 +165,13 @@ int GPU_handler::continue_setup (frac_desc *fd)
 
 void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwords, int steps, bool batch)
 {
+	// Cache the value of maxiter, and access it only under lock.
+	// The GUI thread can reduce it if "Wind Down" is clicked.
+	int maxiter;
 	{
 		QMutexLocker lock (&data_mutex);
 		data_available = false;
+		maxiter = fd->maxiter;
 	}
 	if (fd->n_completed == fd->n_pixels)
 		abort ();
@@ -209,8 +213,8 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		uint32_t maxidx = fd->n_threads;
 		int last_n_completed = fd->n_completed;
 
-		if (count > fd->maxiter)
-			count = fd->maxiter;
+		if (count > maxiter)
+			count = maxiter;
 		if (fd->hybrid_len > 0) {
 			count = (count + fd->hybrid_len - 1) / fd->hybrid_len * fd->hybrid_len;
 		}
@@ -323,7 +327,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 				fd->n_completed++;
 			} else {
 				fd->pic_result[idx] += count;
-				if (fd->pic_result[idx] >= fd->maxiter) {
+				if (fd->pic_result[idx] >= maxiter) {
 					j += compact (j);
 					fd->pic_result[idx] = 0;
 					if (fd->dem) {
@@ -356,6 +360,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			data_available = abort_computation = false;
 			break;
 		}
+		maxiter = fd->maxiter;
 		data_available = true;
 		if (!processing_data && !batch) {
 			emit signal_new_data (fd, generation, !fail);

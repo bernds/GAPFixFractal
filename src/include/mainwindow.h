@@ -206,6 +206,7 @@ class MainWindow: public QMainWindow
 	void discard_fd_data (frac_desc &);
 
 	void do_pause (bool);
+	void do_wind_down (bool);
 	void do_reset (bool);
 	void zoom_in (bool = false);
 	void zoom_out (bool = false);
