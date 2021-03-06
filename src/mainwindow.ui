@@ -233,13 +233,22 @@
      <addaction name="action_DEMShading"/>
      <addaction name="action_DEMBoth"/>
     </widget>
+    <widget class="QMenu" name="menuAngle_modifiers">
+     <property name="title">
+      <string>Angle modifiers</string>
+     </property>
+     <addaction name="action_AngleNone"/>
+     <addaction name="action_AngleSmooth"/>
+     <addaction name="action_AngleBin"/>
+    </widget>
     <addaction name="menuNarrow_black_white"/>
     <addaction name="menuStructure_modifier"/>
     <addaction name="menuColour_rotation"/>
     <addaction name="menuShift_minimum"/>
+    <addaction name="menuAngle_modifiers"/>
     <addaction name="menuDEM"/>
     <addaction name="action_DEMColour"/>
-    <addaction name="action_EAngle"/>
+    <addaction name="action_AngleColour"/>
     <addaction name="separator"/>
     <addaction name="action_GradEditor"/>
    </widget>
@@ -1524,17 +1533,6 @@
     <string>&amp;Both</string>
    </property>
   </action>
-  <action name="action_EAngle">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Show escape &amp;angle</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+A</string>
-   </property>
-  </action>
   <action name="action_GradEditor">
    <property name="text">
     <string>Gradient &amp;editor</string>
@@ -1850,7 +1848,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Use color with DEM</string>
+    <string>Use color with DEM modifiers</string>
    </property>
   </action>
   <action name="action_FormulaMagnetA">
@@ -1889,6 +1887,50 @@
   <action name="action_Prefs">
    <property name="text">
     <string>Edit &amp;preferences...</string>
+   </property>
+  </action>
+  <action name="action_AngleSmooth">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Escape angle &amp;smooth</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+A</string>
+   </property>
+  </action>
+  <action name="action_AngleBin">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Escape angle binary</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+B</string>
+   </property>
+  </action>
+  <action name="action_AngleNone">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;None</string>
+   </property>
+   <property name="toolTip">
+    <string>No special rendering for angles</string>
+   </property>
+  </action>
+  <action name="action_AngleColour">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Use color with angle modifiers</string>
+   </property>
+   <property name="toolTip">
+    <string>Use color with angle modifiers</string>
    </property>
   </action>
  </widget>

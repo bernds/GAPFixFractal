@@ -652,6 +652,39 @@ static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double ni
 	return primary;
 }
 
+static inline int modify_color (uint32_t col, double v)
+{
+	QColor c = QColor::fromRgb (col);
+	int cl = c.value ();
+	// Lighten dark colors, darken light colors
+	v -= (1 - cl / 255.) / 2;
+#if 0
+	/* Both HSV and HSL introduce ugly artifacts.  */
+	int ch = c.hsvHue ();
+	int cs = c.hsvSaturation ();
+	if (v < 0) {
+		cl = 255 - (255 - cl) * (v + 1);
+	} else {
+		cl *= 1 - v;
+	}
+	col = QColor::fromHsv (ch, cs, cl).rgb ();
+#else
+	int cr = c.red ();
+	int cg = c.green ();
+	int cb = c.blue ();
+	if (v < 0) {
+		cr = 255 - (255 - cr) * (v + 1);
+		cg = 255 - (255 - cg) * (v + 1);
+		cb = 255 - (255 - cb) * (v + 1);
+	} else {
+		cr *= 1 - v;
+		cg *= 1 - v;
+		cb *= 1 - v;
+	}
+	col = QColor::fromRgb (cr, cg, cb).rgb ();
+#endif
+}
+
 inline double iter_value_at (frac_desc *fd, int idx, int power)
 {
 	double v = fd->pic_result[idx];
@@ -701,6 +734,39 @@ public:
 
 			if (rp.sub)
 				v -= minimum - rp.sub_val;
+
+			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, rp.slider);
+
+			if (rp.angle == 1) {
+				double re = fd->pic_zprev[idx * 2 * n_prev];
+				double im = fd->pic_zprev[idx * 2 * n_prev + 1];
+				double re2 = re * re;
+				double im2 = im * im;
+				double size = sqrt (re2 + im2);
+				double init_angle = atan2 (re, im);
+				init_angle += M_PI * 2;
+#if 0
+				double compare_angle = M_PI * v1 * 2;
+				compare_angle -= M_PI * 2 * floor (compare_angle / (M_PI * 2));
+				init_angle = init_angle - compare_angle + M_PI * 2;
+#endif
+				double ang = init_angle - M_PI * 2 * floor (init_angle / (M_PI * 2));
+#if 0
+				double v = fabs (sin (ang)) / 2;
+#else
+				ang += M_PI / 2;
+				ang = fmod (ang, M_PI * 2);
+				double v = fabs (ang / (M_PI * 2) - 0.5);
+#endif
+				col = modify_color (col, v);
+			}
+			else if (rp.angle == 2) {
+				double im = fd->pic_zprev[idx * 2 * n_prev + 1];
+				if (im < 0)
+					col = 0;
+				else if (!rp.angle_colour)
+					col = 0xFFFFFF;
+			}
 			double dem_shade = 1;
 			if (rp.dem || rp.dem_shade) {
 				double re = fd->pic_zprev[idx * 2 * n_prev];
@@ -751,48 +817,12 @@ public:
 						return;
 					}
 				}
-				if (!rp.dem_colour) {
+				if (!rp.dem_colour && !rp.angle) {
 					r += dem_shade * 255;
 					g += dem_shade * 255;
 					b += dem_shade * 255;
 					return;
 				}
-			}
-			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, rp.slider);
-
-			if (rp.angle) {
-				double re = fd->pic_zprev[idx * 2 * n_prev];
-				double im = fd->pic_zprev[idx * 2 * n_prev + 1];
-				double re2 = re * re;
-				double im2 = im * im;
-				double size = sqrt (re2 + im2);
-				double init_angle = atan2 (re, im);
-				init_angle += M_PI * 2;
-#if 0
-				double compare_angle = M_PI * v1 * 2;
-				compare_angle -= M_PI * 2 * floor (compare_angle / (M_PI * 2));
-				init_angle = init_angle - compare_angle + M_PI * 2;
-#endif
-				double ang = init_angle - M_PI * 2 * floor (init_angle / (M_PI * 2));
-#if 0
-				double v = fabs (sin (ang)) / 2;
-#else
-				ang += M_PI / 2;
-				ang = fmod (ang, M_PI * 2);
-				double v = fabs (ang / (M_PI * 2) - 0.5);
-#endif
-				QColor c = QColor::fromRgb (col);
-				int cl = c.lightness ();
-				int ch = c.hslHue ();
-				int cs = c.hslSaturation ();
-				// Lighten dark colors, darken light colors
-				v -= (1 - cl / 255.) / 2;
-				if (v < 0) {
-					cl = 255 - (255 - cl) * (v + 1);
-				} else {
-					cl *= 1 - v;
-				}
-				col = QColor::fromHsl (ch, cs, cl).rgb ();
 			}
 			double dem_factor = dem_shade;
 			r += ((col >> 16) & 0xFF) * dem_factor;
@@ -957,13 +987,14 @@ void MainWindow::set_render_params (render_params &p)
 	p.mod_type = ui->modifyComboBox->currentIndex ();
 	int steps_spin = ui->widthSpinBox->value ();
 	p.steps = (pow (steps_spin + 1, 1.3) - 2) / 2;
-	p.angle = ui->action_EAngle->isChecked ();
+	p.angle = !!ui->action_AngleSmooth->isChecked () + 2 * !!ui->action_AngleBin->isChecked ();
 	p.sub = !ui->action_ShiftNone->isChecked ();
 	p.sub_val = ui->action_Shift10->isChecked () ? 10 : ui->action_Shift100->isChecked () ? 100 : 0;
 	p.slider = ui->colStepSlider->value ();
 	p.dem = ui->action_DEMDist->isChecked () || ui->action_DEMBoth->isChecked ();
 	p.dem_shade = ui->action_DEMShading->isChecked () || ui->action_DEMBoth->isChecked ();
 	p.dem_colour = ui->action_DEMColour->isChecked ();
+	p.angle_colour = ui->action_AngleColour->isChecked ();
 	p.dem_param = ui->demParamSpinBox->value () * (1 << ui->sampleSpinBox->value ());
 	p.dem_strength = ui->demStrengthSpinBox->value ();
 	p.dem_start = m_dem_start;
@@ -2202,6 +2233,8 @@ MainWindow::MainWindow ()
 	ui->action_RotateHSV->setChecked (true);
 	ui->action_DEMOff->setChecked (true);
 	ui->action_DEMColour->setChecked (false);
+	ui->action_AngleColour->setChecked (false);
+	ui->action_AngleNone->setChecked (true);
 
 	reset_coords (m_fd_mandel);
 	reset_coords (m_fd_julia);
@@ -2274,6 +2307,11 @@ MainWindow::MainWindow ()
 	m_hybrid_group->addAction (ui->action_HybridOff);
 	m_hybrid_group->addAction (ui->action_HybridOn);
 
+	m_angles_group = new QActionGroup (this);
+	m_angles_group->addAction (ui->action_AngleNone);
+	m_angles_group->addAction (ui->action_AngleSmooth);
+	m_angles_group->addAction (ui->action_AngleBin);
+
 	m_formula_group = new QActionGroup (this);
 	m_formula_group->addAction (ui->action_FormulaStandard);
 	m_formula_group->addAction (ui->action_FormulaTricorn);
@@ -2336,9 +2374,14 @@ MainWindow::MainWindow ()
 	connect (ui->action_StructLight, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_StructDark, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_StructBoth, &QAction::toggled, [this] (bool) { update_palette (); });
-	connect (ui->action_EAngle, &QAction::toggled, [this] (bool) { update_views (); });
+	connect (ui->action_AngleNone, &QAction::toggled, [this] (bool) { update_views (); });
+	connect (ui->action_AngleSmooth, &QAction::toggled, [this] (bool) { update_views (); });
+	connect (ui->action_AngleBin, &QAction::toggled, [this] (bool) { update_views (); });
+
 	connect (ui->action_DEMColour, &QAction::toggled,
 		 [this] (bool) { if (!ui->action_DEMOff->isChecked ()) update_views (); });
+	connect (ui->action_AngleColour, &QAction::toggled,
+		 [this] (bool) { if (!ui->action_AngleNone->isChecked ()) update_views (); });
 
 	connect (ui->pauseButton, &QPushButton::toggled, this, &MainWindow::do_pause);
 	connect (ui->resetButton, &QPushButton::clicked, this, &MainWindow::do_reset);
@@ -2441,11 +2484,10 @@ MainWindow::MainWindow ()
 	addActions ({ ui->action_IncPrec, ui->action_DecPrec });
 	addActions ({ ui->action_FD2, ui->action_FD3, ui->action_FD4, ui->action_FD5 });
 	addActions ({ ui->action_FD6, ui->action_FD7  });
-	addActions ({ ui->action_EAngle  });
+	addActions ({ ui->action_AngleSmooth  });
 	addActions ({ ui->action_SaveImageAs });
 	addActions ({ ui->action_GradEditor });
 }
-
 
 MainWindow::~MainWindow ()
 {
@@ -2456,6 +2498,7 @@ MainWindow::~MainWindow ()
 	delete m_rotate_group;
 	delete m_sub_group;
 	delete m_dem_group;
+	delete m_angles_group;
 	delete m_hybrid_group;
 	delete ui;
 }

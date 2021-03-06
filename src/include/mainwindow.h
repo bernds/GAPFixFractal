@@ -41,9 +41,9 @@ struct render_params
 	double steps;
 	int slider;
 	int sub_val;
+	int angle;
 	bool sub;
-	bool angle;
-	bool dem_colour;
+	bool dem_colour, angle_colour;
 	bool dem;
 	bool dem_shade;
 	uint32_t dem_start, dem_stop;
@@ -162,6 +162,7 @@ class MainWindow: public QMainWindow
 	QActionGroup *m_struct_group {};
 	QActionGroup *m_narrow_group {};
 	QActionGroup *m_rotate_group {};
+	QActionGroup *m_angles_group {};
 
 	int m_last_pal_idx = 0;
 	QVector<uint32_t> m_palette;
