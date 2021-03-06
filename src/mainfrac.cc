@@ -1240,6 +1240,25 @@ void MainWindow::fractal_wheel_event (QWheelEvent *e)
 		zoom_in ();
 }
 
+/* Try to adjust clicks so that they land on "integer" points, where we extend
+   the definition of "integer" slightly to all multiples of 1/4.
+   The idea is to allow the picture (or the Julia parameter)to be centered on
+   potentially interesting values - like the real line for symmetry.  */
+
+static vpvec aim_assist_1 (vpvec v, vpvec step)
+{
+	size_t sz = v.size ();
+	vpvec range = mul1 (step, 16);
+	vpvec l = sub (v, range);
+	vpvec h = add (v, range);
+	if (l[sz - 1] == h[sz - 1] && (l[sz - 2] & 0xC0000000) == (h[sz - 2] & 0xC0000000))
+		return v;
+	for (int i = 0; i < sz - 2; i++)
+		h[i] = 0;
+	h[sz - 2] &= 0xC0000000;
+	return h;
+}
+
 void MainWindow::fractal_mouse_event (QMouseEvent *e)
 {
 	if (e->type () != QEvent::MouseButtonPress)
@@ -1266,7 +1285,10 @@ void MainWindow::fractal_mouse_event (QMouseEvent *e)
 	auto pystep = mul1 (fd.step, fd.samples * abs (real_py));
 	vpvec a = real_px < 0 ? sub (fd.center_x, pxstep) : add (fd.center_x, pxstep);
 	vpvec b = real_py < 0 ? sub (fd.center_y, pystep) : add (fd.center_y, pystep);
-
+	if (ui->action_AimAssist->isChecked ()) {
+		a = aim_assist_1 (a, fd.step);
+		b = aim_assist_1 (b, fd.step);
+	}
 	if (param) {
 		memcpy (&m_fd_julia.param_p[0], &a[0], max_nwords * sizeof (uint32_t));
 		memcpy (&m_fd_julia.param_p[max_nwords], &b[0], max_nwords * sizeof (uint32_t));
@@ -2235,6 +2257,7 @@ MainWindow::MainWindow ()
 	ui->action_DEMColour->setChecked (false);
 	ui->action_AngleColour->setChecked (false);
 	ui->action_AngleNone->setChecked (true);
+	ui->action_AimAssist->setChecked (true);
 
 	reset_coords (m_fd_mandel);
 	reset_coords (m_fd_julia);
@@ -2383,8 +2406,9 @@ MainWindow::MainWindow ()
 	connect (ui->action_AngleColour, &QAction::toggled,
 		 [this] (bool) { if (!ui->action_AngleNone->isChecked ()) update_views (); });
 
+	connect (ui->action_Reset, &QAction::triggered, this, &MainWindow::do_reset);
+
 	connect (ui->pauseButton, &QPushButton::toggled, this, &MainWindow::do_pause);
-	connect (ui->resetButton, &QPushButton::clicked, this, &MainWindow::do_reset);
 	connect (ui->zinButton, &QPushButton::clicked, this, &MainWindow::zoom_in);
 	connect (ui->zoutButton, &QPushButton::clicked, this, &MainWindow::zoom_out);
 	connect (ui->storeButton, &QPushButton::clicked, [this] (bool) { store_params (false); });

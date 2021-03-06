@@ -270,7 +270,16 @@
     </property>
     <addaction name="action_Prefs"/>
    </widget>
+   <widget class="QMenu" name="menu_Navigation">
+    <property name="title">
+     <string>&amp;Navigation</string>
+    </property>
+    <addaction name="action_AimAssist"/>
+    <addaction name="separator"/>
+    <addaction name="action_Reset"/>
+   </widget>
    <addaction name="menuFile"/>
+   <addaction name="menu_Navigation"/>
    <addaction name="menuF_ractal"/>
    <addaction name="menu_Colouring"/>
    <addaction name="menu_View"/>
@@ -1066,13 +1075,6 @@
        </property>
        <property name="checkable">
         <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="resetButton">
-       <property name="text">
-        <string>Reset</string>
        </property>
       </widget>
      </item>
@@ -1931,6 +1933,19 @@
    </property>
    <property name="toolTip">
     <string>Use color with angle modifiers</string>
+   </property>
+  </action>
+  <action name="action_AimAssist">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Aim assist</string>
+   </property>
+  </action>
+  <action name="action_Reset">
+   <property name="text">
+    <string>&amp;Reset view zoom</string>
    </property>
   </action>
  </widget>
