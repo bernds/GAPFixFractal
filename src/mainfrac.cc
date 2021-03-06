@@ -459,7 +459,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int w, int h, int f
 	fd.full_height = full_h * ss;
 	fd.cmin = 10000;
 	fd.cmax = -10000;
-	fd.pixel_step = preview ? 1 : ss * 2;
+	fd.pixel_step = preview || batch ? 1 : ss * 2;
 	fd.n_completed = 0;
 	fd.start_idx = 0;
 	fd.pixels_done.clear ();
