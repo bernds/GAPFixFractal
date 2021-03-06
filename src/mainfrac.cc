@@ -652,7 +652,7 @@ static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double ni
 	return primary;
 }
 
-static inline int modify_color (uint32_t col, double v)
+static inline uint32_t modify_color (uint32_t col, double v)
 {
 	QColor c = QColor::fromRgb (col);
 	int cl = c.value ();
@@ -683,6 +683,7 @@ static inline int modify_color (uint32_t col, double v)
 	}
 	col = QColor::fromRgb (cr, cg, cb).rgb ();
 #endif
+	return col;
 }
 
 inline double iter_value_at (frac_desc *fd, int idx, int power)
