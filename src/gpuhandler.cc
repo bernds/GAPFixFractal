@@ -216,10 +216,11 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		printf ("init fail\n");
 
 	double iter_scale_factor = 1;
-	int n_rvals = n_formula_real_vals (fd->fm, fd->dem);
-	int n_ivals = n_formula_int_vals (fd->fm, fd->dem);
-	int n_dvals = n_formula_extra_doubles (fd->fm, fd->dem);
+	int n_rvals = n_formula_real_vals (fd->fm, fd->dem, fd->incolor);
+	int n_ivals = n_formula_int_vals (fd->fm, fd->dem, fd->incolor);
+	int n_dvals = n_formula_extra_doubles (fd->fm, fd->dem, fd->incolor);
 	int dbl_count = fd->n_prev * 2 + n_dvals;
+
 	for (;;) {
 		uint32_t count = steps * iter_scale_factor;
 		uint32_t maxidx = fd->n_threads;
@@ -320,12 +321,14 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			int32_t hcy = (int16_t)(coord >> 16);
 			hcx += w / 2;
 			hcy += full_h / 2;
-			int result = fd->host_result[i];
+			uint32_t result = fd->host_result[i];
 			int idx = (hcy - fd->yoff) * w + hcx;
 			if (result != 0) {
 				j += compact (j);
 				fd->pic_result[idx] += result;
 				fd->maxiter_found = std::max (fd->maxiter_found, fd->pic_result[idx]);
+				if (fd->incolor)
+					fd->pic_period[idx] = fd->host_intvals[i * n_ivals + 1];
 				if (fd->pic_t != nullptr) {
 					fd->pic_t[idx * 2] = to_double (&fd->host_cplxvals[i * z_size + fd->nwords * 2], fd->nwords);
 					fd->pic_t[idx * 2 + 1] = to_double (&fd->host_cplxvals[i * z_size + fd->nwords * 3], fd->nwords);
@@ -353,6 +356,8 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 						fd->pic_t[idx * 2] = to_double (&fd->host_cplxvals[i * z_size + fd->nwords * 2], fd->nwords);
 						fd->pic_t[idx * 2 + 1] = to_double (&fd->host_cplxvals[i * z_size + fd->nwords * 3], fd->nwords);
 					}
+					if (fd->incolor)
+						fd->pic_period[idx] = fd->host_intvals[i * n_ivals + 1];
 					if (fd->dem) {
 						fd->pic_zder[idx * 2] = to_double (&fd->host_cplxvals[i * z_size + deroff], fd->nwords);
 						fd->pic_zder[idx * 2 + 1] = to_double (&fd->host_cplxvals[i * z_size + deroff + fd->nwords], fd->nwords);
@@ -387,8 +392,10 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		}
 		maxiter = fd->maxiter;
 		data_available = true;
-		if (!processing_data && !batch) {
+		if (fail || (!processing_data && !batch)) {
 			emit signal_new_data (fd, generation, !fail);
+			if (fail)
+				break;
 		}
 		if (fd->n_completed == fd->n_pixels) {
 			printf ("total time in kernel: %ld ms (%f us per pixel)\n", fd->total_time, (double)fd->total_time * 1000. / fd->n_pixels);
@@ -408,7 +415,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 }
 
 /* The caller should invalidate all existing frac_desc structures before calling this.  */
-void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_nwords, QString *errstr)
+void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_nwords, bool incolor, QString *errstr)
 {
 	if (m_have_module) {
 		CUresult err;
@@ -421,7 +428,7 @@ void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_
 	}
 
 	formula f = formula_table[fidx];
-	char *ptx = gen_mprec_funcs (f, nwords, max_nwords, power);
+	char *ptx = gen_mprec_funcs (f, nwords, max_nwords, power, incolor);
 
 	vector<CUjit_option> opts;
 	vector<void *>ovals;
@@ -486,9 +493,9 @@ void GPU_handler::slot_alloc_mem (frac_desc *fd, int max_nwords, int nwords, int
 	try {
 		int nthreads = w * h;
 		if (fd->cu_ar_cplxvals == 0) {
-			int n_rvals = n_formula_real_vals (fd->fm, fd->dem);
-			int n_ivals = n_formula_int_vals (fd->fm, fd->dem);
-			int n_dvals = n_formula_extra_doubles (fd->fm, fd->dem);
+			int n_rvals = n_formula_real_vals (fd->fm, fd->dem, fd->incolor);
+			int n_ivals = n_formula_int_vals (fd->fm, fd->dem, fd->incolor);
+			int n_dvals = n_formula_extra_doubles (fd->fm, fd->dem, fd->incolor);
 			tryCuda (cuMemAlloc (&fd->cu_ar_cplxvals, 4 * nwords * n_rvals * nthreads));
 			tryCuda (cuMemAlloc (&fd->cu_ar_step, 4 * max_nwords));
 			tryCuda (cuMemAlloc (&fd->cu_ar_result, 4 * nthreads));

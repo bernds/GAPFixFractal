@@ -211,6 +211,18 @@ static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double ni
 	return primary | 0xFF000000;
 }
 
+static inline QRgb color_from_period (uint32_t p)
+{
+	uint32_t str = ((p & 2) << 5) | (p << 7);
+	str &= 0xC0;
+	str = 0xFF - str;
+	uint32_t col = ((p & 1) | ((p & 2) << 7) | ((p & 4) << 14)) * str;
+	p >>= 3;
+	uint32_t col2 = ((p & 1) | ((p & 2) << 7) | ((p & 4) << 14)) * 0x80;
+	col ^= col2;
+	return col;
+}
+
 static inline uint32_t modify_color (uint32_t col, double v)
 {
 	QColor c = QColor::fromRgb (col);
@@ -406,7 +418,11 @@ public:
 
 			if (rp.sub)
 				v -= minimum - rp.sub_val;
-			uint32_t col = color_from_niter (rp.palette, v, colour_sub_val, rp.mod_type, rp.steps, rp.col_off + attractor * rp.basin_col_off);
+			uint32_t col;
+			if (rp.oc_atom)
+				col = color_from_period (fd->pic_period[idx]);
+			else
+				col = color_from_niter (rp.palette, v, colour_sub_val, rp.mod_type, rp.steps, rp.col_off + attractor * rp.basin_col_off);
 
 			if (rp.sac && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
@@ -511,6 +527,21 @@ public:
 			r += ((col >> 16) & 0xFF) * dem_factor;
 			g += ((col >> 8) & 0xFF) * dem_factor;
 			b += (col & 0xFF) * dem_factor;
+		} else if (rp.ic_atom) {
+			uint32_t p = fd->pic_period[idx];
+			if (p != 0) {
+				outcolor++;
+				uint32_t col = color_from_period (p);
+#if 0
+				double val = fd->pic_doubles[idx];
+				val = 1 / (1 + 1000 * val);
+#else
+				double val = 1;
+#endif
+				r += ((col >> 16) & 0xFF) * val;
+				g += ((col >> 8) & 0xFF) * val;
+				b += (col & 0xFF) * val;
+			}
 		}
 	}
 
@@ -720,6 +751,8 @@ void Renderer::slot_render (frac_desc *fd, QGraphicsView *view, int generation)
 		this_p.sac = this_p.tia = false;
 	if (fd->n_prev < 4)
 		this_p.smooth = render_params::smooth_t::std;
+	if (!fd->incolor)
+		this_p.ic_atom = this_p.oc_atom = false;
 
 	int w = render_width;
 	int h = render_height;

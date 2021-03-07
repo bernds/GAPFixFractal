@@ -63,6 +63,7 @@ struct frac_desc : public frac_params
 	int pixel_step;
 	int samples = 1;
 	bool dem = false;
+	bool incolor = false;
 	int nrvals_allocated = 0;
 	int nivals_allocated = 0;
 
@@ -79,7 +80,7 @@ struct frac_desc : public frac_params
 	double *pic_t;
 	double *pic_zprev;
 	double *pic_zder;
-	uint32_t *pic_result;
+	uint32_t *pic_result, *pic_period;
 
 	double *pic_doubles;
 

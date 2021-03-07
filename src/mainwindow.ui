@@ -278,6 +278,7 @@
      </property>
      <addaction name="action_ICBlack"/>
      <addaction name="action_ICWhite"/>
+     <addaction name="action_ICAtom"/>
     </widget>
     <widget class="QMenu" name="menuSmoothing">
      <property name="title">
@@ -285,6 +286,13 @@
      </property>
      <addaction name="action_SmoothStd"/>
      <addaction name="action_SmoothMakin"/>
+    </widget>
+    <widget class="QMenu" name="menu_Outcolouring">
+     <property name="title">
+      <string>&amp;Outcolouring</string>
+     </property>
+     <addaction name="action_OCDefault"/>
+     <addaction name="action_OCAtom"/>
     </widget>
     <addaction name="menuSmoothing"/>
     <addaction name="menuNarrow_black_white"/>
@@ -295,7 +303,9 @@
     <addaction name="menuDEM"/>
     <addaction name="action_DEMColour"/>
     <addaction name="action_AngleColour"/>
+    <addaction name="separator"/>
     <addaction name="menuIncoloring"/>
+    <addaction name="menu_Outcolouring"/>
     <addaction name="separator"/>
     <addaction name="action_GradEditor"/>
    </widget>
@@ -2446,6 +2456,30 @@
    </property>
    <property name="text">
     <string>&amp;Makin's formula for finite attractors</string>
+   </property>
+  </action>
+  <action name="action_ICAtom">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Atom domain</string>
+   </property>
+  </action>
+  <action name="action_OCDefault">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Default (iteration count)</string>
+   </property>
+  </action>
+  <action name="action_OCAtom">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Atom domain</string>
    </property>
   </action>
  </widget>

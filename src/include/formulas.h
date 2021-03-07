@@ -22,24 +22,29 @@ inline bool formula_supports_dem (formula f)
 	return f == formula::standard || f == formula::lambda || f == formula::mix;
 }
 
-/* The number of real values that the kernel needs, and which must be preserved across
-   invocations.  */
-inline int n_formula_real_vals (formula, bool dem)
+inline int n_formula_real_vals (formula, bool dem, bool incolor = false)
 {
-	/* Z, C (as computed from the coords), and possibly ZDER.  */
-	return dem ? 6 : 4;
+	int base = dem ? 6 : 4;
+	if (incolor)
+		return base + 1;
+	return base;
 }
 
-/* The number of integer values that the kernel needs, and which must be preserved across
-   invocations.  */
-inline int n_formula_int_vals (formula, bool /* dem */)
+inline int n_formula_int_vals (formula, bool /* dem */, bool incolor = false)
 {
-	/* ZPIDX - the index into the zprev array.  */
+	// Default is only one value in the array: ZPIDX, the index into the zprev array.
+	if (incolor)
+		// Also return the atom domain period, and keep track of the iteration count.
+		return 3;
 	return 1;
 }
 
-inline int n_formula_extra_doubles (formula, bool /* dem */)
+inline int n_formula_extra_doubles (formula, bool /* dem */, bool incolor = false)
 {
+	// Extra data; the absolute value of the minimum point of the orbit.
+	// @@@ Not actually used just yet.
+	if (incolor)
+		return 1;
 	return 0;
 }
 
@@ -54,4 +59,11 @@ inline bool formula_test_fixpoint (formula)
 {
 	return false;
 }
+
+// Used for shortcuts, can conservatively return false for formulas with zero critpoints.
+inline bool formula_zero_critpoint (formula f)
+{
+	return f == formula::standard || f == formula::tricorn || f == formula::ship || f == formula::celtic;
+}
+
 #endif

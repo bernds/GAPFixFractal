@@ -88,6 +88,7 @@ class MainWindow: public QMainWindow
 
 	int m_cur_maxiter = default_maxiter;
 	formula m_formula = formula::standard;
+	bool m_incolor = false;
 
 	frac_desc m_fd_mandel;
 	frac_desc m_fd_julia;
@@ -143,6 +144,7 @@ class MainWindow: public QMainWindow
 	QActionGroup *m_rotate_group {};
 	QActionGroup *m_angles_group {};
 	QActionGroup *m_incolor_group {};
+	QActionGroup *m_outcolor_group {};
 	QActionGroup *m_smooth_group {};
 	QActionGroup *m_q_group {};
 
@@ -168,7 +170,8 @@ class MainWindow: public QMainWindow
 	double scale_slider_value ();
 	void build_points (frac_desc &, int w, int h);
 	void compute_fractal (frac_desc &, int nwords, int n_prev, int w, int h, int full_h,
-			      int maxiter, int ss, bool dem, bool preview, bool batch = false);
+			      int maxiter, int ss, bool dem, bool incolor,
+			      bool preview, bool batch = false);
 	void render_fractal ();
 	void render_preview ();
 	bool abort_computation ();
@@ -216,6 +219,7 @@ class MainWindow: public QMainWindow
 	void enable_sac_or_tia ();
 	void slot_disable_sac (bool);
 	void change_smoothing (bool);
+	void update_ic_oc_color (bool);
 
 	void slot_save_as (bool);
 	void slot_save_params ();
@@ -250,7 +254,7 @@ signals:
 	void signal_start_kernel (frac_desc *, int generation, int, int, bool);
 	void signal_alloc_mem (frac_desc *, int, int, int, int, QString *err);
 	void signal_invalidate (frac_desc *);
-	void signal_compile_kernel (int, int, int, int, QString *err);
+	void signal_compile_kernel (int, int, int, int, bool, QString *err);
 
 	void signal_render (frac_desc *, QGraphicsView *, int);
 	void signal_render_preview (frac_desc *, QGraphicsView *, int);

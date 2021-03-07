@@ -7,6 +7,7 @@ struct render_params
 	enum class smooth_t { std, makin };
 	smooth_t smooth;
 	uint32_t incol;
+	bool oc_atom, ic_atom;
 	int mod_type;
 	double steps;
 	int col_off, basin_col_off;

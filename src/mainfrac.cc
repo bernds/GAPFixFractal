@@ -605,11 +605,12 @@ void MainWindow::discard_fd_data (frac_desc &fd)
 	delete[] fd.pic_t;
 	delete[] fd.pic_result;
 	delete[] fd.pic_doubles;
+	delete[] fd.pic_period;
 	fd.n_pixels = 0;
 }
 
 void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, int h, int full_h,
-				  int maxiter, int ss, bool isdem, bool preview, bool batch)
+				  int maxiter, int ss, bool isdem, bool incolor, bool preview, bool batch)
 {
 	QMutexLocker render_lock (&m_renderer->mutex);
 	QMutexLocker preview_lock (&m_preview_renderer->mutex);
@@ -631,21 +632,23 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 		printf (" to %d\n", nthreads);
 	}
 	int npixels = w * h * ss * ss;
-	int n_rvals = n_formula_real_vals (fd.fm, isdem);
-	int n_ivals = n_formula_int_vals (fd.fm, isdem);
-	int n_dvals = n_formula_extra_doubles (fd.fm, isdem);
+	int n_rvals = n_formula_real_vals (fd.fm, isdem, incolor);
+	int n_ivals = n_formula_int_vals (fd.fm, isdem, incolor);
+	int n_dvals = n_formula_extra_doubles (fd.fm, isdem, incolor);
 	if (fd.nrvals_allocated != n_rvals || fd.nivals_allocated != n_ivals || fd.samples != ss
 	    || fd.n_pixels != npixels
 	    || fd.n_threads != nthreads
 	    || fd.nwords != nwords
 	    || fd.n_prev != n_prev
-	    || fd.dem != isdem)
+	    || fd.dem != isdem
+	    || fd.incolor != incolor)
 	{
 		discard_fd_data (fd);
 
 		fd.nrvals_allocated = n_rvals;
 		fd.nivals_allocated = n_ivals;
 		fd.dem = isdem;
+		fd.incolor = incolor;
 		fd.pixel_width = w * ss;
 		fd.pixel_height = h * ss;
 		fd.n_pixels = npixels;
@@ -668,6 +671,10 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 		if (fd.dem)
 			fd.pic_zder = new double[2 * npixels];
 		fd.pic_result = new uint32_t[npixels];
+
+		fd.pic_period = nullptr;
+		if (incolor)
+			fd.pic_period = new uint32_t[npixels];
 		fd.pixels_done = bit_array (npixels);
 		fd.pixels_started = bit_array (npixels);
 		fd.pic_doubles = nullptr;
@@ -687,6 +694,8 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 	fd.pixels_done.clear ();
 	fd.pixels_started.clear ();
 	memset (fd.pic_result, 0, npixels * sizeof (uint32_t));
+	if (incolor)
+		memset (fd.pic_period, 0, npixels * sizeof (uint32_t));
 	if (fd.dem)
 		memset (fd.pic_zder, 0, 2 * npixels * sizeof (double));
 	fd.maxiter = preview ? iter_steps : maxiter;
@@ -763,6 +772,18 @@ void MainWindow::change_smoothing (bool)
 	}
 }
 
+void MainWindow::update_ic_oc_color (bool)
+{
+	bool newv = ui->action_OCAtom->isChecked () || ui->action_ICAtom->isChecked ();
+	if (newv == m_incolor) {
+		update_views ();
+		return;
+	}
+	m_incolor = newv;
+	m_recompile = true;
+	update_settings (false);
+}
+
 void MainWindow::closeEvent (QCloseEvent *event)
 {
 	QSettings settings;
@@ -817,6 +838,8 @@ void MainWindow::set_render_params (render_params &p)
 	p.palette = m_palette;
 	p.smooth = ui->action_SmoothStd->isChecked () ? render_params::smooth_t::std : render_params::smooth_t::makin;
 	p.incol = ui->action_ICWhite->isChecked () ? 0xFFFFFF : 0;
+	p.ic_atom = ui->action_ICAtom->isChecked ();
+	p.oc_atom = ui->action_OCAtom->isChecked ();
 	p.mod_type = ui->modifyComboBox->currentIndex ();
 	int steps_spin = ui->widthSpinBox->value ();
 	p.steps = (pow (steps_spin + 1, 1.3) - 2) / 2;
@@ -912,7 +935,7 @@ void MainWindow::render_fractal ()
 	printf ("render_fractal size %d %d\n", w, h);
 
 	bool isdem = !ui->action_DEMOff->isChecked ();
-	compute_fractal (fd, m_nwords, n_prev_requested, w, h, h, m_cur_maxiter, ui->sampleSpinBox->value (), isdem, false);
+	compute_fractal (fd, m_nwords, n_prev_requested, w, h, h, m_cur_maxiter, ui->sampleSpinBox->value (), isdem, m_incolor, false);
 }
 
 void MainWindow::render_preview ()
@@ -930,7 +953,7 @@ void MainWindow::render_preview ()
 	printf ("render_preview size %d %d\n", w, h);
 
 	bool isdem = !ui->action_DEMOff->isChecked ();
-	compute_fractal (m_fd_julia, m_nwords, n_prev_requested, w, h, h, m_cur_maxiter, 0, isdem, true);
+	compute_fractal (m_fd_julia, m_nwords, n_prev_requested, w, h, h, m_cur_maxiter, 0, isdem, m_incolor, true);
 }
 
 void MainWindow::slot_new_data (frac_desc *fd, int generation, bool success)
@@ -991,7 +1014,7 @@ void MainWindow::do_compile ()
 	int power = ui->powerSpinBox->value ();
 	auto it = std::find (std::begin (formula_table), std::end (formula_table), m_formula);
 	int fidx = it - std::begin (formula_table);
-	emit signal_compile_kernel (fidx, power, m_nwords, max_nwords, &errstr);
+	emit signal_compile_kernel (fidx, power, m_nwords, max_nwords, m_incolor, &errstr);
 
 	m_power = power;
 	gpu_handler->done_sem.acquire ();
@@ -1004,6 +1027,8 @@ void MainWindow::do_compile ()
 	m_fd_julia.power = power;
 	m_fd_mandel.fm = m_formula;
 	m_fd_julia.fm = m_formula;
+	m_fd_mandel.incolor = m_incolor;
+	m_fd_julia.incolor = m_incolor;
 
 	m_recompile = false;
 	m_preview_uptodate = false;
@@ -2063,7 +2088,7 @@ void MainWindow::slot_batchrender (bool)
 		if (rp.sac || rp.tia) {
 			n_prev = 1 << settings.value ("coloring/nprev").toInt ();
 		}
-		emit signal_compile_kernel (fidx, fp.power, fp.nwords, max_nwords, &errstr);
+		emit signal_compile_kernel (fidx, fp.power, fp.nwords, max_nwords, rp.ic_atom || rp.oc_atom, &errstr);
 		gpu_handler->done_sem.acquire ();
 		if (!errstr.isEmpty ()) {
 			QMessageBox::critical (this, PACKAGE, errstr);
@@ -2109,7 +2134,7 @@ void MainWindow::slot_batchrender (bool)
 			temp_fd.yoff = y0 * (1 << samples);
 			int this_h = std::min (h - y0, batch_size);
 			compute_fractal (temp_fd, temp_fd.nwords, n_prev, w, this_h, h, maxiter,
-					 samples, rp.dem || rp.dem_shade, false, true);
+					 samples, rp.dem || rp.dem_shade, rp.ic_atom || rp.oc_atom, false, true);
 			gpu_handler->done_sem.acquire ();
 			if (pdlg.wasCanceled ())
 				break;
@@ -2234,7 +2259,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	m_power = default_power;
 	auto it = std::find (std::begin (formula_table), std::end (formula_table), m_formula);
 	int fidx = it - std::begin (formula_table);
-	emit signal_compile_kernel (fidx, default_power, m_nwords, max_nwords, &errstr);
+	emit signal_compile_kernel (fidx, default_power, m_nwords, max_nwords, m_incolor, &errstr);
 	gpu_handler->done_sem.acquire ();
 	if (!errstr.isEmpty ()) {
 		QMessageBox::critical (this, PACKAGE, errstr);
@@ -2267,6 +2292,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	ui->action_NFactor4->setChecked (true);
 	ui->action_StructDark->setChecked (true);
 	ui->action_ICBlack->setChecked (true);
+	ui->action_OCDefault->setChecked (true);
 	ui->action_SACContrast->setChecked (true);
 	ui->action_SmoothStd->setChecked (true);
 
@@ -2345,6 +2371,11 @@ MainWindow::MainWindow (QDataStream *init_file)
 	m_incolor_group = new QActionGroup (this);
 	m_incolor_group->addAction (ui->action_ICBlack);
 	m_incolor_group->addAction (ui->action_ICWhite);
+	m_incolor_group->addAction (ui->action_ICAtom);
+
+	m_outcolor_group = new QActionGroup (this);
+	m_outcolor_group->addAction (ui->action_OCDefault);
+	m_outcolor_group->addAction (ui->action_OCAtom);
 
 	m_smooth_group = new QActionGroup (this);
 	m_smooth_group->addAction (ui->action_SmoothStd);
@@ -2442,8 +2473,12 @@ MainWindow::MainWindow (QDataStream *init_file)
 	connect (ui->action_SmoothStd, &QAction::toggled, this, &MainWindow::change_smoothing);
 	connect (ui->action_SmoothMakin, &QAction::toggled, this, &MainWindow::change_smoothing);
 
-	connect (ui->action_ICBlack, &QAction::toggled, [this] (bool) { update_views (); });
-	connect (ui->action_ICWhite, &QAction::toggled, [this] (bool) { update_views (); });
+	connect (ui->action_ICBlack, &QAction::toggled, this, &MainWindow::update_ic_oc_color);
+	connect (ui->action_ICWhite, &QAction::toggled, this, &MainWindow::update_ic_oc_color);
+	connect (ui->action_ICAtom, &QAction::toggled, this, &MainWindow::update_ic_oc_color);
+
+	connect (ui->action_OCDefault, &QAction::toggled, this, &MainWindow::update_ic_oc_color);
+	connect (ui->action_OCAtom, &QAction::toggled, this, &MainWindow::update_ic_oc_color);
 
 	connect (ui->action_DEMColour, &QAction::toggled,
 		 [this] (bool) { if (!ui->action_DEMOff->isChecked ()) update_views (); });
@@ -2595,6 +2630,7 @@ MainWindow::~MainWindow ()
 	delete m_angles_group;
 	delete m_hybrid_group;
 	delete m_incolor_group;
+	delete m_outcolor_group;
 	delete m_smooth_group;
 	delete m_q_group;
 	delete ui;
