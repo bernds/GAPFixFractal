@@ -34,7 +34,7 @@ public:
 	{
 		return m_entries[row];
 	}
-	void change (QModelIndex &i, uint32_t val)
+	void change (const QModelIndex &i, uint32_t val)
 	{
 		int row = i.row ();
 		m_entries[row] = val;
@@ -360,15 +360,26 @@ void GradEditor::perform_paste ()
 	emit colors_changed (m_model->entries ());
 }
 
+void GradEditor::undo_redo_common ()
+{
+	enable_buttons ();
+	auto &cur = m_model->entries ();
+	auto &replacement = m_undo_stack[m_undo_pos];
+	if (cur.size () == replacement.size ()) {
+		for (size_t i = 0; i < cur.size (); i++)
+			m_model->change (m_model->index (i, 0), replacement[i]);
+	} else
+		m_model->replace_all (replacement);
+	emit colors_changed (m_model->entries ());
+	update_color_selection ();
+}
+
 void GradEditor::perform_undo ()
 {
 	if (m_undo_pos < 1)
 		return;
 	m_undo_pos--;
-	enable_buttons ();
-	m_model->replace_all (m_undo_stack[m_undo_pos]);
-	emit colors_changed (m_model->entries ());
-	update_color_selection ();
+	undo_redo_common ();
 }
 
 void GradEditor::perform_redo ()
@@ -376,10 +387,7 @@ void GradEditor::perform_redo ()
 	if (m_undo_pos >= m_undo_stack.size ())
 		return;
 	m_undo_pos++;
-	enable_buttons ();
-	m_model->replace_all (m_undo_stack[m_undo_pos]);
-	emit colors_changed (m_model->entries ());
-	update_color_selection ();
+	undo_redo_common ();
 }
 
 void GradEditor::enable_buttons ()

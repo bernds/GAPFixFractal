@@ -56,6 +56,7 @@ class GradEditor : public QDialog
 
 	void push_undo ();
 	void notice_change_for_undo ();
+	void undo_redo_common ();
 	void perform_undo ();
 	void perform_redo ();
 
