@@ -65,7 +65,7 @@ struct frac_desc : public frac_params
 
 	vpvec step;
 	/* Updated by the GUI and used to compute the actual rotation matrix.  */
-	int rotation_angle = 0;
+	double rotation_angle = 0;
 
 	double *pic_zprev;
 	double *pic_zder;

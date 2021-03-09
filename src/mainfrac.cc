@@ -28,6 +28,7 @@
 #include "gradeditor.h"
 #include "colors.h"
 
+#include "rotationdialog.h"
 #include "batchrender.h"
 #include "settings.h"
 #include "mainwindow.h"
@@ -338,16 +339,16 @@ static double cos_deg (int angle)
 	return cos (angle * M_PI / 180);
 }
 
-void MainWindow::set_rotation (frac_desc &fd, int angle)
+void MainWindow::set_rotation (frac_desc &fd, double angle)
 {
-	angle %= 360;
+	angle = fmod (angle, 360);
 	fd.rotation_angle = angle;
 	double shear = shear_slider_value ();
 	double scale = scale_slider_value ();
 	int shidx = ui->shearComboBox->currentIndex ();
 	int scidx = ui->scaleComboBox->currentIndex ();
-	double c = cos_deg (angle);
-	double s = sin_deg (angle);
+	double c = angle == floor (angle) ? cos_deg (angle) : cos (angle * M_PI / 180);
+	double s = angle == floor (angle) ? sin_deg (angle) : sin (angle * M_PI / 180);
 	double xshear = shidx == 1 ? shear : 0;
 	double yshear = shidx == 2 ? shear : 0;
 	double xscale = scidx == 1 ? scale : 1;
@@ -362,6 +363,15 @@ void MainWindow::set_rotation (frac_desc &fd, int angle)
 void MainWindow::inc_rotation (frac_desc &fd, int angle)
 {
 	set_rotation (fd, fd.rotation_angle + angle);
+}
+
+void MainWindow::enter_rotation (bool)
+{
+	auto &fd = current_fd ();
+	RotationDialog dlg (this, fd.rotation_angle);
+	connect (&dlg, &RotationDialog::apply_rotation,
+		 [this, &fd] (double v) { printf ("rotate %f\n", v);set_rotation (fd, v); update_settings (false); });
+	dlg.exec ();
 }
 
 double MainWindow::shear_slider_value ()
@@ -2443,6 +2453,9 @@ MainWindow::MainWindow ()
 
 	connect (ui->action_Rotate0, &QAction::triggered,
 		 [this] (bool) { set_rotation (current_fd (), 0); update_settings (false); });
+	connect (ui->action_RotateEnter, &QAction::triggered, this, &MainWindow::enter_rotation);
+	connect (ui->action_Rotate5, &QAction::triggered,
+		 [this] (bool) { inc_rotation (current_fd (), 5); update_settings (false); });
 	connect (ui->action_Rotate30, &QAction::triggered,
 		 [this] (bool) { inc_rotation (current_fd (), 30); update_settings (false); });
 	connect (ui->action_Rotate45, &QAction::triggered,

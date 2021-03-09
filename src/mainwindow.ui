@@ -166,7 +166,7 @@
     </widget>
     <widget class="QMenu" name="menuChoose_parameter_q">
      <property name="title">
-      <string>Choose parameter q</string>
+      <string>Choose parameter &amp;q</string>
      </property>
      <addaction name="action_q_1"/>
      <addaction name="action_q_m1"/>
@@ -174,12 +174,15 @@
     </widget>
     <widget class="QMenu" name="menuTransform">
      <property name="title">
-      <string>Transform</string>
+      <string>&amp;Transform</string>
      </property>
      <addaction name="action_Rotate0"/>
+     <addaction name="action_Rotate5"/>
      <addaction name="action_Rotate30"/>
      <addaction name="action_Rotate45"/>
      <addaction name="action_Rotate90"/>
+     <addaction name="separator"/>
+     <addaction name="action_RotateEnter"/>
     </widget>
     <addaction name="menu_Precision"/>
     <addaction name="menuFormula"/>
@@ -1959,6 +1962,19 @@
   <action name="action_Reset">
    <property name="text">
     <string>&amp;Reset view zoom</string>
+   </property>
+  </action>
+  <action name="action_RotateEnter">
+   <property name="text">
+    <string>&amp;Enter rotation</string>
+   </property>
+  </action>
+  <action name="action_Rotate5">
+   <property name="text">
+    <string>Rotate 5°</string>
+   </property>
+   <property name="toolTip">
+    <string>Rotate 5°</string>
    </property>
   </action>
  </widget>
