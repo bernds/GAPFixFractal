@@ -180,6 +180,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 	init_fail |= cuMemcpyHtoD (fd->cu_ar_step, &fd->step[0], 4 * max_nwords) != CUDA_SUCCESS;
 
 	CUdeviceptr originx, originy, param_p, param_q, critpoint, matrix00, matrix01, matrix10, matrix11;
+	CUdeviceptr cnprev;
 	size_t bytes;
 	init_fail |= cuModuleGetGlobal(&originx, &bytes, m_module, "const_origin_x") != CUDA_SUCCESS;
 	init_fail |= cuMemcpyHtoD (originx, &fd->center_x[0], 4 * max_nwords) != CUDA_SUCCESS;
@@ -201,6 +202,10 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 	init_fail |= cuMemcpyHtoD (matrix10, &fd->matrix[1][0][0], 4 * max_nwords) != CUDA_SUCCESS;
 	init_fail |= cuModuleGetGlobal(&matrix11, &bytes, m_module, "const_matrix11") != CUDA_SUCCESS;
 	init_fail |= cuMemcpyHtoD (matrix11, &fd->matrix[1][1][0], 4 * max_nwords) != CUDA_SUCCESS;
+
+	assert ((n_prev & (n_prev - 1)) == 0);
+	init_fail |= cuModuleGetGlobal(&cnprev, &bytes, m_module, "const_nprev") != CUDA_SUCCESS;
+	init_fail |= cuMemcpyHtoD (cnprev, &n_prev, 4) != CUDA_SUCCESS;
 
 	if (init_fail)
 		printf ("init fail\n");
@@ -393,7 +398,7 @@ void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_
 	}
 
 	formula f = formula_table[fidx];
-	char *ptx = gen_mprec_funcs (f, nwords, max_nwords, power, n_prev);
+	char *ptx = gen_mprec_funcs (f, nwords, max_nwords, power);
 
 	vector<CUjit_option> opts;
 	vector<void *>ovals;
