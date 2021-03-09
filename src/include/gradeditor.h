@@ -16,6 +16,9 @@ namespace Ui
 class color_model;
 class MainWindow;
 class QMouseEvent;
+class QGraphicsLineItem;
+class QGraphicsPixmapItem;
+class QImage;
 
 class GradEditor : public QDialog
 {
@@ -29,12 +32,19 @@ class GradEditor : public QDialog
 
 	QGraphicsScene m_hs_scene;
 	QGraphicsScene m_v_scene;
+	QImage *m_hs_img {};
+	QGraphicsPixmapItem *m_v_pixmap {};
+	QGraphicsPixmapItem *m_hs_pixmap {};
+	QGraphicsLineItem *m_vcursor {};
+	QGraphicsLineItem *m_hscursor_v {};
+	QGraphicsLineItem *m_hscursor_h {};
 	color_model *m_model;
 
 	int m_h = 0, m_s = 0, m_v = 127;
 	uint32_t m_copied_color = 0;
 	bool m_changed;
-	
+
+	void update_cursors ();
 	void change_color ();
 	void handle_doubleclick ();
 	void generate_vimg ();

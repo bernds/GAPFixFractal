@@ -175,6 +175,7 @@ void GradEditor::handle_doubleclick ()
 	if (dlg.exec ())
 		m_model->change (i, dlg.selectedColor ().rgb ());
 	emit colors_changed (m_model->entries ());
+	update_color_selection ();
 }
 
 void GradEditor::push_undo ()
@@ -211,15 +212,16 @@ void GradEditor::change_color ()
 	m_model->change (i, newcol.rgb ());
 	m_undo_stack[m_undo_pos] = m_model->entries ();
 	emit colors_changed (m_model->entries ());
+	update_cursors ();
 }
 
 void GradEditor::generate_vimg ()
 {
 	int h = m_h;
-	if (m_s == 0 || m_s == 255)
+	if ((m_v == 0 || m_v == 255) && (m_s == 0 && m_s == 255))
 		h = -1;
 	else
-		h = h / 256. * 350;
+		h = h / 255. * 359;
 
 	QImage img (20, 256, QImage::Format_RGB32);
 	QRgb *data = (QRgb *)img.bits ();
@@ -228,8 +230,9 @@ void GradEditor::generate_vimg ()
 		for (int i = 0; i < 20; i++)
 			*data++ = rgb;
 	}
-	m_v_scene.clear ();
-	m_v_scene.addItem (new QGraphicsPixmapItem (QPixmap::fromImage (img)));
+	delete m_v_pixmap;
+	m_v_pixmap = new QGraphicsPixmapItem (QPixmap::fromImage (img));
+	m_v_scene.addItem (m_v_pixmap);
 }
 
 void GradEditor::hs_clicked (QMouseEvent *e)
@@ -269,6 +272,20 @@ void GradEditor::v_clicked (QMouseEvent *e)
 	change_color ();
 }
 
+void GradEditor::update_cursors ()
+{
+	m_vcursor->setY (255 - m_v);
+	m_vcursor->setPen (m_v < 128 ? QPen (Qt::white) : QPen (Qt::black));
+	m_hscursor_h->setX (m_h);
+	m_hscursor_v->setX (m_h);
+	m_hscursor_h->setY (255 - m_s);
+	m_hscursor_v->setY (255 - m_s);
+	QRgb pixel = m_hs_img->pixel (m_h, 255 - m_s);
+	double sum = ((pixel >> 16) & 0xFF) * 0.21 + ((pixel >> 8) & 0xFF) * 0.72 + (pixel & 0xFF) * 0.07;
+	m_hscursor_v->setPen (sum < 128 ? QPen (Qt::white) : QPen (Qt::black));
+	m_hscursor_h->setPen (sum < 128 ? QPen (Qt::white) : QPen (Qt::black));
+}
+
 void GradEditor::update_color_selection ()
 {
 	enable_buttons ();
@@ -287,6 +304,7 @@ void GradEditor::update_color_selection ()
 	m_s = col.hsvSaturation ();
 	m_v = col.value ();
 	generate_vimg ();
+	update_cursors ();
 	m_changed = false;
 }
 
@@ -350,8 +368,7 @@ void GradEditor::perform_undo ()
 	enable_buttons ();
 	m_model->replace_all (m_undo_stack[m_undo_pos]);
 	emit colors_changed (m_model->entries ());
-	m_changed = false;
-	enable_buttons ();
+	update_color_selection ();
 }
 
 void GradEditor::perform_redo ()
@@ -362,8 +379,7 @@ void GradEditor::perform_redo ()
 	enable_buttons ();
 	m_model->replace_all (m_undo_stack[m_undo_pos]);
 	emit colors_changed (m_model->entries ());
-	m_changed = false;
-	enable_buttons ();
+	update_color_selection ();
 }
 
 void GradEditor::enable_buttons ()
@@ -453,12 +469,20 @@ GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)
 	ui->hsView->setScene (&m_hs_scene);
 	ui->vView->setScene (&m_v_scene);
 
-	QImage img (256, 256, QImage::Format_RGB32);
-	QRgb *data = (QRgb *)img.bits ();
+	m_vcursor = m_v_scene.addLine (0, 0, 20, 0);
+	m_vcursor->setZValue (1);
+	m_hscursor_h = m_hs_scene.addLine (-10, 0, 10, 0);
+	m_hscursor_v = m_hs_scene.addLine (0, -10, 0, 10);
+	m_hscursor_h->setZValue (1);
+	m_hscursor_v->setZValue (1);
+	m_hs_scene.setSceneRect (0, 0, 256, 256);
+	m_hs_img = new QImage (256, 256, QImage::Format_RGB32);
+	QRgb *data = (QRgb *)m_hs_img->bits ();
 	for (int s = 256; s-- > 0;)
 		for (int h = 0; h < 256; h++)
-			*data++ = QColor::fromHsv (h / 256. * 359, s, s).rgb ();
-	m_hs_scene.addItem (new QGraphicsPixmapItem (QPixmap::fromImage (img)));
+			*data++ = QColor::fromHsv (h / 256. * 359, s, 255).rgb ();
+	m_hs_pixmap = new QGraphicsPixmapItem (QPixmap::fromImage (*m_hs_img));
+	m_hs_scene.addItem (m_hs_pixmap);
 	generate_vimg ();
 	connect (ui->hsView, &SizeGraphicsView::mouse_event, this, &GradEditor::hs_clicked);
 	connect (ui->vView, &SizeGraphicsView::mouse_event, this, &GradEditor::v_clicked);
@@ -468,6 +492,7 @@ GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)
 
 GradEditor::~GradEditor ()
 {
+	delete m_hs_img;
 	delete m_model;
 	delete ui;
 }
