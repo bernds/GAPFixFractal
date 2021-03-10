@@ -36,7 +36,7 @@ class QActionGroup;
 struct render_params
 {
 	QVector<uint32_t> palette;
-	int incol;
+	uint32_t incol;
 	int mod_type;
 	double steps;
 	int slider;
@@ -165,6 +165,7 @@ class MainWindow: public QMainWindow
 	QActionGroup *m_narrow_group {};
 	QActionGroup *m_rotate_group {};
 	QActionGroup *m_angles_group {};
+	QActionGroup *m_incolor_group {};
 
 	int m_last_pal_idx = 0;
 	QVector<uint32_t> m_palette;

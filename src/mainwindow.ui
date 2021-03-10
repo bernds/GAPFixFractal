@@ -248,6 +248,13 @@
      <addaction name="separator"/>
      <addaction name="action_Contrast"/>
     </widget>
+    <widget class="QMenu" name="menuIncoloring">
+     <property name="title">
+      <string>Incoloring</string>
+     </property>
+     <addaction name="action_ICBlack"/>
+     <addaction name="action_ICWhite"/>
+    </widget>
     <addaction name="menuNarrow_black_white"/>
     <addaction name="menuStructure_modifier"/>
     <addaction name="menuColour_rotation"/>
@@ -256,6 +263,7 @@
     <addaction name="menuDEM"/>
     <addaction name="action_DEMColour"/>
     <addaction name="action_AngleColour"/>
+    <addaction name="menuIncoloring"/>
     <addaction name="separator"/>
     <addaction name="action_GradEditor"/>
    </widget>
@@ -549,23 +557,6 @@
              <item>
               <property name="text">
                <string>Custom</string>
-              </property>
-             </item>
-            </widget>
-           </item>
-           <item>
-            <widget class="QComboBox" name="incolComboBox">
-             <property name="currentIndex">
-              <number>0</number>
-             </property>
-             <item>
-              <property name="text">
-               <string>Black</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>White</string>
               </property>
              </item>
             </widget>
@@ -2012,6 +2003,22 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+T</string>
+   </property>
+  </action>
+  <action name="action_ICBlack">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Black</string>
+   </property>
+  </action>
+  <action name="action_ICWhite">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>White</string>
    </property>
   </action>
  </widget>

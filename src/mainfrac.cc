@@ -965,8 +965,7 @@ public:
 	void run () override
 	{
 		bool any_found = false;
-		uint32_t in_color = rp.incol == 0 ? 0 : 0xFFFFFF;
-		uint32_t in_color1 = in_color & 0xFF;
+		uint32_t in_color1 = rp.incol & 0xFF;
 		int sample_steps = fd->samples;
 		power = power_from_fp (*fd);
 		int ss2 = sample_steps * sample_steps;
@@ -1018,7 +1017,7 @@ public:
 					}
 					*data++ = ((r / div) << 16) + ((g / div) << 8) + (b / div);
 				} else if (valid) {
-					*data++ = in_color;
+					*data++ = rp.incol;
 				} else
 					// todo: use previous scaled data
 					*data++ = 0;
@@ -1129,7 +1128,7 @@ void MainWindow::slot_render_complete (QGraphicsView *view, frac_desc *fd, QImag
 void MainWindow::set_render_params (render_params &p)
 {
 	p.palette = m_palette;
-	p.incol = ui->incolComboBox->currentIndex ();
+	p.incol = ui->action_ICWhite->isChecked () ? 0xFFFFFF : 0;
 	p.mod_type = ui->modifyComboBox->currentIndex ();
 	int steps_spin = ui->widthSpinBox->value ();
 	p.steps = (pow (steps_spin + 1, 1.3) - 2) / 2;
@@ -2506,6 +2505,10 @@ MainWindow::MainWindow ()
 	m_hybrid_group->addAction (ui->action_HybridOff);
 	m_hybrid_group->addAction (ui->action_HybridOn);
 
+	m_incolor_group = new QActionGroup (this);
+	m_incolor_group->addAction (ui->action_ICBlack);
+	m_incolor_group->addAction (ui->action_ICWhite);
+
 	m_angles_group = new QActionGroup (this);
 	m_angles_group->addAction (ui->action_AngleNone);
 	m_angles_group->addAction (ui->action_AngleSmooth);
@@ -2531,6 +2534,7 @@ MainWindow::MainWindow ()
 	ui->action_Shift10->setChecked (true);
 	ui->action_NFactor4->setChecked (true);
 	ui->action_StructDark->setChecked (true);
+	ui->action_ICBlack->setChecked (true);
 	ui->action_Contrast->setChecked (true);
 	ui->action_FD2->setChecked (true);
 	enable_interface_for_formula (m_formula);
@@ -2556,7 +2560,6 @@ MainWindow::MainWindow ()
 	connect (ui->widthSpinBox, changed, this, &MainWindow::update_views);
 	connect (ui->modifyComboBox, cic, this, &MainWindow::update_views);
 	connect (ui->gradComboBox, cic,  [this] (int) { update_palette (); });
-	connect (ui->incolComboBox, cic, this, &MainWindow::update_views);
 	connect (ui->colStepSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
 	connect (m_sub_group, &QActionGroup::triggered, [this] (QAction *) { update_views (); });
 	connect (m_dem_group, &QActionGroup::triggered, this, &MainWindow::update_dem_settings);
@@ -2582,6 +2585,9 @@ MainWindow::MainWindow ()
 	connect (ui->action_AngleBin, &QAction::toggled, this, &MainWindow::slot_disable_sac);
 	connect (ui->action_SAC, &QAction::toggled, [this] (bool) { enable_sac_or_tia (); });
 	connect (ui->action_TIA, &QAction::toggled, [this] (bool) { enable_sac_or_tia (); });
+
+	connect (ui->action_ICBlack, &QAction::toggled, [this] (bool) { update_views (); });
+	connect (ui->action_ICWhite, &QAction::toggled, [this] (bool) { update_views (); });
 
 	connect (ui->action_DEMColour, &QAction::toggled,
 		 [this] (bool) { if (!ui->action_DEMOff->isChecked ()) update_views (); });
