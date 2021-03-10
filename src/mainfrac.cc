@@ -2014,6 +2014,8 @@ void MainWindow::restore_params (const frac_params &p)
 	fd.width = p.width;
 	fd.maxiter = p.maxiter;
 	fd.param_p = p.param_p;
+	fd.bounds_w = p.bounds_w;
+	fd.bounds_h = p.bounds_h;
 
 	m_inhibit_updates = false;
 
