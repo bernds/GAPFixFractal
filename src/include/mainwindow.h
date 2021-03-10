@@ -44,6 +44,7 @@ struct render_params
 	int angle;
 	bool sub;
 	bool sac, tia, sac_contrast;
+	double sac_factor;
 	bool dem_colour, angle_colour;
 	bool dem;
 	bool dem_shade;

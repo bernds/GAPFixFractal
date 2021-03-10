@@ -518,6 +518,7 @@ void MainWindow::enable_sac_or_tia ()
 	bool sac = ui->action_SAC->isChecked ();
 	bool tia = ui->action_TIA->isChecked ();
 	bool on = sac || tia;
+	ui->stripesWidget->setEnabled (sac);
 	if (!on) {
 		ui->superBox->setEnabled (true);
 		n_prev_requested = 1;
@@ -799,7 +800,7 @@ public:
 			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, rp.slider);
 
 			if (rp.sac && attractor == 0) {
-				double density = 6;
+				double density = rp.sac_factor;
 				double re2 = re * re;
 				double im2 = im * im;
 				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
@@ -1135,6 +1136,7 @@ void MainWindow::set_render_params (render_params &p)
 	p.angle = !!ui->action_AngleSmooth->isChecked () + 2 * !!ui->action_AngleBin->isChecked ();
 	p.tia = ui->action_TIA->isChecked ();
 	p.sac = ui->action_SAC->isChecked ();
+	p.sac_factor = ui->stripesSpinBox->value ();
 	p.sac_contrast = ui->action_Contrast->isChecked ();
 	p.sub = !ui->action_ShiftNone->isChecked ();
 	p.sub_val = ui->action_Shift10->isChecked () ? 10 : ui->action_Shift100->isChecked () ? 100 : 0;
@@ -2443,7 +2445,7 @@ MainWindow::MainWindow ()
 	ui->extraDock->hide ();
 	ui->action_BatchRender->setEnabled (false);
 	ui->menuHybrid->setEnabled (false);
-
+	ui->stripesWidget->setEnabled (false);
 	render_fractal ();
 
 	m_resize_timer.setSingleShot (true);
@@ -2558,6 +2560,7 @@ MainWindow::MainWindow ()
 	connect (ui->sampleSpinBox, changed, [this] (int) { update_settings (false); });
 	connect (ui->typeComboBox, cic, this, &MainWindow::update_fractal_type);
 	connect (ui->widthSpinBox, changed, this, &MainWindow::update_views);
+	connect (ui->stripesSpinBox, dchanged, this, &MainWindow::update_views);
 	connect (ui->modifyComboBox, cic, this, &MainWindow::update_views);
 	connect (ui->gradComboBox, cic,  [this] (int) { update_palette (); });
 	connect (ui->colStepSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
