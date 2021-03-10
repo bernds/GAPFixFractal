@@ -440,7 +440,8 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 	    || fd.n_pixels != npixels
 	    || fd.n_threads != nthreads
 	    || fd.nwords != nwords
-	    || fd.n_prev != n_prev)
+	    || fd.n_prev != n_prev
+	    || fd.dem != isdem)
 	{
 		discard_fd_data (fd);
 
@@ -2229,7 +2230,7 @@ void MainWindow::slot_batchrender (bool)
 			temp_fd.yoff = y0 * (1 << samples);
 			int this_h = std::min (h - y0, batch_size);
 			compute_fractal (temp_fd, temp_fd.nwords, n_prev, w, this_h, h, maxiter,
-					 samples, rp.dem, false, true);
+					 samples, rp.dem || rp.dem_shade, false, true);
 			gpu_handler->done_sem.acquire ();
 			if (pdlg.wasCanceled ())
 				break;
