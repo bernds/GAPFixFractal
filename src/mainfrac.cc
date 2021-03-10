@@ -2735,6 +2735,8 @@ int main (int argc, char **argv)
 #endif
 
 	QSettings settings;
+	if (!settings.contains ("coloring/nosuper-sac"))
+		settings.setValue ("coloring/nosuper-sac", true);
 	bool shown = settings.contains ("helpshown");
 	if (!shown) {
 		QMessageBox::information (nullptr, PACKAGE,
