@@ -513,8 +513,11 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 	emit signal_start_kernel (&fd, m_generation, max_nwords, iter_steps, batch);
 }
 
-void MainWindow::slot_enable_sac (bool on)
+void MainWindow::enable_sac_or_tia ()
 {
+	bool sac = ui->action_SAC->isChecked ();
+	bool tia = ui->action_TIA->isChecked ();
+	bool on = sac || tia;
 	if (!on) {
 		ui->superBox->setEnabled (true);
 		n_prev_requested = 1;
@@ -812,7 +815,6 @@ public:
 				double avg2 = (sum + firstval) / thisnp;
 				double radius = fd->dem ? 10 : 100;
 				double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (fd->power);
-				// printf ("mf %f %f\n", mixfactor1, mixfactor);
 				double mod = avg1 * mixfactor + avg2 * (1 - mixfactor);
 				found_stripe_min = std::min (mod, found_stripe_min);
 				found_stripe_max = std::max (mod, found_stripe_max);
@@ -823,6 +825,52 @@ public:
 					col = modify_color (col, mod);
 				else {
 					col = 0x010101 * floor (mod * 255);
+				}
+			} else if (rp.tia && fd->pic_t != nullptr && attractor == 0) {
+				double cre = fd->pic_t[idx * 2];
+				double cim = fd->pic_t[idx * 2 + 1];
+				double re2 = re * re;
+				double im2 = im * im;
+				double radius = fd->dem ? 10 : 100;
+				double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (fd->power);
+				double cmag = sqrt (cre * cre + cim * cim);
+				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
+				if (cmag == 0)
+					thisnp = 0;
+				double sum = 0;
+				double firstval = 0;
+				for (int i = 1; i < thisnp; i++) {
+					double lastre = fd->pic_zprev[idx * 2 * n_prev + i * 2];
+					double lastim = fd->pic_zprev[idx * 2 * n_prev + i * 2 + 1];
+					double mag = sqrt (re2 + im2);
+                                        double zlmag = pow (lastre * lastre + lastim * lastim, fd->power / 2.0);
+                                        mag -= zlmag - cmag;
+					mag /= 2 * cmag;
+					if (i == 1)
+						firstval = mag;
+					else
+						sum += mag;
+                                        re2 = lastre * lastre;
+                                        im2 = lastim * lastim;
+				}
+				double avg1 = thisnp > 2 ? sum / (thisnp - 2) : 0;
+				double avg2 = thisnp > 1 ? (sum + firstval) / (thisnp - 1) : 0;
+				double mod = avg1 * mixfactor + avg2 * (1 - mixfactor);
+				if (mod < 0 || mod > 1)
+					// ??? This isn't supposed to happen, but let's not let it mess up
+					// the min/max values if it does happen.
+					col = rp.angle_colour ? col : 0;
+				else {
+					found_stripe_min = std::min (mod, found_stripe_min);
+					found_stripe_max = std::max (mod, found_stripe_max);
+					double prev_width = fd->max_stripeval - fd->min_stripeval;
+					if (rp.sac_contrast)
+						mod = std::max (0.0, std::min (1.0, (mod - fd->min_stripeval) / prev_width));
+					if (rp.angle_colour)
+						col = modify_color (col, mod);
+					else {
+						col = 0x010101 * floor (mod * 255);
+					}
 				}
 			}
 			else if (rp.angle == 1) {
@@ -900,7 +948,7 @@ public:
 						return;
 					}
 				}
-				if (!rp.dem_colour && !rp.sac && !rp.angle) {
+				if (!rp.dem_colour && !rp.sac && !rp.tia && !rp.angle) {
 					r += dem_shade * 255;
 					g += dem_shade * 255;
 					b += dem_shade * 255;
@@ -1086,6 +1134,7 @@ void MainWindow::set_render_params (render_params &p)
 	int steps_spin = ui->widthSpinBox->value ();
 	p.steps = (pow (steps_spin + 1, 1.3) - 2) / 2;
 	p.angle = !!ui->action_AngleSmooth->isChecked () + 2 * !!ui->action_AngleBin->isChecked ();
+	p.tia = ui->action_TIA->isChecked ();
 	p.sac = ui->action_SAC->isChecked ();
 	p.sac_contrast = ui->action_Contrast->isChecked ();
 	p.sub = !ui->action_ShiftNone->isChecked ();
@@ -1572,7 +1621,8 @@ void MainWindow::enable_interface_for_settings ()
 	QSettings settings;
 	bool largemem = settings.value ("largemem").toBool ();
 	ui->action_SAC->setEnabled (largemem);
-	if (!largemem && ui->action_SAC->isChecked ())
+	ui->action_TIA->setEnabled (largemem);
+	if (!largemem && (ui->action_SAC->isChecked () || ui->action_TIA->isChecked ()))
 		ui->action_AngleNone->setChecked (true);
 }
 
@@ -2459,6 +2509,7 @@ MainWindow::MainWindow ()
 	m_angles_group->addAction (ui->action_AngleSmooth);
 	m_angles_group->addAction (ui->action_AngleBin);
 	m_angles_group->addAction (ui->action_SAC);
+	m_angles_group->addAction (ui->action_TIA);
 
 	m_formula_group = new QActionGroup (this);
 	m_formula_group->addAction (ui->action_FormulaStandard);
@@ -2527,7 +2578,8 @@ MainWindow::MainWindow ()
 	connect (ui->action_AngleNone, &QAction::toggled, this, &MainWindow::slot_disable_sac);
 	connect (ui->action_AngleSmooth, &QAction::toggled, this, &MainWindow::slot_disable_sac);
 	connect (ui->action_AngleBin, &QAction::toggled, this, &MainWindow::slot_disable_sac);
-	connect (ui->action_SAC, &QAction::toggled, this, &MainWindow::slot_enable_sac);
+	connect (ui->action_SAC, &QAction::toggled, [this] (bool) { enable_sac_or_tia (); });
+	connect (ui->action_TIA, &QAction::toggled, [this] (bool) { enable_sac_or_tia (); });
 
 	connect (ui->action_DEMColour, &QAction::toggled,
 		 [this] (bool) { if (!ui->action_DEMOff->isChecked ()) update_views (); });
@@ -2636,7 +2688,7 @@ MainWindow::MainWindow ()
 				 m_recompile = true;
 				 m_inhibit_updates = true;
 				 enable_interface_for_settings ();
-				 slot_enable_sac (ui->action_SAC->isChecked ());
+				 enable_sac_or_tia ();
 				 m_inhibit_updates = false;
 				 restart_computation ();
 			 }

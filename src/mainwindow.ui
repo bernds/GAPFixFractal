@@ -244,6 +244,7 @@
      <addaction name="action_AngleSmooth"/>
      <addaction name="action_AngleBin"/>
      <addaction name="action_SAC"/>
+     <addaction name="action_TIA"/>
      <addaction name="separator"/>
      <addaction name="action_Contrast"/>
     </widget>
@@ -1997,6 +1998,20 @@
    </property>
    <property name="text">
     <string>Adjust contrast for SAC</string>
+   </property>
+  </action>
+  <action name="action_TIA">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Triangle Inequality Average</string>
+   </property>
+   <property name="toolTip">
+    <string>Triangle Inequality Average Colouring</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+T</string>
    </property>
   </action>
  </widget>

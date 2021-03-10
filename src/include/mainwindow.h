@@ -43,7 +43,7 @@ struct render_params
 	int sub_val;
 	int angle;
 	bool sub;
-	bool sac, sac_contrast;
+	bool sac, tia, sac_contrast;
 	bool dem_colour, angle_colour;
 	bool dem;
 	bool dem_shade;
@@ -226,7 +226,7 @@ class MainWindow: public QMainWindow
 	void store_params (bool);
 	void restore_params (const frac_params &);
 
-	void slot_enable_sac (bool);
+	void enable_sac_or_tia ();
 	void slot_disable_sac (bool);
 
 	void slot_save_as (bool);
