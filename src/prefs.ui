@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>813</width>
-    <height>310</height>
+    <height>368</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -88,6 +88,17 @@
        </widget>
       </item>
      </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="alphaCheckBox">
+     <property name="toolTip">
+      <string>&lt;p&gt;Controls whether images produced by the batch render process are in ARGB32 or RGB32 format.&lt;/p&gt;
+&lt;p&gt;The alpha channel is only used by certain black and white colouring options.&lt;/p&gt;</string>
+     </property>
+     <property name="text">
+      <string>Render with alpha channel</string>
+     </property>
     </widget>
    </item>
    <item>

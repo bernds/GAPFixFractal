@@ -16,6 +16,7 @@ PrefsDialog::PrefsDialog (MainWindow *w) : QDialog (w), ui (new Ui::PrefsDialog)
 	ui->imagesEdit->setText (ipath);
 	ui->paramsEdit->setText (ppath);
 	ui->colorsEdit->setText (cpath);
+	ui->alphaCheckBox->setChecked (settings.value ("render/alpha").toBool ());
 	ui->largememBox->setChecked (settings.value ("largemem").toBool ());
 	ui->noSuperCheckBox->setChecked (settings.value ("coloring/nosuper-sac").toBool ());
 	connect (ui->imagesButton, &QToolButton::clicked,
@@ -70,5 +71,6 @@ void PrefsDialog::slot_accept ()
 	settings.setValue ("coloring/nprev", ui->nprevSlider->value ());
 	settings.setValue ("largemem", ui->largememBox->isChecked ());
 	settings.setValue ("coloring/nosuper-sac", ui->noSuperCheckBox->isChecked ());
+	settings.setValue ("render/alpha", ui->alphaCheckBox->isChecked ());
 	accept ();
 }

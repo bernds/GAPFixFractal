@@ -702,7 +702,7 @@ static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double ni
 	uint32_t col1 = palette[(x + 1) % size];
 	uint32_t col2 = palette[x % size];
 	uint32_t primary = color_merge (col1, col2, m1);
-	return primary;
+	return primary | 0xFF000000;
 }
 
 static inline uint32_t modify_color (uint32_t col, double v)
@@ -784,7 +784,7 @@ public:
 		setAutoDelete (true);
 	}
 
-	void compute_color (size_t idx, int &r, int &g, int &b, int &outcolor)
+	void compute_color (size_t idx, int &r, int &g, int &b, int &alpha, int &outcolor)
 	{
 		int n_prev = fd->n_prev;
 		double re = fd->pic_zprev[idx * 2 * n_prev];
@@ -825,7 +825,7 @@ public:
 				if (rp.angle_colour)
 					col = modify_color (col, mod);
 				else {
-					col = 0x010101 * floor (mod * 255);
+					col = 0x01010101 * floor (mod * 255);
 				}
 			} else if (rp.tia && fd->pic_t != nullptr && attractor == 0) {
 				double cre = fd->pic_t[idx * 2];
@@ -870,7 +870,7 @@ public:
 					if (rp.angle_colour)
 						col = modify_color (col, mod);
 					else {
-						col = 0x010101 * floor (mod * 255);
+						col = 0x01010101 * floor (mod * 255);
 					}
 				}
 			}
@@ -899,7 +899,7 @@ public:
 				if (im < 0)
 					col = 0;
 				else if (!rp.angle_colour)
-					col = 0xFFFFFF;
+					col = 0xFFFFFFFF;
 			}
 			double dem_shade = 1;
 			if (rp.dem || rp.dem_shade) {
@@ -950,6 +950,7 @@ public:
 					}
 				}
 				if (!rp.dem_colour && !rp.sac && !rp.tia && !rp.angle) {
+					alpha += 255;
 					r += dem_shade * 255;
 					g += dem_shade * 255;
 					b += dem_shade * 255;
@@ -957,6 +958,7 @@ public:
 				}
 			}
 			double dem_factor = dem_shade;
+			alpha += ((col >> 24) & 0xFF) * dem_factor;
 			r += ((col >> 16) & 0xFF) * dem_factor;
 			g += ((col >> 8) & 0xFF) * dem_factor;
 			b += (col & 0xFF) * dem_factor;
@@ -975,7 +977,7 @@ public:
 			dstep = DBL_EPSILON;
 		for (int y = y0; y < y0e; y++) {
 			for (int x = 0; x < w; x++) {
-				int r = 0, g = 0, b = 0;
+				int r = 0, g = 0, b = 0, alpha = 0;
 				int valid = 0;
 				int outcolor = 0;
 				unsigned int cx1 = x * sample_steps;
@@ -991,7 +993,7 @@ public:
 						cx1 &= mask;
 						if (fd->pic_pixels_done.test_bit (cy1 * fd->pixel_width + cx1)) {
 							valid++;
-							compute_color (cy1 * fd->pixel_width + cx1, r, g, b, outcolor);
+							compute_color (cy1 * fd->pixel_width + cx1, r, g, b, alpha, outcolor);
 							break;
 						}
 					}
@@ -1003,7 +1005,7 @@ public:
 							if (!fd->pic_pixels_done.test_bit (cy * fd->pixel_width + cx))
 								continue;
 							valid++;
-							compute_color (cy * fd->pixel_width + cx, r, g, b, outcolor);
+							compute_color (cy * fd->pixel_width + cx, r, g, b, alpha, outcolor);
 						}
 					}
 				}
@@ -1011,12 +1013,13 @@ public:
 					any_found = true;
 					int div = outcolor;
 					if (valid == ss2) {
+						alpha += 0xFF * (ss2 - outcolor);
 						r += in_color1 * (ss2 - outcolor);
 						g += in_color1 * (ss2 - outcolor);
 						b += in_color1 * (ss2 - outcolor);
 						div = ss2;
 					}
-					*data++ = ((r / div) << 16) + ((g / div) << 8) + (b / div);
+					*data++ = ((alpha / div) << 24) + ((r / div) << 16) + ((g / div) << 8) + (b / div);
 				} else if (valid) {
 					*data++ = rp.incol;
 				} else
@@ -2190,6 +2193,8 @@ void MainWindow::slot_batchrender (bool)
 	if (!dlg.exec ())
 		return;
 
+	QSettings settings;
+
 	QProgressDialog pdlg (tr ("Rendering images..."), tr ("Abort"), 0, 100, this);
 	pdlg.setWindowModality (Qt::WindowModal);
 	pdlg.setMinimumDuration (0);
@@ -2234,9 +2239,7 @@ void MainWindow::slot_batchrender (bool)
 		int fidx = it - std::begin (formula_table);
 		int n_prev = 1;
 		if (rp.sac) {
-			QSettings settings;
 			n_prev = 1 << settings.value ("coloring/nprev").toInt ();
-
 		}
 		emit signal_compile_kernel (fidx, fp.power, fp.nwords, max_nwords, &errstr);
 		gpu_handler->done_sem.acquire ();
@@ -2268,7 +2271,8 @@ void MainWindow::slot_batchrender (bool)
 		renderer.queued = true;
 		renderer.next_rp = rp;
 		renderer.render_width = w;
-		renderer.result_image = QImage (w, h, QImage::Format_RGB32);
+		bool alpha = settings.value ("render/alpha").toBool ();
+		renderer.result_image = QImage (w, h, alpha ? QImage::Format_ARGB32 : QImage::Format_RGB32);
 		int maxiter = default_maxiter;
 		int dlg_maxiter = dlg.get_maxiter ();
 		int prev_maxiter = fp.maxiter_found;
