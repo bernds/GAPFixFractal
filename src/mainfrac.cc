@@ -815,7 +815,7 @@ public:
 				double avg1 = thisnp > 1 ? sum / (thisnp - 1) : 0;
 				double avg2 = (sum + firstval) / thisnp;
 				double radius = fd->dem ? 10 : 100;
-				double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (fd->power);
+				double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (power);
 				double mod = avg1 * mixfactor + avg2 * (1 - mixfactor);
 				found_stripe_min = std::min (mod, found_stripe_min);
 				found_stripe_max = std::max (mod, found_stripe_max);
@@ -833,7 +833,7 @@ public:
 				double re2 = re * re;
 				double im2 = im * im;
 				double radius = fd->dem ? 10 : 100;
-				double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (fd->power);
+				double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (power);
 				double cmag = sqrt (cre * cre + cim * cim);
 				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
 				if (cmag == 0)
@@ -844,7 +844,7 @@ public:
 					double lastre = fd->pic_zprev[idx * 2 * n_prev + i * 2];
 					double lastim = fd->pic_zprev[idx * 2 * n_prev + i * 2 + 1];
 					double mag = sqrt (re2 + im2);
-                                        double zlmag = pow (lastre * lastre + lastim * lastim, fd->power / 2.0);
+                                        double zlmag = pow (lastre * lastre + lastim * lastim, power / 2.0);
                                         mag -= zlmag - cmag;
 					mag /= 2 * cmag;
 					if (i == 1)
