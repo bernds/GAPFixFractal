@@ -22,12 +22,16 @@ inline bool formula_supports_dem (formula f)
 	return f == formula::standard || f == formula::lambda || f == formula::mix;
 }
 
-inline int n_formula_cplx_vals (formula, bool dem)
+/* The number of real values that the kernel needs, and which must be preserved across
+   invocations.  */
+inline int n_formula_real_vals (formula, bool dem)
 {
 	/* Z, C (as computed from the coords), and possibly ZDER.  */
-	return dem ? 3 : 2;
+	return dem ? 6 : 4;
 }
 
+/* The number of integer values that the kernel needs, and which must be preserved across
+   invocations.  */
 inline int n_formula_int_vals (formula, bool /* dem */)
 {
 	/* ZPIDX - the index into the zprev array.  */

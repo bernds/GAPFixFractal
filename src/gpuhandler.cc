@@ -212,7 +212,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		printf ("init fail\n");
 
 	double iter_scale_factor = 1;
-	int n_cvals = n_formula_cplx_vals (fd->fm, fd->dem);
+	int n_rvals = n_formula_real_vals (fd->fm, fd->dem);
 	int n_ivals = n_formula_int_vals (fd->fm, fd->dem);
 
 	for (;;) {
@@ -280,7 +280,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		}
 		bool fail = false;
 		fail |= cuMemcpyDtoH (fd->host_cplxvals, fd->cu_ar_cplxvals,
-				      4 * fd->nwords * 2 * n_cvals * maxidx) != CUDA_SUCCESS;
+				      4 * fd->nwords * n_rvals * maxidx) != CUDA_SUCCESS;
 		fail |= cuMemcpyDtoH (fd->host_result, fd->cu_ar_result, 4 * maxidx) != CUDA_SUCCESS;
 		fail |= cuMemcpyDtoH (fd->host_zprev, fd->cu_ar_zprev, sizeof (double) * fd->n_prev * 2 * maxidx) != CUDA_SUCCESS;
 		fail |= cuMemcpyDtoH (fd->host_intvals, fd->cu_ar_intvals, sizeof (int) * n_ivals * maxidx) != CUDA_SUCCESS;
@@ -289,7 +289,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		uint32_t j = 0;
 		int w = fd->pixel_width;
 		int full_h = fd->full_height;
-		size_t z_size = fd->nwords * 2 * n_cvals;
+		size_t z_size = fd->nwords * n_rvals;
 		int prev_size = 2 * fd->n_prev;
 		size_t deroff = fd->nwords * 2 * 2;
 		int compact_count = 0;
@@ -365,7 +365,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 
 		if (j > 0 && j != maxidx) {
 			fail |= cuMemcpyHtoD (fd->cu_ar_cplxvals, fd->host_cplxvals,
-					      4 * fd->nwords * 2 * n_cvals * j) != CUDA_SUCCESS;
+					      4 * fd->nwords * n_rvals * j) != CUDA_SUCCESS;
 			fail |= cuMemcpyHtoD (fd->cu_ar_zprev, fd->host_zprev, sizeof (double) * fd->n_prev * 2 * j) != CUDA_SUCCESS;
 			fail |= cuMemcpyHtoD (fd->cu_ar_intvals, fd->host_intvals, sizeof (int) * n_ivals * j) != CUDA_SUCCESS;
 		}
@@ -473,10 +473,10 @@ void GPU_handler::slot_alloc_mem (frac_desc *fd, int max_nwords, int nwords, int
 	try {
 		int nthreads = w * h;
 		if (fd->cu_ar_origin == 0) {
-			int n_cvals = n_formula_cplx_vals (fd->fm, fd->dem);
+			int n_rvals = n_formula_real_vals (fd->fm, fd->dem);
 			int n_ivals = n_formula_int_vals (fd->fm, fd->dem);
 			tryCuda (cuMemAlloc (&fd->cu_ar_origin, 4 * nwords * 2 * nthreads));
-			tryCuda (cuMemAlloc (&fd->cu_ar_cplxvals, 4 * nwords * 2 * n_cvals * nthreads));
+			tryCuda (cuMemAlloc (&fd->cu_ar_cplxvals, 4 * nwords * n_rvals * nthreads));
 			tryCuda (cuMemAlloc (&fd->cu_ar_step, 4 * max_nwords));
 			tryCuda (cuMemAlloc (&fd->cu_ar_result, 4 * nthreads));
 			tryCuda (cuMemAlloc (&fd->cu_ar_coords, 4 * nthreads));

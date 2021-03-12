@@ -63,7 +63,7 @@ struct frac_desc : public frac_params
 	int pixel_step;
 	int samples = 1;
 	bool dem = false;
-	int ncvals_allocated = 0;
+	int nrvals_allocated = 0;
 	int nivals_allocated = 0;
 
 	bit_array pixels_done, pixels_started, pic_pixels_done;

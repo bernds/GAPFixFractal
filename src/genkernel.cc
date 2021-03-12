@@ -1935,7 +1935,7 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power,
 			   "u32", "maxidx", "u64", "ar_result", "u32", "count", "u32", "init",
 			   "u32", "hybrid_code", "u32", "hybrid_mask");
 
-	int n_cvals = n_formula_cplx_vals (f, dem);
+	int n_rvals = n_formula_real_vals (f, dem);
 	int n_ivals = n_formula_int_vals (f, dem);
 
 	QString kernel_init = R"(
@@ -1978,7 +1978,7 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power,
 	add.u64		%ar_t, %ar_zim, %1;
 	add.u64		%ar_tim, %ar_t, %1;
 )";
-	result += kernel_init.arg (size * 4).arg (size * 2 * n_cvals).arg (4 * size + 4).arg (n_ivals);
+	result += kernel_init.arg (size * 4).arg (size * n_rvals).arg (4 * size + 4).arg (n_ivals);
 
 	if (dem) {
 		result += QString (R"(
