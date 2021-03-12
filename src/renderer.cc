@@ -303,9 +303,10 @@ public:
 					double lastre = fd->pic_zprev[idx * 2 * n_prev + i * 2];
 					double lastim = fd->pic_zprev[idx * 2 * n_prev + i * 2 + 1];
 					double mag = sqrt (re2 + im2);
-                                        double zlmag = pow (lastre * lastre + lastim * lastim, power / 2.0);
-                                        mag -= zlmag - cmag;
-					mag /= 2 * cmag;
+					double zlmag = pow (lastre * lastre + lastim * lastim, power / 2.0);
+					double lowbound = fabs (zlmag - cmag);
+					mag -= lowbound;
+					mag /= zlmag + cmag - lowbound;
 					if (i == 1)
 						firstval = mag;
 					else
@@ -544,7 +545,11 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 			y0e = h;
 		m_pool.start (new runner (&completion_sem, &any_found, rp, w, y0, y0e, fd, minimum, data + w * y0,
 					  &new_stripe_min, &new_stripe_max, &update_mutex));
+#ifdef DEBUG_SINGLETHREAD
+		completion_sem.acquire (1);
+#else
 		n_started++;
+#endif
 	}
 	completion_sem.acquire (n_started);
 	if (!any_found)
