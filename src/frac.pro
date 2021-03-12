@@ -10,6 +10,7 @@ HEADERS		      = include/genkernel.h \
                         include/gradeditor.h \
                         include/hybriddialog.h \
                         include/mainwindow.h \
+                        include/renderer.h \
                         include/rotationdialog.h \
                         include/settings.h \
                         include/util-widgets.h
@@ -22,6 +23,7 @@ SOURCES		      = batchrender.cc \
                         gpuhandler.cc \
                         hybriddialog.cc \
                         mainfrac.cc \
+                        renderer.cc \
                         rotationdialog.cc \
                         settings.cc \
                         util-widgets.cc \

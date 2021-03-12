@@ -1,12 +1,11 @@
 #include <QMainWindow>
-#include <QMutex>
 #include <QGraphicsScene>
 #include <QImage>
 #include <QTimer>
-#include <QThreadPool>
 
 #include "fpvec.h"
 #include "fractal.h"
+#include "render-params.h"
 
 // RAII wrapper around temporarily setting m_inhibit_updates in MainWindow
 class bool_changer
@@ -33,32 +32,6 @@ namespace Ui
 class ClickablePixmap;
 class QActionGroup;
 
-struct render_params
-{
-	QVector<uint32_t> palette;
-	uint32_t incol;
-	int mod_type;
-	double steps;
-	int slider;
-	int sub_val;
-	int angle;
-	bool sub;
-	bool sac, tia, sac_contrast;
-	double sac_factor;
-	bool dem_colour, angle_colour;
-	bool dem;
-	bool dem_shade;
-	uint32_t dem_start, dem_stop;
-	uint32_t bin_a, bin_b;
-	double dem_param, dem_strength;
-	// Used for stored parameters, holds either the aspect set in the GUI,
-	// or, if that is disabled, the image dimensions.
-	double aspect;
-	// Minimum niter value, stored for batch rendering (which is done
-	// piecewise and therefor cannot compute it)
-	double minimum;
-};
-
 struct stored_params
 {
 	frac_params fp;
@@ -81,31 +54,7 @@ struct stored_preview {
 	stored_preview &operator= (stored_preview &&) = default;
 };
 
-class Renderer : public QObject
-{
-	Q_OBJECT
-	QThreadPool m_pool;
-	double m_minimum = 0;
-	int m_min_gen = -1;
-
-public:
-
-	// One big mutex around the drawing function
-	QMutex mutex;
-
-	// Communication with Mainwindow
-	QMutex queue_mutex;
-	bool queued = false;
-	render_params next_rp;
-	int render_width, render_height;
-	QImage result_image;
-
-	void do_render (const render_params &rp, int w, int h, int yoff, frac_desc *, QGraphicsView *, int);
-	void slot_render (frac_desc *, QGraphicsView *, int);
-	void set_minimum (double m, int gen) { m_minimum = m; m_min_gen = gen; }
-signals:
-	void signal_render_complete (QGraphicsView *, frac_desc *, QImage, double);
-};
+class Renderer;
 
 class MainWindow: public QMainWindow
 {
@@ -204,7 +153,6 @@ class MainWindow: public QMainWindow
 	double chosen_aspect ();
 	void update_aspect ();
 	void update_views (int = 0);
-	const QVector<uint32_t> &palette_from_index (int);
 	void update_palette ();
 	void update_fractal_type (int = 0);
 	void adjust_width_for_bounds (frac_desc &);
