@@ -898,9 +898,9 @@ public:
 			}
 			else if (rp.angle == 2) {
 				if (im < 0)
-					col = 0;
+					col = rp.bin_a;
 				else if (!rp.angle_colour)
-					col = 0xFFFFFFFF;
+					col = rp.bin_b;
 			}
 			double dem_shade = 1;
 			if (rp.dem || rp.dem_shade) {
@@ -1153,6 +1153,8 @@ void MainWindow::set_render_params (render_params &p)
 	p.dem_strength = ui->demStrengthSpinBox->value ();
 	p.dem_start = m_dem_start;
 	p.dem_stop = m_dem_stop;
+	p.bin_a = m_bin_a;
+	p.bin_b = m_bin_b;
 	p.aspect = chosen_aspect ();
 }
 
@@ -1701,7 +1703,7 @@ void MainWindow::update_dem_settings (QAction *)
 		update_views ();
 }
 
-void MainWindow::update_dem_color_buttons ()
+void MainWindow::update_color_buttons ()
 {
 	QPixmap p (16, 16);
 	p.fill (QColor::fromRgb (m_dem_start));
@@ -1711,6 +1713,14 @@ void MainWindow::update_dem_color_buttons ()
 	p2.fill (QColor::fromRgb (m_dem_stop));
 	QIcon i2 (p2);
 	ui->DEMEndButton->setIcon (i2);
+	QPixmap p3 (16, 16);
+	p3.fill (QColor::fromRgb (m_bin_a));
+	QIcon i3 (p3);
+	ui->BinAButton->setIcon (i3);
+	QPixmap p4 (16, 16);
+	p4.fill (QColor::fromRgb (m_bin_b));
+	QIcon i4 (p4);
+	ui->BinBButton->setIcon (i4);
 }
 
 void MainWindow::choose_dem_color (int col)
@@ -1721,7 +1731,19 @@ void MainWindow::choose_dem_color (int col)
 		m_dem_start = n.rgb ();
 	else
 		m_dem_stop = n.rgb ();
-	update_dem_color_buttons ();
+	update_color_buttons ();
+	update_views ();
+}
+
+void MainWindow::choose_bin_color (int col)
+{
+	QColor old = QColor::fromRgb (col == 0 ? m_bin_a : m_bin_b);
+	QColor n = QColorDialog::getColor (old, this, tr ("Choose a color for the DEM gradient"));
+	if (col == 0)
+		m_bin_a = n.rgb ();
+	else
+		m_bin_b = n.rgb ();
+	update_color_buttons ();
 	update_views ();
 }
 
@@ -2572,9 +2594,11 @@ MainWindow::MainWindow ()
 	connect (m_sub_group, &QActionGroup::triggered, [this] (QAction *) { update_views (); });
 	connect (m_dem_group, &QActionGroup::triggered, this, &MainWindow::update_dem_settings);
 
-	update_dem_color_buttons ();
+	update_color_buttons ();
 	connect (ui->DEMStartButton, &QToolButton::clicked, [this] (bool) { choose_dem_color (0); });
 	connect (ui->DEMEndButton, &QToolButton::clicked, [this] (bool) { choose_dem_color (1); });
+	connect (ui->BinAButton, &QToolButton::clicked, [this] (bool) { choose_bin_color (0); });
+	connect (ui->BinBButton, &QToolButton::clicked, [this] (bool) { choose_bin_color (1); });
 
 	connect (ui->structureGroup, &QGroupBox::toggled, [this] (bool) { update_palette (); });
 	connect (ui->structureSlider, &QSlider::valueChanged, [this] (bool) { update_palette (); });
