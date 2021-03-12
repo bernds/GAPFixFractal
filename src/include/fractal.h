@@ -63,7 +63,8 @@ struct frac_desc : public frac_params
 	int pixel_step;
 	int samples = 1;
 	bool dem = false;
-	int nvals_allocated = 0;
+	int ncvals_allocated = 0;
+	int nivals_allocated = 0;
 
 	bit_array pixels_done, pixels_started, pic_pixels_done;
 	int n_completed = 0;
@@ -80,12 +81,12 @@ struct frac_desc : public frac_params
 
 	double *pic_iter_value;
 
-	uint32_t *host_cplxvals, *host_coords, *host_result, *host_zpidx;
+	uint32_t *host_cplxvals, *host_coords, *host_result, *host_intvals;
 	double *host_zprev;
 	CUdeviceptr cu_ar_origin = 0;
 	CUdeviceptr cu_ar_cplxvals = 0;
 	CUdeviceptr cu_ar_zprev = 0;
-	CUdeviceptr cu_ar_zpidx = 0;
+	CUdeviceptr cu_ar_intvals = 0;
 	CUdeviceptr cu_ar_result = 0;
 	CUdeviceptr cu_ar_coords = 0;
 	CUdeviceptr cu_ar_step = 0;

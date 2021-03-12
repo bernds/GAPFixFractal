@@ -24,7 +24,14 @@ inline bool formula_supports_dem (formula f)
 
 inline int n_formula_cplx_vals (formula, bool dem)
 {
+	/* Z, C (as computed from the coords), and possibly ZDER.  */
 	return dem ? 3 : 2;
+}
+
+inline int n_formula_int_vals (formula, bool /* dem */)
+{
+	/* ZPIDX - the index into the zprev array.  */
+	return 1;
 }
 
 inline int formula_scratch_space (formula f, int nwords)
