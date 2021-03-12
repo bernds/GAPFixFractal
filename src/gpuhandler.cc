@@ -472,10 +472,9 @@ void GPU_handler::slot_alloc_mem (frac_desc *fd, int max_nwords, int nwords, int
 {
 	try {
 		int nthreads = w * h;
-		if (fd->cu_ar_origin == 0) {
+		if (fd->cu_ar_cplxvals == 0) {
 			int n_rvals = n_formula_real_vals (fd->fm, fd->dem);
 			int n_ivals = n_formula_int_vals (fd->fm, fd->dem);
-			tryCuda (cuMemAlloc (&fd->cu_ar_origin, 4 * nwords * 2 * nthreads));
 			tryCuda (cuMemAlloc (&fd->cu_ar_cplxvals, 4 * nwords * n_rvals * nthreads));
 			tryCuda (cuMemAlloc (&fd->cu_ar_step, 4 * max_nwords));
 			tryCuda (cuMemAlloc (&fd->cu_ar_result, 4 * nthreads));
@@ -492,17 +491,15 @@ void GPU_handler::slot_alloc_mem (frac_desc *fd, int max_nwords, int nwords, int
 
 void GPU_handler::free_cuda_data (frac_desc *fd)
 {
-	if (fd->n_pixels == 0 || fd->cu_ar_origin == 0)
+	if (fd->n_pixels == 0 || fd->cu_ar_cplxvals == 0)
 		return;
 
-	cuMemFree (fd->cu_ar_origin);
 	cuMemFree (fd->cu_ar_cplxvals);
 	cuMemFree (fd->cu_ar_step);
 	cuMemFree (fd->cu_ar_coords);
 	cuMemFree (fd->cu_ar_result);
 	cuMemFree (fd->cu_ar_zprev);
 	cuMemFree (fd->cu_ar_intvals);
-	fd->cu_ar_origin = 0;
 	fd->cu_ar_cplxvals = 0;
 	fd->cu_ar_step = 0;
 	fd->cu_ar_coords = 0;

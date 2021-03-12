@@ -83,7 +83,6 @@ struct frac_desc : public frac_params
 
 	uint32_t *host_cplxvals, *host_coords, *host_result, *host_intvals;
 	double *host_zprev;
-	CUdeviceptr cu_ar_origin = 0;
 	CUdeviceptr cu_ar_cplxvals = 0;
 	CUdeviceptr cu_ar_zprev = 0;
 	CUdeviceptr cu_ar_intvals = 0;
