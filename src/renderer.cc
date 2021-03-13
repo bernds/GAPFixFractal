@@ -217,6 +217,68 @@ inline std::pair<double, int> iter_value_at (frac_desc *fd, int idx, int power)
 	return { v + 5 - correction, 0 };
 }
 
+static inline double compute_sac (double *prev_vals, int count, double density, double radius, double power)
+{
+	double re = prev_vals[0];
+	double im = prev_vals[1];
+	double re2 = re * re;
+	double im2 = im * im;
+	double firstval = 0.5 * sin (density * atan2 (im, re)) + 0.5;
+	double sum = 0;
+	for (int i = 1; i < count; i++) {
+		double lastre = prev_vals[i * 2];
+		double lastim = prev_vals[i * 2 + 1];
+		double val = 0.5 * sin (density * atan2 (lastim, lastre)) + 0.5;
+		sum += val;
+	}
+	double avg1 = count > 1 ? sum / (count - 1) : 0;
+	double avg2 = (sum + firstval) / count;
+	double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (power);
+	return avg1 * mixfactor + avg2 * (1 - mixfactor);
+}
+
+static inline double compute_tia (double *prev_vals, double cre, double cim, int count,
+				  double tia_power, double radius, double power)
+{
+	double re = prev_vals[0];
+	double im = prev_vals[1];
+	double re2 = re * re;
+	double im2 = im * im;
+	double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (power);
+	double cmag = sqrt (cre * cre + cim * cim);
+	if (cmag == 0)
+		count = 0;
+	double sum = 0;
+	double firstval = 0;
+	double curre = re;
+	double curim = im;
+	for (int i = 1; i < count; i++) {
+		double lastre = prev_vals[i * 2];
+		double lastim = prev_vals[i * 2 + 1];
+		double mag = sqrt (re2 + im2);
+		// We need |zprev^n|, which is (for normal formulas) equal to
+		// |z-c|.
+		double zlre = curre - cre;
+		double zlim = curim - cim;
+		double zlmag = sqrt (zlre * zlre + zlim * zlim);
+		double lowbound = fabs (zlmag - cmag);
+		double mod = mag - lowbound;
+		mod /= zlmag + cmag - lowbound;
+		mod = pow (mod, tia_power);
+		if (i == 1)
+			firstval = mod;
+		else
+			sum += mod;
+		curre = lastre;
+		curim = lastim;
+		re2 = lastre * lastre;
+		im2 = lastim * lastim;
+	}
+	double avg1 = count > 2 ? sum / (count - 2) : 0;
+	double avg2 = count > 1 ? (sum + firstval) / (count - 1) : 0;
+	return avg1 * mixfactor + avg2 * (1 - mixfactor);
+}
+
 class runner : public QRunnable
 {
 	QSemaphore *completion_sem;
@@ -228,17 +290,11 @@ class runner : public QRunnable
 	QRgb *data;
 	double dstep;
 	int power;
-	double found_stripe_min = 1.0;
-	double found_stripe_max = 0.0;
-	double *new_stripe_min, *new_stripe_max;
-	QMutex *update_mutex;
 public:
 	runner (QSemaphore *sem, std::atomic<bool> *succ_in, const render_params &rp_in,
-		int w_in, int y0_in, int y0e_in, frac_desc *fd_in, double min_in, QRgb *data_in,
-		double *nsmin, double *nsmax, QMutex *umutex)
+		int w_in, int y0_in, int y0e_in, frac_desc *fd_in, double min_in, QRgb *data_in)
 		: completion_sem (sem), success (succ_in),
-		  rp (rp_in), w (w_in), y0 (y0_in), y0e (y0e_in), fd (fd_in), minimum (min_in), data (data_in),
-		  new_stripe_min (nsmin), new_stripe_max (nsmax), update_mutex (umutex)
+		  rp (rp_in), w (w_in), y0 (y0_in), y0e (y0e_in), fd (fd_in), minimum (min_in), data (data_in)
 	{
 		setAutoDelete (true);
 	}
@@ -259,25 +315,10 @@ public:
 			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, rp.slider);
 
 			if (rp.sac && attractor == 0) {
-				double density = rp.sac_factor;
-				double re2 = re * re;
-				double im2 = im * im;
-				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
-				double firstval = 0.5 * sin (density * atan2 (im, re)) + 0.5;
-				double sum = 0;
-				for (int i = 1; i < thisnp; i++) {
-					double lastre = fd->pic_zprev[idx * 2 * n_prev + i * 2];
-					double lastim = fd->pic_zprev[idx * 2 * n_prev + i * 2 + 1];
-					double val = 0.5 * sin (density * atan2 (lastim, lastre)) + 0.5;
-					sum += val;
-				}
-				double avg1 = thisnp > 1 ? sum / (thisnp - 1) : 0;
-				double avg2 = (sum + firstval) / thisnp;
 				double radius = fd->dem ? 10 : 100;
-				double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (power);
-				double mod = avg1 * mixfactor + avg2 * (1 - mixfactor);
-				found_stripe_min = std::min (mod, found_stripe_min);
-				found_stripe_max = std::max (mod, found_stripe_max);
+				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
+				double mod = compute_sac (fd->pic_zprev + idx * 2 * n_prev, thisnp, rp.sac_factor, radius, power);
+				mod = std::clamp (mod, 0.0, 1.0);
 				double prev_width = fd->max_stripeval - fd->min_stripeval;
 				if (rp.sac_contrast)
 					mod = std::max (0.0, std::min (1.0, (mod - fd->min_stripeval) / prev_width));
@@ -286,61 +327,21 @@ public:
 				else {
 					col = 0x01010101 * floor (mod * 255);
 				}
-			} else if (rp.tia && fd->pic_t != nullptr && attractor == 0) {
+			} else if (rp.tia && attractor == 0) {
+				double radius = fd->dem ? 10 : 100;
+				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
 				double cre = fd->pic_t[idx * 2];
 				double cim = fd->pic_t[idx * 2 + 1];
-				double re2 = re * re;
-				double im2 = im * im;
-				double radius = fd->dem ? 10 : 100;
-				double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (power);
-				double cmag = sqrt (cre * cre + cim * cim);
-				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
-				if (cmag == 0)
-					thisnp = 0;
-				double sum = 0;
-				double firstval = 0;
-				double curre = re;
-				double curim = im;
-				for (int i = 1; i < thisnp; i++) {
-					double lastre = fd->pic_zprev[idx * 2 * n_prev + i * 2];
-					double lastim = fd->pic_zprev[idx * 2 * n_prev + i * 2 + 1];
-					double mag = sqrt (re2 + im2);
-					// We need |zprev^n|, which is (for normal formulas) equal to
-					// |z-c|.
-					double zlre = curre - cre;
-					double zlim = curim - cim;
-					double zlmag = sqrt (zlre * zlre + zlim * zlim);
-					double lowbound = fabs (zlmag - cmag);
-					double mod = mag - lowbound;
-					mod /= zlmag + cmag - lowbound;
-					mod = pow (mod, rp.tia_power);
-					if (i == 1)
-						firstval = mod;
-					else
-						sum += mod;
-					curre = lastre;
-					curim = lastim;
-					re2 = lastre * lastre;
-					im2 = lastim * lastim;
-				}
-				double avg1 = thisnp > 2 ? sum / (thisnp - 2) : 0;
-				double avg2 = thisnp > 1 ? (sum + firstval) / (thisnp - 1) : 0;
-				double mod = avg1 * mixfactor + avg2 * (1 - mixfactor);
-				if (mod < 0 || mod > 1)
-					// ??? This isn't supposed to happen, but let's not let it mess up
-					// the min/max values if it does happen.
-					col = rp.angle_colour ? col : 0;
+				double mod = compute_tia (fd->pic_zprev + idx * 2 * n_prev, cre, cim,
+							  thisnp, rp.tia_power, radius, power);
+				mod = std::clamp (mod, 0.0, 1.0);
+				double prev_width = fd->max_stripeval - fd->min_stripeval;
+				if (rp.sac_contrast)
+					mod = std::max (0.0, std::min (1.0, (mod - fd->min_stripeval) / prev_width));
+				if (rp.angle_colour)
+					col = modify_color (col, mod);
 				else {
-					found_stripe_min = std::min (mod, found_stripe_min);
-					found_stripe_max = std::max (mod, found_stripe_max);
-					double prev_width = fd->max_stripeval - fd->min_stripeval;
-					if (rp.sac_contrast)
-						mod = std::max (0.0, std::min (1.0, (mod - fd->min_stripeval) / prev_width));
-					if (rp.angle_colour)
-						col = modify_color (col, mod);
-					else {
-						col = 0x01010101 * floor (mod * 255);
-					}
+					col = 0x01010101 * floor (mod * 255);
 				}
 			}
 			else if (rp.angle == 1) {
@@ -498,11 +499,6 @@ public:
 		}
 		if (any_found)
 			success->store (true);
-		update_mutex->lock ();
-		*new_stripe_min = std::min (*new_stripe_min, found_stripe_min);
-		*new_stripe_max = std::max (*new_stripe_max, found_stripe_max);
-		update_mutex->unlock ();
-		// Must be outside the lock, otherwise the lock could go away from under us.
 		completion_sem->release ();
 	}
 };
@@ -532,6 +528,55 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 				minimum = v;
 		}
 	}
+	bool recompute_sactia = false;
+	if (view != nullptr) {
+		recompute_sactia = ((rp.sac && (m_sac_density != rp.sac_factor))
+				    || (rp.tia && (m_tia_power != rp.tia_power)));
+		m_tia_power = rp.tia ? rp.tia_power : 0;
+		m_sac_density = rp.sac ? rp.sac_factor : 0;
+	}
+	if ((rp.sac || rp.tia) && (gen != m_min_gen || recompute_sactia)) {
+		/* If we are in batch mode, this value should have been precomputed and the generation
+		   set up appropriately.  */
+		assert (view != nullptr);
+		/* ??? This is still suboptimal.  If we computed min/max first, we could have a smaller
+		   number of bins - 256 should be enough.  But another loop through all the pixels would
+		   be expensive.  */
+		constexpr int n_bins = 50000;
+		std::array<int, n_bins> bins {};
+		double radius = fd->dem ? 10 : 100;
+		int count = 0;
+		for (int i = 0; i < fd->n_pixels; i += 13) {
+			if (!fd->pic_pixels_done.test_bit (i))
+				continue;
+			int r = fd->pic_result[i];
+			if (r == 0)
+				continue;
+			count++;
+			double v;
+			if (rp.sac)
+				v = compute_sac (fd->pic_zprev + i * 2 * fd->n_prev, r, rp.sac_factor, radius, power);
+			else {
+				double cre = fd->pic_t[i * 2];
+				double cim = fd->pic_t[i * 2 + 1];
+				v = compute_tia (fd->pic_zprev + i * 2 * fd->n_prev, cre, cim,
+						 r, rp.tia_power, radius, power);
+			}
+			v = std::clamp (v, 0.0, 1.0);
+			bins[trunc (v * (n_bins - 1))]++;
+		}
+		double margin1 = count / (rp.sac ? 200 : 400.);
+		double margin2 = margin1 * (rp.sac ? 199 : 399.);
+		int total = 0;
+		for (int i = 0; i < n_bins; i++) {
+			int newt = total + bins[i];
+			if (total < margin1 && newt >= margin1)
+				fd->min_stripeval = (double)i / (n_bins - 1);
+			if (total < margin2 && newt >= margin2)
+				fd->max_stripeval = (double)(i + 1) / (n_bins - 1);
+			total = newt;
+		}
+	}
 	if (fd->n_completed == fd->n_pixels) {
 		m_minimum = minimum;
 		m_min_gen = gen;
@@ -545,15 +590,11 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 	int lines_per_thread = std::max (20, (h + tc - 1) / tc);
 	int n_started = 0;
 	std::atomic<bool> any_found = false;
-	double new_stripe_min = 1;
-	double new_stripe_max = 0;
-	QMutex update_mutex;
 	for (int y0 = 0; y0 < h; y0 += lines_per_thread) {
 		int y0e = y0 + lines_per_thread;
 		if (y0e > h)
 			y0e = h;
-		m_pool.start (new runner (&completion_sem, &any_found, rp, w, y0, y0e, fd, minimum, data + w * y0,
-					  &new_stripe_min, &new_stripe_max, &update_mutex));
+		m_pool.start (new runner (&completion_sem, &any_found, rp, w, y0, y0e, fd, minimum, data + w * y0));
 #ifdef DEBUG_SINGLETHREAD
 		completion_sem.acquire (1);
 #else
@@ -564,11 +605,8 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 	if (!any_found)
 		return;
 
-	if (view != nullptr) {
-		fd->min_stripeval = new_stripe_min;
-		fd->max_stripeval = new_stripe_max;
+	if (view != nullptr)
 		emit signal_render_complete (view, fd, result_image, minimum);
-	}
 }
 
 void Renderer::slot_render (frac_desc *fd, QGraphicsView *view, int generation)
@@ -577,6 +615,9 @@ void Renderer::slot_render (frac_desc *fd, QGraphicsView *view, int generation)
 	assert (queued);
 	queued = false;
 	render_params this_p = next_rp;
+	// Shouldn't happen, just making sure...
+	if (fd->pic_t == nullptr)
+		this_p.tia = false;
 	int w = render_width;
 	int h = render_height;
 	queue_mutex.unlock ();

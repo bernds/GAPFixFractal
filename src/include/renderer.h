@@ -21,7 +21,8 @@ class Renderer : public QObject
 	QThreadPool m_pool;
 	double m_minimum = 0;
 	int m_min_gen = -1;
-
+	double m_tia_power = 0;
+	double m_sac_density = 0;
 public:
 
 	// One big mutex around the drawing function
