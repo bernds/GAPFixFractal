@@ -508,6 +508,7 @@ void MainWindow::enable_sac_or_tia ()
 	bool tia = ui->action_TIA->isChecked ();
 	bool on = sac || tia;
 	ui->stripesWidget->setEnabled (sac);
+	ui->tiaWidget->setEnabled (tia);
 	if (!on) {
 		ui->superBox->setEnabled (true);
 		n_prev_requested = 1;
@@ -586,6 +587,7 @@ void MainWindow::set_render_params (render_params &p)
 	p.tia = ui->action_TIA->isChecked ();
 	p.sac = ui->action_SAC->isChecked ();
 	p.sac_factor = ui->stripesSpinBox->value ();
+	p.tia_power = ui->tiaSpinBox->value ();
 	p.sac_contrast = ui->action_Contrast->isChecked ();
 	p.sub = !ui->action_ShiftNone->isChecked ();
 	p.sub_val = ui->action_Shift10->isChecked () ? 10 : ui->action_Shift100->isChecked () ? 100 : 0;
@@ -1904,6 +1906,7 @@ MainWindow::MainWindow ()
 	ui->action_BatchRender->setEnabled (false);
 	ui->menuHybrid->setEnabled (false);
 	ui->stripesWidget->setEnabled (false);
+	ui->tiaWidget->setEnabled (false);
 	render_fractal ();
 
 	m_resize_timer.setSingleShot (true);
@@ -2019,6 +2022,7 @@ MainWindow::MainWindow ()
 	connect (ui->typeComboBox, cic, this, &MainWindow::update_fractal_type);
 	connect (ui->widthSpinBox, changed, this, &MainWindow::update_views);
 	connect (ui->stripesSpinBox, dchanged, this, &MainWindow::update_views);
+	connect (ui->tiaSpinBox, dchanged, this, &MainWindow::update_views);
 	connect (ui->modifyComboBox, cic, this, &MainWindow::update_views);
 	connect (ui->gradComboBox, cic,  [this] (int) { update_palette (); });
 	connect (ui->colStepSlider, &QSlider::valueChanged, this, &MainWindow::update_views);

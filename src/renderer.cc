@@ -313,7 +313,7 @@ public:
 					double lowbound = fabs (zlmag - cmag);
 					double mod = mag - lowbound;
 					mod /= zlmag + cmag - lowbound;
-					// mod = pow (mod, 3);
+					mod = pow (mod, rp.tia_power);
 					if (i == 1)
 						firstval = mod;
 					else
