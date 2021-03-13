@@ -422,6 +422,8 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 
 	// We need to ensure nthreads is always big enough to handle the initial_setup phase.
 	int nthreads = w * h;
+	if (n_prev > 16 && !preview && !batch)
+		nthreads = (w + 1) * (h + 1) / 4;
 	int npixels = w * h * ss * ss;
 	int n_rvals = n_formula_real_vals (fd.fm, isdem);
 	int n_ivals = n_formula_int_vals (fd.fm, isdem);
