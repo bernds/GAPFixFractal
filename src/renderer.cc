@@ -299,20 +299,29 @@ public:
 					thisnp = 0;
 				double sum = 0;
 				double firstval = 0;
+				double curre = re;
+				double curim = im;
 				for (int i = 1; i < thisnp; i++) {
 					double lastre = fd->pic_zprev[idx * 2 * n_prev + i * 2];
 					double lastim = fd->pic_zprev[idx * 2 * n_prev + i * 2 + 1];
 					double mag = sqrt (re2 + im2);
-					double zlmag = pow (lastre * lastre + lastim * lastim, power / 2.0);
+					// We need |zprev^n|, which is (for normal formulas) equal to
+					// |z-c|.
+					double zlre = curre - cre;
+					double zlim = curim - cim;
+					double zlmag = sqrt (zlre * zlre + zlim * zlim);
 					double lowbound = fabs (zlmag - cmag);
-					mag -= lowbound;
-					mag /= zlmag + cmag - lowbound;
+					double mod = mag - lowbound;
+					mod /= zlmag + cmag - lowbound;
+					// mod = pow (mod, 3);
 					if (i == 1)
-						firstval = mag;
+						firstval = mod;
 					else
-						sum += mag;
-                                        re2 = lastre * lastre;
-                                        im2 = lastim * lastim;
+						sum += mod;
+					curre = lastre;
+					curim = lastim;
+					re2 = lastre * lastre;
+					im2 = lastim * lastim;
 				}
 				double avg1 = thisnp > 2 ? sum / (thisnp - 2) : 0;
 				double avg2 = thisnp > 1 ? (sum + firstval) / (thisnp - 1) : 0;
