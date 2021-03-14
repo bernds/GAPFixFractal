@@ -279,6 +279,21 @@ static inline double compute_tia (double *prev_vals, double cre, double cim, int
 	return avg1 * mixfactor + avg2 * (1 - mixfactor);
 }
 
+static inline uint32_t color_for_sac_common (uint32_t col, double mod, const frac_desc *fd, const render_params &rp)
+{
+	mod = std::clamp (mod, 0.0, 1.0);
+
+	if (rp.sac_contrast) {
+		double prev_width = fd->max_stripeval - fd->min_stripeval;
+		mod = std::clamp ((mod - fd->min_stripeval) / prev_width, 0.0, 1.0);
+	}
+	if (rp.angle_colour)
+		col = modify_color (col, mod);
+	else
+		col = 0x01010101 * floor (mod * 255);
+	return col;
+}
+
 class runner : public QRunnable
 {
 	QSemaphore *completion_sem;
@@ -318,15 +333,7 @@ public:
 				double radius = fd->dem ? 10 : 100;
 				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
 				double mod = compute_sac (fd->pic_zprev + idx * 2 * n_prev, thisnp, rp.sac_factor, radius, power);
-				mod = std::clamp (mod, 0.0, 1.0);
-				double prev_width = fd->max_stripeval - fd->min_stripeval;
-				if (rp.sac_contrast)
-					mod = std::max (0.0, std::min (1.0, (mod - fd->min_stripeval) / prev_width));
-				if (rp.angle_colour)
-					col = modify_color (col, mod);
-				else {
-					col = 0x01010101 * floor (mod * 255);
-				}
+				col = color_for_sac_common (col, mod, fd, rp);
 			} else if (rp.tia && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
 				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
@@ -334,15 +341,7 @@ public:
 				double cim = fd->pic_t[idx * 2 + 1];
 				double mod = compute_tia (fd->pic_zprev + idx * 2 * n_prev, cre, cim,
 							  thisnp, rp.tia_power, radius, power);
-				mod = std::clamp (mod, 0.0, 1.0);
-				double prev_width = fd->max_stripeval - fd->min_stripeval;
-				if (rp.sac_contrast)
-					mod = std::max (0.0, std::min (1.0, (mod - fd->min_stripeval) / prev_width));
-				if (rp.angle_colour)
-					col = modify_color (col, mod);
-				else {
-					col = 0x01010101 * floor (mod * 255);
-				}
+				col = color_for_sac_common (col, mod, fd, rp);
 			}
 			else if (rp.angle == 1) {
 				double re2 = re * re;
