@@ -1696,7 +1696,7 @@ void MainWindow::slot_batchrender (bool)
 		auto it = std::find (std::begin (formula_table), std::end (formula_table), fp.fm);
 		int fidx = it - std::begin (formula_table);
 		int n_prev = 1;
-		if (rp.sac) {
+		if (rp.sac || rp.tia) {
 			n_prev = 1 << settings.value ("coloring/nprev").toInt ();
 		}
 		emit signal_compile_kernel (fidx, fp.power, fp.nwords, max_nwords, &errstr);
