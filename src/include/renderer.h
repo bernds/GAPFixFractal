@@ -34,6 +34,7 @@ public:
 	render_params next_rp;
 	int render_width, render_height;
 	QImage result_image;
+	std::atomic<bool> abort_render { false };
 
 	void do_render (const render_params &rp, int w, int h, int yoff, frac_desc *, QGraphicsView *, int);
 	void slot_render (frac_desc *, QGraphicsView *, int);

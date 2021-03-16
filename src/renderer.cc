@@ -297,7 +297,7 @@ static inline uint32_t color_for_sac_common (uint32_t col, double mod, const fra
 class runner : public QRunnable
 {
 	QSemaphore *completion_sem;
-	std::atomic<bool> *success;
+	std::atomic<bool> *success, *abort_render;
 	const render_params &rp;
 	int w, y0, y0e;
 	frac_desc *fd;
@@ -306,9 +306,9 @@ class runner : public QRunnable
 	double dstep;
 	int power;
 public:
-	runner (QSemaphore *sem, std::atomic<bool> *succ_in, const render_params &rp_in,
+	runner (QSemaphore *sem, std::atomic<bool> *succ_in, std::atomic<bool> *abrt, const render_params &rp_in,
 		int w_in, int y0_in, int y0e_in, frac_desc *fd_in, double min_in, QRgb *data_in)
-		: completion_sem (sem), success (succ_in),
+		: completion_sem (sem), success (succ_in), abort_render (abrt),
 		  rp (rp_in), w (w_in), y0 (y0_in), y0e (y0e_in), fd (fd_in), minimum (min_in), data (data_in)
 	{
 		setAutoDelete (true);
@@ -445,6 +445,10 @@ public:
 		if (dstep == 0)
 			dstep = DBL_EPSILON;
 		for (int y = y0; y < y0e; y++) {
+			if (abort_render->load ()) {
+				printf ("aborting at %d of %d\n", y, y0e);
+				break;
+			}
 			for (int x = 0; x < w; x++) {
 				int r = 0, g = 0, b = 0, alpha = 0;
 				int valid = 0;
@@ -593,7 +597,8 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 		int y0e = y0 + lines_per_thread;
 		if (y0e > h)
 			y0e = h;
-		m_pool.start (new runner (&completion_sem, &any_found, rp, w, y0, y0e, fd, minimum, data + w * y0));
+		m_pool.start (new runner (&completion_sem, &any_found, &abort_render,
+					  rp, w, y0, y0e, fd, minimum, data + w * y0));
 #ifdef DEBUG_SINGLETHREAD
 		completion_sem.acquire (1);
 #else
@@ -601,7 +606,7 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 #endif
 	}
 	completion_sem.acquire (n_started);
-	if (!any_found)
+	if (!any_found || abort_render)
 		return;
 
 	if (view != nullptr)
@@ -613,6 +618,7 @@ void Renderer::slot_render (frac_desc *fd, QGraphicsView *view, int generation)
 	queue_mutex.lock ();
 	assert (queued);
 	queued = false;
+	abort_render = false;
 	render_params this_p = next_rp;
 	// Shouldn't happen, just making sure...
 	if (fd->pic_t == nullptr)

@@ -832,6 +832,7 @@ void MainWindow::preview_wheel_event (QWheelEvent *e)
 	fd.bounds_w = fd.bounds_h = 0;
 
 	m_preview_uptodate = false;
+	m_preview_renderer->abort_render.store (true);
 	restart_computation ();
 }
 
@@ -900,9 +901,11 @@ void MainWindow::fractal_mouse_event (QMouseEvent *e)
 
 		if (ui->typeComboBox->currentIndex () == 1) {
 			m_reinit_render = true;
+			m_renderer->abort_render.store (true);
 			restart_computation ();
 		} else if (ui->previewView->isVisible ()) {
 			m_preview_uptodate = false;
+			m_preview_renderer->abort_render.store (true);
 			restart_computation ();
 		}
 	} else {
@@ -911,6 +914,7 @@ void MainWindow::fractal_mouse_event (QMouseEvent *e)
 			fd.center_y = b;
 		}
 		abort_computation ();
+		m_renderer->abort_render.store (true);
 		fd.bounds_w = fd.bounds_h = 0;
 		fd.width = div1 (mul1 (fd.width, 2), 5);
 		autoprec (fd);
@@ -925,6 +929,8 @@ void MainWindow::update_settings (bool reset)
 	if (m_inhibit_updates)
 		return;
 
+	m_renderer->abort_render.store (true);
+	m_preview_renderer->abort_render.store (true);
 	m_nwords = ui->precSpinBox->value ();
 	int power = ui->powerSpinBox->value ();
 	if (m_power != power || m_fd_julia.nwords != m_nwords || m_fd_mandel.nwords != m_nwords
@@ -943,10 +949,13 @@ void MainWindow::update_views (int)
 {
 	// No need to update in response to user inputs if we're going into slot_new_data again soon.
 	if (!gpu_handler->processing_data) {
+		m_renderer->abort_render.store (true);
 		update_display (ui->fractalView);
 	}
-	if (m_preview_uptodate)
+	if (m_preview_uptodate) {
+		m_preview_renderer->abort_render.store (true);
 		update_display (ui->previewView);
+	}
 }
 
 frac_desc &MainWindow::current_fd ()
