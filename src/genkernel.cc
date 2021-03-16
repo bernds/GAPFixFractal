@@ -1754,6 +1754,37 @@ void gen_inner_facing_b (int size, int power, bool /* julia */, cplx_reg zreg, c
 	zreg.store (sum);
 }
 
+// Another variant of "Cczcpaczcp". This one is c(z^-n - (n/2)z^-2), where n is one more than the chosen power
+void gen_inner_rings (int size, int power, bool /* julia */, cplx_reg zreg, cplx_val creg)
+{
+	/* Compute the division first and then the powers - that's better for maintaining precision.  */
+	auto const0 = make_shared<const_expr<0>> (size);
+	auto const1 = make_shared<const_expr<1>> (size);
+	cplx_val one { const1, const0 };
+	cplx_val zval { zreg };
+	auto zinv = emit_complex_div (one, zval);
+
+	array<cplx_val, 20> powers;
+	build_powers (powers, zinv, power + 1);
+	cplx_val pwr = get_power (powers, power + 1);
+	cplx_val pwr2 = get_power (powers, 2);
+
+	if (power & 1) {
+		cplx_val p2mp = gen_mult_int (pwr2, (power + 1) / 2);
+		auto sum = emit_complex_sub (pwr, p2mp);
+		auto newz = emit_complex_mult (sum, creg);
+		zreg.store (newz);
+	} else {
+		cplx_val p2m2 = gen_mult_int (pwr2, power + 1);
+		auto p2mp2r = make_shared<arshift_expr<1>> (p2m2.re);
+		auto p2mp2i = make_shared<arshift_expr<1>> (p2m2.im);
+		cplx_val p2mp2 { p2mp2r, p2mp2i };
+		auto sum = emit_complex_sub (pwr, p2mp2);
+		auto newz = emit_complex_mult (sum, creg);
+		zreg.store (newz);
+	}
+}
+
 void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg creg)
 {
 	array<cplx_val, 20> powers;
@@ -1848,6 +1879,9 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 		break;
 	case formula::facing_b:
 		gen_inner_facing_b (size, power, julia, zreg, cval);
+		break;
+	case formula::rings:
+		gen_inner_rings (size, power, julia, zreg, cval);
 		break;
 	}
 }
@@ -2164,7 +2198,7 @@ skip2:
 @%cont	bra		skip;
 bailout:
 )";
-	result += loop_end.arg (z2r_high, z2i_high, dem || f == formula::testing ? "100" : "10000");
+	result += loop_end.arg (z2r_high, z2i_high, dem ? "100" : "10000");
 
 	result += "\tst.global.u32\t[%ar_result], %niter;\n";
 
