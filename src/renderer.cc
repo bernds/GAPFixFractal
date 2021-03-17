@@ -555,6 +555,7 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 			int r = fd->pic_result[i];
 			if (r == 0)
 				continue;
+			r = std::min (fd->n_prev, r);
 			count++;
 			double v;
 			if (rp.sac)
@@ -623,6 +624,8 @@ void Renderer::slot_render (frac_desc *fd, QGraphicsView *view, int generation)
 	// Shouldn't happen, just making sure...
 	if (fd->pic_t == nullptr)
 		this_p.tia = false;
+	if (fd->n_prev == 1)
+		this_p.sac = this_p.tia = false;
 	int w = render_width;
 	int h = render_height;
 	queue_mutex.unlock ();
