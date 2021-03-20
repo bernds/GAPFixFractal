@@ -214,7 +214,8 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 	double iter_scale_factor = 1;
 	int n_rvals = n_formula_real_vals (fd->fm, fd->dem);
 	int n_ivals = n_formula_int_vals (fd->fm, fd->dem);
-
+	int n_dvals = n_formula_extra_doubles (fd->fm, fd->dem);
+	int dbl_count = fd->n_prev * 2 + n_dvals;
 	for (;;) {
 		uint32_t count = steps * iter_scale_factor;
 		uint32_t maxidx = fd->n_threads;
@@ -282,7 +283,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		fail |= cuMemcpyDtoH (fd->host_cplxvals, fd->cu_ar_cplxvals,
 				      4 * fd->nwords * n_rvals * maxidx) != CUDA_SUCCESS;
 		fail |= cuMemcpyDtoH (fd->host_result, fd->cu_ar_result, 4 * maxidx) != CUDA_SUCCESS;
-		fail |= cuMemcpyDtoH (fd->host_zprev, fd->cu_ar_zprev, sizeof (double) * fd->n_prev * 2 * maxidx) != CUDA_SUCCESS;
+		fail |= cuMemcpyDtoH (fd->host_zprev, fd->cu_ar_zprev, sizeof (double) * dbl_count * maxidx) != CUDA_SUCCESS;
 		fail |= cuMemcpyDtoH (fd->host_intvals, fd->cu_ar_intvals, sizeof (int) * n_ivals * maxidx) != CUDA_SUCCESS;
 
 		qint64 ms = std::max ((qint64)5, timer.elapsed ());
@@ -290,11 +291,10 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		int w = fd->pixel_width;
 		int full_h = fd->full_height;
 		size_t z_size = fd->nwords * n_rvals;
-		int prev_size = 2 * fd->n_prev;
 		size_t deroff = fd->nwords * 2 * 2;
 		int compact_count = 0;
 		int compact_first = 0;
-		auto compact = [&fd, &compact_count, &compact_first, z_size, prev_size, n_ivals] (int j) -> int {
+		auto compact = [&fd, &compact_count, &compact_first, z_size, dbl_count, n_ivals] (int j) -> int {
 			int c = compact_count;
 			int f = compact_first;
 			compact_first += c + 1;
@@ -302,8 +302,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 				return c;
 			memmove (&fd->host_coords[j], &fd->host_coords[f], 4 * compact_count);
 			memmove (&fd->host_cplxvals[j * z_size], &fd->host_cplxvals[f * z_size], z_size * 4 * compact_count);
-			memmove (&fd->host_zprev[j * prev_size], &fd->host_zprev[f * prev_size],
-				prev_size * sizeof (double) * compact_count);
+			memmove (&fd->host_zprev[j * dbl_count], &fd->host_zprev[f * dbl_count], dbl_count * sizeof (double) * compact_count);
 			memmove (&fd->host_intvals[j * n_ivals], &fd->host_intvals[f * n_ivals], 4 * n_ivals * compact_count);
 			compact_count = 0;
 			return c;
@@ -329,11 +328,13 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 					fd->pic_zder[idx * 2 + 1] = to_double (&fd->host_cplxvals[i * z_size + deroff + fd->nwords], fd->nwords);
 				}
 				int zpidx = fd->host_intvals[i * n_ivals];
-				int base_idx = idx * 2 * fd->n_prev;
-				int base_i = i * 2 * fd->n_prev;
+				int base_idx = idx * fd->n_prev * 2;
+				int base_i = i * dbl_count;
 				int first_count = fd->n_prev - zpidx;
 				memcpy (fd->pic_zprev + base_idx, fd->host_zprev + base_i + zpidx * 2, 2 * first_count * sizeof (double));
 				memcpy (fd->pic_zprev + base_idx + 2 * first_count, fd->host_zprev + base_i, 2 * (fd->n_prev - first_count) * sizeof (double));
+				if (n_dvals > 0)
+					memcpy (fd->pic_doubles + idx * n_dvals, fd->host_zprev + base_i + 2 * fd->n_prev, n_dvals * sizeof (double));
 				fd->pixels_done.set_bit (idx);
 				fd->n_completed++;
 			} else {
@@ -349,6 +350,8 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 						fd->pic_zder[idx * 2] = to_double (&fd->host_cplxvals[i * z_size + deroff], fd->nwords);
 						fd->pic_zder[idx * 2 + 1] = to_double (&fd->host_cplxvals[i * z_size + deroff + fd->nwords], fd->nwords);
 					}
+					if (n_dvals > 0)
+						memcpy (fd->pic_doubles + idx * n_dvals, fd->host_zprev + i * dbl_count + 2 * fd->n_prev, n_dvals * sizeof (double));
 					fd->pixels_done.set_bit (idx);
 					fd->n_completed++;
 				} else if (i != j) {
@@ -366,7 +369,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		if (j > 0 && j != maxidx) {
 			fail |= cuMemcpyHtoD (fd->cu_ar_cplxvals, fd->host_cplxvals,
 					      4 * fd->nwords * n_rvals * j) != CUDA_SUCCESS;
-			fail |= cuMemcpyHtoD (fd->cu_ar_zprev, fd->host_zprev, sizeof (double) * fd->n_prev * 2 * j) != CUDA_SUCCESS;
+			fail |= cuMemcpyHtoD (fd->cu_ar_zprev, fd->host_zprev, sizeof (double) * dbl_count * j) != CUDA_SUCCESS;
 			fail |= cuMemcpyHtoD (fd->cu_ar_intvals, fd->host_intvals, sizeof (int) * n_ivals * j) != CUDA_SUCCESS;
 		}
 
@@ -475,11 +478,12 @@ void GPU_handler::slot_alloc_mem (frac_desc *fd, int max_nwords, int nwords, int
 		if (fd->cu_ar_cplxvals == 0) {
 			int n_rvals = n_formula_real_vals (fd->fm, fd->dem);
 			int n_ivals = n_formula_int_vals (fd->fm, fd->dem);
+			int n_dvals = n_formula_extra_doubles (fd->fm, fd->dem);
 			tryCuda (cuMemAlloc (&fd->cu_ar_cplxvals, 4 * nwords * n_rvals * nthreads));
 			tryCuda (cuMemAlloc (&fd->cu_ar_step, 4 * max_nwords));
 			tryCuda (cuMemAlloc (&fd->cu_ar_result, 4 * nthreads));
 			tryCuda (cuMemAlloc (&fd->cu_ar_coords, 4 * nthreads));
-			tryCuda (cuMemAlloc (&fd->cu_ar_zprev, 2 * fd->n_prev * sizeof (double) * nthreads));
+			tryCuda (cuMemAlloc (&fd->cu_ar_zprev, (2 * fd->n_prev + n_dvals) * sizeof (double) * nthreads));
 			tryCuda (cuMemAlloc (&fd->cu_ar_intvals, sizeof (int) * n_ivals * nthreads));
 		}
 	} catch (const char *err) {

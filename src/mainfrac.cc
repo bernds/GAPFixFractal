@@ -408,7 +408,7 @@ void MainWindow::discard_fd_data (frac_desc &fd)
 	delete[] fd.pic_zprev;
 	delete[] fd.pic_t;
 	delete[] fd.pic_result;
-	delete[] fd.pic_iter_value;
+	delete[] fd.pic_doubles;
 	fd.n_pixels = 0;
 }
 
@@ -427,6 +427,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 	int npixels = w * h * ss * ss;
 	int n_rvals = n_formula_real_vals (fd.fm, isdem);
 	int n_ivals = n_formula_int_vals (fd.fm, isdem);
+	int n_dvals = n_formula_extra_doubles (fd.fm, isdem);
 	if (fd.nrvals_allocated != n_rvals || fd.nivals_allocated != n_ivals || fd.samples != ss
 	    || fd.n_pixels != npixels
 	    || fd.n_threads != nthreads
@@ -448,7 +449,7 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 		fd.samples = ss;
 
 		fd.host_cplxvals = new uint32_t[nwords * n_rvals * nthreads];
-		fd.host_zprev = new double[n_prev * 2 * nthreads];
+		fd.host_zprev = new double[(n_prev * 2 + n_dvals) * nthreads];
 		fd.host_intvals = new uint32_t[nthreads * n_ivals];
 		fd.host_coords = new uint32_t[nthreads];
 		fd.host_result = new uint32_t[nthreads];
@@ -463,7 +464,9 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 		fd.pic_result = new uint32_t[npixels];
 		fd.pixels_done = bit_array (npixels);
 		fd.pixels_started = bit_array (npixels);
-		fd.pic_iter_value = nullptr;
+		fd.pic_doubles = nullptr;
+		if (n_dvals > 0)
+			fd.pic_doubles = new double[n_dvals * npixels];
 	}
 	fd.full_height = full_h * ss;
 	fd.cmin = 10000;
@@ -478,8 +481,6 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 	fd.pixels_done.clear ();
 	fd.pixels_started.clear ();
 	memset (fd.pic_result, 0, npixels * sizeof (uint32_t));
-	if (fd.pic_iter_value != nullptr)
-		memset (fd.pic_iter_value, 0, npixels * sizeof (double));
 	if (fd.dem)
 		memset (fd.pic_zder, 0, 2 * npixels * sizeof (double));
 	fd.maxiter = preview ? iter_steps : maxiter;

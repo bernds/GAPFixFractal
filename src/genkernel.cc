@@ -1971,6 +1971,7 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power,
 
 	int n_rvals = n_formula_real_vals (f, dem);
 	int n_ivals = n_formula_int_vals (f, dem);
+	int n_dvals = n_formula_extra_doubles (f, dem);
 
 	QString kernel_init = R"(
 	.reg.s32 %idx, %tidx, %ctaidx, %ntidx, %n_prev, %nprev_mask, %npoff;
@@ -1989,8 +1990,10 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power,
 	setp.lt.s32     %pinit, %idx, %init;
 
 	.reg.u64	%addroff, %iaddroff, %ar_zpidx;
-	mul.lo.u32	%npoff, %idx, %n_prev;
-	mul.lo.u32	%npoff, %npoff, 16;
+	add.u32		%npoff, %n_prev, %5;
+	add.u32		%npoff, %npoff, %n_prev;
+	mul.lo.u32	%npoff, %npoff, %idx;
+	mul.lo.u32	%npoff, %npoff, 8;
 	mul.lo.u32	%idx, %idx, 4;
 	cvt.u64.u32	%addroff, %idx;
 	add.u64		%ar_result, %ar_result, %addroff;
@@ -2012,7 +2015,7 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power,
 	add.u64		%ar_t, %ar_zim, %1;
 	add.u64		%ar_tim, %ar_t, %1;
 )";
-	result += kernel_init.arg (size * 4).arg (size * n_rvals).arg (4 * size + 4).arg (n_ivals);
+	result += kernel_init.arg (size * 4).arg (size * n_rvals).arg (4 * size + 4).arg (n_ivals).arg (n_dvals);
 
 	if (dem) {
 		result += QString (R"(

@@ -79,7 +79,7 @@ struct frac_desc : public frac_params
 	double *pic_zder;
 	uint32_t *pic_result;
 
-	double *pic_iter_value;
+	double *pic_doubles;
 
 	uint32_t *host_cplxvals, *host_coords, *host_result, *host_intvals;
 	double *host_zprev;

@@ -38,6 +38,11 @@ inline int n_formula_int_vals (formula, bool /* dem */)
 	return 1;
 }
 
+inline int n_formula_extra_doubles (formula, bool /* dem */)
+{
+	return 0;
+}
+
 inline int formula_scratch_space (formula f, int nwords)
 {
 	if (f == formula::magnet_a || f == formula::facing || f == formula::facing_b || f == formula::rings)
