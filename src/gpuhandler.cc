@@ -304,7 +304,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			memmove (&fd->host_cplxvals[j * z_size], &fd->host_cplxvals[f * z_size], z_size * 4 * compact_count);
 			memmove (&fd->host_zprev[j * prev_size], &fd->host_zprev[f * prev_size],
 				prev_size * sizeof (double) * compact_count);
-			memmove (&fd->host_intvals[j], &fd->host_intvals[f], 4 * n_ivals * compact_count);
+			memmove (&fd->host_intvals[j * n_ivals], &fd->host_intvals[f * n_ivals], 4 * n_ivals * compact_count);
 			compact_count = 0;
 			return c;
 		};

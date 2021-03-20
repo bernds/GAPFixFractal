@@ -1996,7 +1996,7 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power,
 	add.u64		%ar_result, %ar_result, %addroff;
 	add.u64		%ar_coords, %ar_coords, %addroff;
 	cvt.u64.u32	%iaddroff, %idx;
-	mul.lo.u64	%addroff, %addroff, %4;
+	mul.lo.u64	%iaddroff, %iaddroff, %4;
 	add.u64		%ar_zpidx, %ar_intvals, %iaddroff;
 	mul.lo.u64	%addroff, %addroff, %2;
 	add.u64		%ar_z, %ar_z, %addroff;
