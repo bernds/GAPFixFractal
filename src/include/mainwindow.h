@@ -133,6 +133,7 @@ class MainWindow: public QMainWindow
 	void inc_rotation (frac_desc &, int);
 	void set_rotation (frac_desc &, double);
 	void enter_rotation (bool);
+	void enter_location (bool);
 	double shear_slider_value ();
 	double scale_slider_value ();
 	void build_points (frac_desc &, int w, int h);

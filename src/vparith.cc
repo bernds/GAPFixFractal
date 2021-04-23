@@ -2,6 +2,8 @@
 #include <cassert>
 #include <cmath>
 
+#include <QString>
+
 #include "fpvec.h"
 
 /* These are some crummy versions operating on the fixed-point values we use on
@@ -38,6 +40,75 @@ void set (vpvec &v, double d)
 		d = d * 4 * (1 << 30);
 	}
 	v = val;
+}
+
+QString to_string (vpvec src, int prec)
+{
+	int sz = src.size ();
+	bool neg = false;
+	if (src[sz - 1] & 0x80000000) {
+		vpvec zero (sz, 0);
+		src = sub (zero, src);
+		neg = true;
+	}
+	QString n = QString::number (src[sz - 1]);
+	if (neg)
+		n = "-" + n;
+	QString frac = ".";
+	for (int i = 0; i < (prec - 1) * 11; i++) {
+		src[sz - 1] = 0;
+		bool found = false;
+		for (auto val: src)
+			if (val != 0) {
+				found = true;
+				break;
+			}
+		if (!found)
+			break;
+		src = mul1 (src, 10);
+		frac += QChar ('0' + src[sz - 1]);
+	}
+	if (frac != ".")
+		n += frac;
+	return n;
+}
+
+vpvec from_string (QString str, int sz)
+{
+	if (str.isEmpty ())
+		throw invalid_decimal_string ();
+	bool neg = str[0] == '-';
+	if (neg)
+		str.remove (0, 1);
+	int decimal = str.indexOf ('.', 0);
+	QString fraction = "0";
+	QString nonfrac = str;
+	if (decimal != -1) {
+		nonfrac = str.section ('.', 0, 0);
+		fraction = str.section ('.', 1);
+	}
+	bool ok;
+	int nonfrac_int = nonfrac.toInt (&ok);
+	if (!ok)
+		throw invalid_decimal_string ();
+	vpvec result (sz, 0);
+	while (!fraction.isEmpty ()) {
+		QString tmp = fraction.right (8);
+		fraction.chop (tmp.size ());
+		result[sz - 1] = tmp.toInt (&ok);
+		if (!ok)
+			throw invalid_decimal_string ();
+		int d = 1;
+		for (int i = 0; i < tmp.size (); i++)
+			d *= 10;
+		result = div1 (result, d);
+	}
+	result[sz - 1] = nonfrac_int;
+	if (neg) {
+		vpvec zero (sz, 0);
+		result = sub (zero, result);
+	}
+	return result;
 }
 
 vpvec add (const vpvec &srca, const vpvec &srcb)

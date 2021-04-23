@@ -310,6 +310,7 @@
     </property>
     <addaction name="action_AimAssist"/>
     <addaction name="separator"/>
+    <addaction name="action_Coordinates"/>
     <addaction name="action_Reset"/>
    </widget>
    <addaction name="menuFile"/>
@@ -2205,6 +2206,11 @@
    </property>
    <property name="toolTip">
     <string>Rings</string>
+   </property>
+  </action>
+  <action name="action_Coordinates">
+   <property name="text">
+    <string>&amp;Coordinates...</string>
    </property>
   </action>
  </widget>

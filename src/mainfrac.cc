@@ -29,6 +29,7 @@
 #include "colors.h"
 
 #include "rotationdialog.h"
+#include "locationdialog.h"
 #include "batchrender.h"
 #include "settings.h"
 #include "mainwindow.h"
@@ -360,6 +361,34 @@ void MainWindow::enter_rotation (bool)
 	connect (&dlg, &RotationDialog::apply_rotation,
 		 [this, &fd] (double v) { printf ("rotate %f\n", v);set_rotation (fd, v); update_settings (false); });
 	dlg.exec ();
+}
+
+void MainWindow::enter_location (bool)
+{
+	auto &fd = current_fd ();
+	QString cx = to_string (fd.center_x, m_nwords);
+	QString cy = to_string (fd.center_y, m_nwords);
+	QString w = to_string (fd.width, m_nwords);
+	LocationDialog dlg (this, cx, cy, w);
+	if (!dlg.exec ())
+		return;
+	QString newcx = dlg.get_cx ();
+	QString newcy = dlg.get_cy ();
+	QString neww = dlg.get_w ();
+	if (newcx == cx && newcy == cy && neww == w)
+		return;
+	try {
+		vpvec newv_cx = from_string (newcx, max_nwords);
+		vpvec newv_cy = from_string (newcy, max_nwords);
+		vpvec newv_w = from_string (neww, max_nwords);
+		fd.center_x = newv_cx;
+		fd.center_y = newv_cy;
+		fd.width = newv_w;
+		update_settings (false);
+	} catch (invalid_decimal_string) {
+		QMessageBox::warning (this, PACKAGE, tr ("Invalid number entered."));
+		return;
+	}
 }
 
 double MainWindow::shear_slider_value ()
@@ -2083,6 +2112,7 @@ MainWindow::MainWindow ()
 		 [this] (bool) { if (!ui->action_AngleNone->isChecked ()) update_views (); });
 
 	connect (ui->action_Reset, &QAction::triggered, this, &MainWindow::do_reset);
+	connect (ui->action_Coordinates, &QAction::triggered, this, &MainWindow::enter_location);
 
 	connect (ui->pauseButton, &QPushButton::toggled, this, &MainWindow::do_pause);
 	connect (ui->windDownButton, &QPushButton::clicked, this, &MainWindow::do_wind_down);
