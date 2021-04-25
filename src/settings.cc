@@ -2,6 +2,8 @@
 #include <QPushButton>
 #include <QFileDialog>
 
+#include <algorithm>
+
 #include "settings.h"
 #include "ui_prefs.h"
 #include "mainwindow.h"
@@ -48,6 +50,9 @@ PrefsDialog::PrefsDialog (MainWindow *w) : QDialog (w), ui (new Ui::PrefsDialog)
 	connect (ui->nprevSlider, &QSlider::valueChanged, [this] (int v) { update_gui (); });
 	int nprev = settings.value ("coloring/nprev").toInt ();
 	ui->nprevSlider->setValue (nprev);
+	int filesel = settings.value ("filesel").toInt ();
+	filesel = std::clamp (filesel, 0, 1);
+	ui->fileselComboBox->setCurrentIndex (filesel);
 	update_gui ();
 }
 
@@ -72,5 +77,6 @@ void PrefsDialog::slot_accept ()
 	settings.setValue ("largemem", ui->largememBox->isChecked ());
 	settings.setValue ("coloring/nosuper-sac", ui->noSuperCheckBox->isChecked ());
 	settings.setValue ("render/alpha", ui->alphaCheckBox->isChecked ());
+	settings.setValue ("filesel", ui->fileselComboBox->currentIndex ());
 	accept ();
 }

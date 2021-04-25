@@ -1389,6 +1389,9 @@ void MainWindow::slot_save_as (bool)
 	QSettings settings;
 	QString ipath = settings.value ("paths/images").toString ();
 	QFileDialog dlg (this, tr ("Save image file"), ipath, "PNG (*.png)");
+	int filesel = settings.value ("filesel").toInt ();
+	if (filesel == 0)
+		dlg.setOption (QFileDialog::DontUseNativeDialog);
 	dlg.setAcceptMode (QFileDialog::AcceptSave);
 	dlg.setDefaultSuffix (".png");
 	if (!dlg.exec ()) {
@@ -1418,6 +1421,9 @@ void MainWindow::slot_save_params ()
 	QSettings settings;
 	QString ppath = settings.value ("paths/params").toString ();
 	QFileDialog dlg (this, tr ("Save parameters"), ppath, "GFF fractal params (*.fparm)");
+	int filesel = settings.value ("filesel").toInt ();
+	if (filesel == 0)
+		dlg.setOption (QFileDialog::DontUseNativeDialog);
 	dlg.setAcceptMode (QFileDialog::AcceptSave);
 	dlg.setDefaultSuffix (".fparm");
 	if (!dlg.exec ()) {
@@ -1452,6 +1458,9 @@ void MainWindow::slot_load_params ()
 	QSettings settings;
 	QString ppath = settings.value ("paths/params").toString ();
 	QFileDialog dlg (this, tr ("Load parameters"), ppath, "GFF fractal params (*.fparm)");
+	int filesel = settings.value ("filesel").toInt ();
+	if (filesel == 0)
+		dlg.setOption (QFileDialog::DontUseNativeDialog);
 	dlg.setAcceptMode (QFileDialog::AcceptOpen);
 	dlg.setFileMode (QFileDialog::ExistingFile);
 	dlg.setDefaultSuffix (".fparm");
@@ -1490,6 +1499,9 @@ void MainWindow::slot_save_palette ()
 	QSettings settings;
 	QString cpath = settings.value ("paths/palettes").toString ();
 	QFileDialog dlg (this, tr ("Save parameters"), cpath, "GFF fractal palette (*.fpal)");
+	int filesel = settings.value ("filesel").toInt ();
+	if (filesel == 0)
+		dlg.setOption (QFileDialog::DontUseNativeDialog);
 	dlg.setAcceptMode (QFileDialog::AcceptSave);
 	dlg.setDefaultSuffix (".fpal");
 	if (!dlg.exec ()) {
@@ -1524,6 +1536,9 @@ void MainWindow::slot_load_palette ()
 	QSettings settings;
 	QString cpath = settings.value ("paths/palettes").toString ();
 	QFileDialog dlg (this, tr ("Load parameters"), cpath, "GFF fractal palette (*.fpal)");
+	int filesel = settings.value ("filesel").toInt ();
+	if (filesel == 0)
+		dlg.setOption (QFileDialog::DontUseNativeDialog);
 	dlg.setAcceptMode (QFileDialog::AcceptOpen);
 	dlg.setFileMode (QFileDialog::ExistingFile);
 	dlg.setDefaultSuffix (".fpal");
