@@ -369,7 +369,7 @@ void MainWindow::enter_location (bool)
 	QString cx = to_string (fd.center_x, m_nwords);
 	QString cy = to_string (fd.center_y, m_nwords);
 	QString w = to_string (fd.width, m_nwords);
-	LocationDialog dlg (this, cx, cy, w);
+	LocationDialog dlg (this, LocationDialog::type::location, cx, cy, w);
 	if (!dlg.exec ())
 		return;
 	QString newcx = dlg.get_cx ();
@@ -385,6 +385,62 @@ void MainWindow::enter_location (bool)
 		fd.center_y = newv_cy;
 		fd.width = newv_w;
 		update_settings (false);
+	} catch (invalid_decimal_string) {
+		QMessageBox::warning (this, PACKAGE, tr ("Invalid number entered."));
+		return;
+	}
+}
+
+void MainWindow::enter_q (bool)
+{
+	auto &fd = current_fd ();
+	vpvec qx (max_nwords, 0);
+	vpvec qy (max_nwords, 0);
+	memcpy (&qx[0], &fd.param_q[0], max_nwords * sizeof (uint32_t));
+	memcpy (&qy[0], &fd.param_q[max_nwords], max_nwords * sizeof (uint32_t));
+	QString cx = to_string (qx, m_nwords);
+	QString cy = to_string (qy, m_nwords);
+	LocationDialog dlg (this, LocationDialog::type::paramq, cx, cy);
+	if (!dlg.exec ())
+		return;
+	QString newcx = dlg.get_cx ();
+	QString newcy = dlg.get_cy ();
+	if (newcx == cx && newcy == cy)
+		return;
+	try {
+		qx = from_string (newcx, max_nwords);
+		qy = from_string (newcy, max_nwords);
+		memcpy (&m_fd_julia.param_q[0], &qx[0], max_nwords * sizeof (uint32_t));
+		memcpy (&m_fd_julia.param_q[max_nwords], &qy[0], max_nwords * sizeof (uint32_t));
+		m_fd_mandel.param_q = m_fd_julia.param_q;
+		update_settings (false);
+	} catch (invalid_decimal_string) {
+		QMessageBox::warning (this, PACKAGE, tr ("Invalid number entered."));
+		return;
+	}
+}
+
+void MainWindow::enter_p (bool)
+{
+	vpvec px (max_nwords, 0);
+	vpvec py (max_nwords, 0);
+	memcpy (&px[0], &m_fd_julia.param_p[0], max_nwords * sizeof (uint32_t));
+	memcpy (&py[0], &m_fd_julia.param_p[max_nwords], max_nwords * sizeof (uint32_t));
+	QString cx = to_string (px, m_nwords);
+	QString cy = to_string (py, m_nwords);
+	LocationDialog dlg (this, LocationDialog::type::paramp, cx, cy);
+	if (!dlg.exec ())
+		return;
+	QString newcx = dlg.get_cx ();
+	QString newcy = dlg.get_cy ();
+	if (newcx == cx && newcy == cy)
+		return;
+	try {
+		px = from_string (newcx, max_nwords);
+		py = from_string (newcy, max_nwords);
+		memcpy (&m_fd_julia.param_p[0], &px[0], max_nwords * sizeof (uint32_t));
+		memcpy (&m_fd_julia.param_p[max_nwords], &py[0], max_nwords * sizeof (uint32_t));
+		update_julia_settings ();
 	} catch (invalid_decimal_string) {
 		QMessageBox::warning (this, PACKAGE, tr ("Invalid number entered."));
 		return;
@@ -929,15 +985,7 @@ void MainWindow::fractal_mouse_event (QMouseEvent *e)
 		memcpy (&m_fd_julia.param_p[0], &a[0], max_nwords * sizeof (uint32_t));
 		memcpy (&m_fd_julia.param_p[max_nwords], &b[0], max_nwords * sizeof (uint32_t));
 
-		if (ui->typeComboBox->currentIndex () == 1) {
-			m_reinit_render = true;
-			m_renderer->abort_render.store (true);
-			restart_computation ();
-		} else if (ui->previewView->isVisible ()) {
-			m_preview_uptodate = false;
-			m_preview_renderer->abort_render.store (true);
-			restart_computation ();
-		}
+		update_julia_settings ();
 	} else {
 		if (!shf) {
 			fd.center_x = a;
@@ -973,6 +1021,20 @@ void MainWindow::update_settings (bool reset)
 	} else
 		autoprec (current_fd ());
 	restart_computation ();
+}
+
+void MainWindow::update_julia_settings ()
+{
+	m_preview_uptodate = false;
+	if (ui->typeComboBox->currentIndex () == 1) {
+		m_reinit_render = true;
+		m_renderer->abort_render.store (true);
+		restart_computation ();
+	} else if (ui->previewView->isVisible ()) {
+		m_preview_uptodate = false;
+		m_preview_renderer->abort_render.store (true);
+		restart_computation ();
+	}
 }
 
 void MainWindow::update_views (int)
@@ -1167,6 +1229,7 @@ void MainWindow::enable_interface_for_formula (formula f)
 	ui->action_q_1->setEnabled (f == formula::mix);
 	ui->action_q_m1->setEnabled (f == formula::mix);
 	ui->action_q_2->setEnabled (f == formula::mix);
+	ui->action_q_enter->setEnabled (f == formula::mix);
 }
 
 void MainWindow::formula_chosen (formula f, int power)
@@ -2021,6 +2084,12 @@ MainWindow::MainWindow ()
 	m_incolor_group->addAction (ui->action_ICBlack);
 	m_incolor_group->addAction (ui->action_ICWhite);
 
+	m_q_group = new QActionGroup (this);
+	m_q_group->addAction (ui->action_q_1);
+	m_q_group->addAction (ui->action_q_2);
+	m_q_group->addAction (ui->action_q_m1);
+	m_q_group->addAction (ui->action_q_enter);
+
 	m_angles_group = new QActionGroup (this);
 	m_angles_group->addAction (ui->action_AngleNone);
 	m_angles_group->addAction (ui->action_AngleSmooth);
@@ -2160,6 +2229,8 @@ MainWindow::MainWindow ()
 	connect (ui->action_q_1, &QAction::triggered, [this] (bool) { set_q (1, 0); update_settings (true); });
 	connect (ui->action_q_m1, &QAction::triggered, [this] (bool) { set_q (-1, 0); update_settings (true); });
 	connect (ui->action_q_2, &QAction::triggered, [this] (bool) { set_q (2, 0); update_settings (true); });
+	connect (ui->action_q_enter, &QAction::triggered, this, &MainWindow::enter_q);
+	connect (ui->action_p_enter, &QAction::triggered, this, &MainWindow::enter_p);
 
 	connect (ui->action_FD2, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 2); });
 	connect (ui->action_FD3, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 3); });
@@ -2244,6 +2315,8 @@ MainWindow::~MainWindow ()
 	delete m_dem_group;
 	delete m_angles_group;
 	delete m_hybrid_group;
+	delete m_incolor_group;
+	delete m_q_group;
 	delete ui;
 }
 

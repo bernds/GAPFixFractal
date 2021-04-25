@@ -17,7 +17,8 @@ class LocationDialog : public QDialog
 	Ui::LocationDialog *ui;
 
 public:
-	LocationDialog (QMainWindow *, const QString &, const QString &, const QString &);
+	enum class type { location, paramp, paramq };
+	LocationDialog (QMainWindow *, type, const QString &, const QString &, const QString & = QString ());
 	~LocationDialog ();
 	QString get_cx ();
 	QString get_cy ();

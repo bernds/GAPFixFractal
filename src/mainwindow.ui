@@ -190,6 +190,7 @@
      <addaction name="action_q_1"/>
      <addaction name="action_q_m1"/>
      <addaction name="action_q_2"/>
+     <addaction name="action_q_enter"/>
     </widget>
     <widget class="QMenu" name="menuTransform">
      <property name="title">
@@ -206,6 +207,7 @@
     <addaction name="menu_Precision"/>
     <addaction name="menuFormula"/>
     <addaction name="menuPower"/>
+    <addaction name="action_p_enter"/>
     <addaction name="menuChoose_parameter_q"/>
     <addaction name="menuTransform"/>
    </widget>
@@ -2211,6 +2213,22 @@
   <action name="action_Coordinates">
    <property name="text">
     <string>&amp;Coordinates...</string>
+   </property>
+  </action>
+  <action name="action_q_enter">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Enter manually</string>
+   </property>
+  </action>
+  <action name="action_p_enter">
+   <property name="text">
+    <string>Enter Julia parameter</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+P</string>
    </property>
   </action>
  </widget>

@@ -6,13 +6,21 @@
 #include "locationdialog.h"
 #include "ui_location.h"
 
-LocationDialog::LocationDialog (QMainWindow *w, const QString &cx, const QString &cy, const QString &r)
+LocationDialog::LocationDialog (QMainWindow *w, type t, const QString &cx, const QString &cy, const QString &r)
 	: QDialog (w), ui (new Ui::LocationDialog)
 {
 	ui->setupUi (this);
 	ui->centerXEdit->setText (cx);
 	ui->centerYEdit->setText (cy);
 	ui->radiusEdit->setText (r);
+	if (t == type::location)
+		return;
+	ui->xLabel->setText (tr ("Parameter re:"));
+	ui->yLabel->setText (tr ("Parameter im:"));
+	if (t == type::paramp)
+		setWindowTitle (tr ("Julia set parameter"));
+	else
+		setWindowTitle (tr ("Formula parameter q"));
 }
 
 LocationDialog::~LocationDialog ()

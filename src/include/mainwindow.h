@@ -119,6 +119,7 @@ class MainWindow: public QMainWindow
 	QActionGroup *m_rotate_group {};
 	QActionGroup *m_angles_group {};
 	QActionGroup *m_incolor_group {};
+	QActionGroup *m_q_group {};
 
 	int m_last_pal_idx = 0;
 	QVector<uint32_t> m_palette;
@@ -134,6 +135,8 @@ class MainWindow: public QMainWindow
 	void set_rotation (frac_desc &, double);
 	void enter_rotation (bool);
 	void enter_location (bool);
+	void enter_q (bool);
+	void enter_p (bool);
 	double shear_slider_value ();
 	double scale_slider_value ();
 	void build_points (frac_desc &, int w, int h);
@@ -146,6 +149,7 @@ class MainWindow: public QMainWindow
 
 	void autoprec (frac_desc &);
 	void update_settings (bool);
+	void update_julia_settings ();
 	void update_dem_settings (QAction *);
 
 	// double iter_value_at (frac_desc &, int);
