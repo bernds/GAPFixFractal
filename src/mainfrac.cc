@@ -70,8 +70,48 @@ QDataStream &operator<< (QDataStream &s, const frac_params &fp)
 	return s;
 }
 
+/* Helper functions to deal with parameter files saved with a different value of max_nwords.  */
+static void resize_vector (QVector<uint32_t> &vec, int sz)
+{
+	int vsz = vec.size ();
+	if (vsz == sz)
+		return;
+
+	if (vsz < sz) {
+		QVector<uint32_t> padded (sz - vsz, 0);
+		padded.append (vec);
+		vec = padded;
+	} else {
+		vec.remove (0, vsz - sz);
+	}
+}
+
+static void resize_cplx_vector (QVector<uint32_t> &vec, int sz)
+{
+	int vsz = vec.size ();
+	if (vsz == sz * 2)
+		return;
+
+	int vhalf = vsz / 2;
+	if (vhalf < sz) {
+		QVector<uint32_t> zeros (sz - vhalf, 0);
+		QVector<uint32_t> padded = zeros;
+		QVector<uint32_t> low = vec;
+		QVector<uint32_t> high = vec;
+		low.remove (vhalf, vhalf);
+		high.remove (0, vhalf);
+		padded.append (low);
+		padded.append (zeros);
+		padded.append (high);
+	} else {
+		vec.remove (vhalf, vhalf - sz);
+		vec.remove (0, vhalf - sz);
+	}
+}
+
 QDataStream &operator>> (QDataStream &s, frac_params &fp)
 {
+	int fp_nwords = fp.width.size ();
 	qint32 version;
 	qint32 fm;
 	s >> version;
@@ -80,6 +120,13 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 	fp.fm = (formula)fm;
 	QVector<uint32_t> vcx, vcy, vwidth, vparam, vparamq, vcrit;
 	s >> vcx >> vcy >> vwidth >> vparam >> vparamq >> vcrit;
+	resize_vector (vcx, fp_nwords);
+	resize_vector (vcy, fp_nwords);
+	resize_vector (vwidth, fp_nwords);
+	resize_cplx_vector (vparam, fp_nwords);
+	resize_cplx_vector (vparamq, fp_nwords);
+	resize_cplx_vector (vcrit, fp_nwords);
+
 	fp.center_x = vcx.toStdVector ();
 	fp.center_y = vcy.toStdVector ();
 	fp.width = vwidth.toStdVector ();
