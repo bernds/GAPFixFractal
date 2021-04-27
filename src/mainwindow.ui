@@ -313,6 +313,7 @@
     <addaction name="action_AimAssist"/>
     <addaction name="separator"/>
     <addaction name="action_Coordinates"/>
+    <addaction name="action_CenterJ"/>
     <addaction name="action_Reset"/>
    </widget>
    <addaction name="menuFile"/>
@@ -2229,6 +2230,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+P</string>
+   </property>
+  </action>
+  <action name="action_CenterJ">
+   <property name="text">
+    <string>Center on &amp;Julia parameter</string>
    </property>
   </action>
  </widget>

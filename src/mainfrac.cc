@@ -438,6 +438,17 @@ void MainWindow::enter_location (bool)
 	}
 }
 
+void MainWindow::center_j (bool)
+{
+	vpvec px (max_nwords, 0);
+	vpvec py (max_nwords, 0);
+	memcpy (&px[0], &m_fd_julia.param_p[0], max_nwords * sizeof (uint32_t));
+	memcpy (&py[0], &m_fd_julia.param_p[max_nwords], max_nwords * sizeof (uint32_t));
+	m_fd_mandel.center_x = px;
+	m_fd_mandel.center_y = py;
+	update_settings (false);
+}
+
 void MainWindow::enter_q (bool)
 {
 	auto &fd = current_fd ();
@@ -1402,6 +1413,7 @@ void MainWindow::zoom_in (bool)
 
 void MainWindow::update_fractal_type (int t)
 {
+	ui->action_CenterJ->setEnabled (t != 1);
 	ui->previewDock->setVisible (t == 2);
 	ui->storePreviewButton->setEnabled (t == 2);
 	update_settings (false);
@@ -2244,6 +2256,7 @@ MainWindow::MainWindow ()
 
 	connect (ui->action_Reset, &QAction::triggered, this, &MainWindow::do_reset);
 	connect (ui->action_Coordinates, &QAction::triggered, this, &MainWindow::enter_location);
+	connect (ui->action_CenterJ, &QAction::triggered, this, &MainWindow::center_j);
 
 	connect (ui->pauseButton, &QPushButton::toggled, this, &MainWindow::do_pause);
 	connect (ui->windDownButton, &QPushButton::clicked, this, &MainWindow::do_wind_down);
