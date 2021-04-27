@@ -134,6 +134,16 @@ static int linear_to_srgb (double v)
 	return nv * 255;
 }
 
+static bool is_white (uint32_t col)
+{
+	return (col & 0xFFFFFF) == 0xFFFFFF;
+}
+
+static bool is_black (uint32_t col)
+{
+	return (col & 0xFFFFFF) == 0;
+}
+
 QVector<uint32_t> interpolate_colors (const QVector<uint32_t> &src, int steps, int hue_shift, bool trad,
 				      bool narrow_blacks, bool narrow_whites, int nfactor)
 {
@@ -165,8 +175,8 @@ QVector<uint32_t> interpolate_colors (const QVector<uint32_t> &src, int steps, i
 		uint32_t nextc = src[(i + 1) % count];
 
 		int inc = 1;
-		if (((thisc == 0 || nextc == 0) && narrow_blacks)
-		    || ((thisc == 0xFFFFFF || nextc == 0xFFFFFF) && narrow_whites))
+		if (((is_black (thisc) || is_black (nextc)) && narrow_blacks)
+		    || ((is_white (thisc) || is_white (nextc)) && narrow_whites))
 			inc = nfactor;
 		for (int step = 0; step < steps; step += inc) {
 			double nr = linear_to_srgb (cubic_vector_offs (rvals, i, (double)step / steps));
