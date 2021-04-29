@@ -1700,6 +1700,9 @@
    <property name="text">
     <string>&amp;Load parameters...</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
   </action>
   <action name="action_StructLight">
    <property name="checkable">
