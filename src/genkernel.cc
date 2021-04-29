@@ -1005,6 +1005,10 @@ public:
 	{
 		return m_reg;
 	}
+	bool have_squared ()
+	{
+		return m_square_val != nullptr;
+	}
 	shared_ptr<expr> squared ()
 	{
 		if (m_square_val == nullptr) {
@@ -1061,6 +1065,10 @@ public:
 		shared_ptr<expr> dst = make_shared<reg_expr> (m_abs_val->length (), "sgn");
 		gen_cond_negate (&*dst, &*m_abs_val, m_neg_pred);
 		return dst;
+	}
+	bool have_squared ()
+	{
+		return m_square_val != nullptr;
 	}
 	shared_ptr<expr> squared ()
 	{
@@ -1444,9 +1452,45 @@ void cplx_reg::store (const cplx_val &v)
 	im.store (v.im);
 }
 
+constexpr int mult_alg_cutoff = 3;
+cplx_val emit_complex_mult (cplx_val &va, cplx_val &vb)
+{
+	if (va.re.ex ()->length () < mult_alg_cutoff) {
+		// (a+ib) * (c+id) = ac - bd + i(bc + ad)
+		real_val rp1_expr = gen_mult (va.re, vb.re);
+		real_val rp2_expr = gen_mult (va.im, vb.im);
+
+		real_val ip1_expr = gen_mult (va.re, vb.im);
+		real_val ip2_expr = gen_mult (va.im, vb.re);
+
+		auto re = make_shared<addsub_expr> ("sub", rp1_expr, rp2_expr);
+		auto im = make_shared<addsub_expr> ("add", ip1_expr, ip2_expr);
+		return { re, im };
+	}
+	// k1 = c(a + b)
+	// k2 = a(d − c)
+	// k3 = b(c + d)
+	// re = k1 − k3
+	// im = k1 + k2.
+	real_val sum1 (make_shared<addsub_expr> ("add", va.re, va.im));
+	real_val sum2 (make_shared<addsub_expr> ("sub", vb.im, vb.re));
+	real_val sum3 (make_shared<addsub_expr> ("add", vb.re, vb.im));
+	real_val k1 = gen_mult (vb.re, sum1);
+	real_val k2 = gen_mult (va.re, sum2);
+	real_val k3 = gen_mult (va.im, sum3);
+	auto re = make_shared<addsub_expr> ("sub", k1, k3);
+	auto im = make_shared<addsub_expr> ("add", k1, k2);
+	return { re, im };
+}
+
 template<class C>
 cplx_val emit_complex_sqr (C &v)
 {
+	if (!v.re.have_squared () && !v.im.have_squared ()) {
+		cplx_val vc (v);
+		return emit_complex_mult (vc, vc);
+	}
+
 	auto sqre = v.re.squared ();
 	auto sqim = v.im.squared ();
 
@@ -1457,20 +1501,6 @@ cplx_val emit_complex_sqr (C &v)
 
 	auto re = make_shared<addsub_expr> ("sub", sqre, sqim);
 	auto im = make_shared<addsub_expr> ("add", tmp, tmp);
-	return { re, im };
-}
-
-cplx_val emit_complex_mult (cplx_val &va, cplx_val &vb)
-{
-	// (a+ib) * (c+id) = ac - bd + i(bc + ad)
-	real_val rp1_expr = gen_mult (va.re, vb.re);
-	real_val rp2_expr = gen_mult (va.im, vb.im);
-
-	real_val ip1_expr = gen_mult (va.re, vb.im);
-	real_val ip2_expr = gen_mult (va.im, vb.re);
-
-	auto re = make_shared<addsub_expr> ("sub", rp1_expr, rp2_expr);
-	auto im = make_shared<addsub_expr> ("add", ip1_expr, ip2_expr);
 	return { re, im };
 }
 
