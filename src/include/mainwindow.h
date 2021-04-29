@@ -31,6 +31,7 @@ namespace Ui
 
 class ClickablePixmap;
 class QActionGroup;
+class QDataStream;
 
 struct stored_params
 {
@@ -192,6 +193,7 @@ class MainWindow: public QMainWindow
 	void slot_save_as (bool);
 	void slot_save_params ();
 	void slot_load_params ();
+	void load_params (QDataStream *);
 	void slot_save_palette ();
 	void slot_load_palette ();
 	void slot_batchrender (bool);
@@ -213,7 +215,7 @@ protected:
 	void closeEvent(QCloseEvent *event) override;
 
 public:
-	MainWindow ();
+	MainWindow (QDataStream * = nullptr);
 	~MainWindow ();
 
 signals:

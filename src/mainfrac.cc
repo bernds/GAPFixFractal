@@ -1550,6 +1550,19 @@ void MainWindow::slot_load_params ()
 	m_recompile = true;
 }
 
+void MainWindow::load_params (QDataStream *str)
+{
+	abort_computation ();
+
+	frac_params newfd;
+	newfd.resize (max_nwords);
+	*str >> newfd;
+	restore_params (newfd);
+
+	m_recompile = true;
+	restart_computation ();
+}
+
 void MainWindow::slot_save_palette ()
 {
 	bool_changer (m_paused, true);
@@ -2022,7 +2035,7 @@ void MainWindow::choose_hybrid (bool on)
 	update_settings (true);
 }
 
-MainWindow::MainWindow ()
+MainWindow::MainWindow (QDataStream *init_file)
 	: ui (new Ui::MainWindow)
 {
 	ui->setupUi (this);
@@ -2377,6 +2390,9 @@ MainWindow::MainWindow ()
 	addActions ({ ui->action_AngleSmooth  });
 	addActions ({ ui->action_SaveImageAs });
 	addActions ({ ui->action_GradEditor });
+
+	if (init_file != nullptr)
+		load_params (init_file);
 }
 
 MainWindow::~MainWindow ()
@@ -2402,13 +2418,13 @@ int main (int argc, char **argv)
 
 	myapp.setOrganizationName ("bernds");
 	myapp.setApplicationName (PACKAGE);
-#if 0
+
 	QCommandLineParser cmdp;
 
 	cmdp.addHelpOption ();
+	cmdp.addPositionalArgument ("file", QObject::tr ("Load parameter <file>."));
 
 	cmdp.process (myapp);
-#endif
 
 	QSettings settings;
 	if (!settings.contains ("coloring/nosuper-sac"))
@@ -2421,9 +2437,24 @@ int main (int argc, char **argv)
 		settings.setValue ("helpshown", true);
 	}
 
-	auto w = new MainWindow ();
+	const QStringList args = cmdp.positionalArguments ();
+	if (args.size () > 1) {
+		fprintf (stderr, "Too many arguments\n");
+	}
+	QDataStream *ds = nullptr;
+	QString filename = args.size () > 0 ? args[0] : QString ();
+	QFile f (filename);
+	if (!filename.isEmpty () && f.exists ()) {
+		if (!f.open (QIODevice::ReadOnly)) {
+			fprintf (stderr, "Could not open file.\n");
+		} else
+			ds = new QDataStream (&f);
+	}
+
+	auto w = new MainWindow (ds);
 	w->show ();
 	auto retval = myapp.exec ();
-
+	if (ds != nullptr)
+		delete ds;
 	return retval;
 }
