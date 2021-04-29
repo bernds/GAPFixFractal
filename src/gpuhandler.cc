@@ -65,6 +65,7 @@ static uint32_t encode_coord (int x, int y, int w, int h)
 
 int GPU_handler::initial_setup (frac_desc *fd)
 {
+	fd->total_time = 0;
 	int w = fd->pixel_width;
 	int h = fd->pixel_height;
 	int pstep = fd->pixel_step;
@@ -287,6 +288,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		fail |= cuMemcpyDtoH (fd->host_intvals, fd->cu_ar_intvals, sizeof (int) * n_ivals * maxidx) != CUDA_SUCCESS;
 
 		qint64 ms = std::max ((qint64)5, timer.elapsed ());
+		fd->total_time += ms;
 		uint32_t j = 0;
 		int w = fd->pixel_width;
 		int full_h = fd->full_height;
@@ -383,8 +385,10 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		if (!processing_data && !batch) {
 			emit signal_new_data (fd, generation, !fail);
 		}
-		if (fd->n_completed == fd->n_pixels)
+		if (fd->n_completed == fd->n_pixels) {
+			printf ("total time in kernel: %ld ms (%f us per pixel)\n", fd->total_time, (double)fd->total_time * 1000. / fd->n_pixels);
 			break;
+		}
 		if (ms < 500 || ms > 1000) {
 			iter_scale_factor = std::max (0.1, std::min (iter_scale_factor * 500. / ms, 100.));
 		}
@@ -511,4 +515,3 @@ void GPU_handler::free_cuda_data (frac_desc *fd)
 	fd->cu_ar_zprev = 0;
 	fd->cu_ar_intvals = 0;
 }
-
