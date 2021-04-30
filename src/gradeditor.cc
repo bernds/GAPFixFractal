@@ -172,8 +172,11 @@ void GradEditor::handle_doubleclick ()
 			 m_tmp_colors[i.row ()] = c.rgb ();
 			 emit colors_changed (m_tmp_colors);
 		 });
-	if (dlg.exec ())
+	if (dlg.exec ()) {
+		notice_change_for_undo ();
 		m_model->change (i, dlg.selectedColor ().rgb ());
+		m_undo_stack[m_undo_pos] = m_model->entries ();
+	}
 	emit colors_changed (m_model->entries ());
 	update_color_selection ();
 }
