@@ -309,6 +309,18 @@ void GradEditor::update_color_selection ()
 	generate_vimg ();
 	update_cursors ();
 	m_changed = false;
+
+	bool single = selected.length () == 1;
+	ui->hsView->setEnabled (single);
+	ui->vView->setEnabled (single);
+	if (single) {
+		ui->hsView->setForegroundBrush (Qt::NoBrush);
+		ui->vView->setForegroundBrush (Qt::NoBrush);
+	} else {
+		QBrush br (Qt::white, Qt::Dense6Pattern);
+		ui->hsView->setForegroundBrush (br);
+		ui->vView->setForegroundBrush (br);
+	}
 }
 
 void GradEditor::perform_delete ()
@@ -322,7 +334,7 @@ void GradEditor::perform_delete ()
 
 	QModelIndex i = selected.first ();
 	int row = i.row ();
-	m_model->removeRows (row, 1);
+	m_model->removeRows (row, selected.length ());
 	push_undo ();
 	enable_buttons ();
 
