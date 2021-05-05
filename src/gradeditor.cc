@@ -353,7 +353,11 @@ void GradEditor::perform_delete ()
 	m_model->removeRows (row, selected.length ());
 	push_undo ();
 	enable_buttons ();
-
+	if (row >= m_model->rowCount ())
+		row--;
+	auto new_idx = m_model->index (row, 0);
+	sel->select (new_idx, QItemSelectionModel::Select);
+	ui->colorList->scrollTo (new_idx);
 	emit colors_changed (m_model->entries ());
 }
 
