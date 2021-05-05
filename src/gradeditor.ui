@@ -96,92 +96,10 @@
             <property name="bottomMargin">
              <number>0</number>
             </property>
-            <item row="5" column="0" colspan="2">
-             <widget class="QPushButton" name="interpolateButton">
-              <property name="text">
-               <string>Interpolate 2x</string>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="1">
-             <widget class="QPushButton" name="redoButton">
-              <property name="text">
-               <string>&amp;Redo</string>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="0">
-             <widget class="QPushButton" name="undoButton">
-              <property name="text">
-               <string>&amp;Undo</string>
-              </property>
-             </widget>
-            </item>
-            <item row="4" column="0" colspan="5">
-             <widget class="Line" name="line">
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-             </widget>
-            </item>
-            <item row="8" column="1">
-             <spacer name="verticalSpacer_2">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>1</width>
-                <height>2</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="0">
-             <widget class="QPushButton" name="deleteButton">
-              <property name="text">
-               <string>&amp;Delete</string>
-              </property>
-             </widget>
-            </item>
-            <item row="3" column="0" colspan="2">
-             <widget class="QLabel" name="label">
-              <property name="text">
-               <string>Global hue rotation:</string>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="3">
-             <widget class="QPushButton" name="pasteAfterButton">
-              <property name="text">
-               <string>Paste &amp;after</string>
-              </property>
-             </widget>
-            </item>
             <item row="1" column="1">
              <widget class="QPushButton" name="copyButton">
               <property name="text">
                <string>C&amp;opy</string>
-              </property>
-             </widget>
-            </item>
-            <item row="3" column="2" colspan="3">
-             <widget class="QSlider" name="hueSlider">
-              <property name="maximum">
-               <number>359</number>
-              </property>
-              <property name="pageStep">
-               <number>30</number>
-              </property>
-              <property name="orientation">
-               <enum>Qt::Horizontal</enum>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <widget class="QPushButton" name="pasteButton">
-              <property name="text">
-               <string>&amp;Paste</string>
               </property>
              </widget>
             </item>
@@ -198,18 +116,135 @@
               </property>
              </spacer>
             </item>
-            <item row="6" column="0" colspan="2">
-             <widget class="QPushButton" name="dupButton">
+            <item row="2" column="1">
+             <widget class="QPushButton" name="redoButton">
               <property name="text">
-               <string>Dup all</string>
+               <string>&amp;Redo</string>
               </property>
              </widget>
             </item>
-            <item row="6" column="2" colspan="2">
-             <widget class="QPushButton" name="revDupButton">
+            <item row="1" column="0">
+             <widget class="QPushButton" name="deleteButton">
               <property name="text">
-               <string>Reverse dup</string>
+               <string>&amp;Delete</string>
               </property>
+             </widget>
+            </item>
+            <item row="1" column="3">
+             <widget class="QPushButton" name="pasteAfterButton">
+              <property name="text">
+               <string>Paste &amp;after</string>
+              </property>
+             </widget>
+            </item>
+            <item row="5" column="0">
+             <widget class="QLabel" name="label">
+              <property name="text">
+               <string>Hue rotation:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="0" colspan="5">
+             <widget class="Line" name="line">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <widget class="QPushButton" name="pasteButton">
+              <property name="text">
+               <string>&amp;Paste</string>
+              </property>
+             </widget>
+            </item>
+            <item row="10" column="1">
+             <spacer name="verticalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>1</width>
+                <height>2</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="2" column="0">
+             <widget class="QPushButton" name="undoButton">
+              <property name="text">
+               <string>&amp;Undo</string>
+              </property>
+             </widget>
+            </item>
+            <item row="5" column="1" colspan="4">
+             <widget class="QSlider" name="hueSlider">
+              <property name="maximum">
+               <number>359</number>
+              </property>
+              <property name="pageStep">
+               <number>30</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item row="6" column="0" colspan="2">
+             <widget class="QGroupBox" name="groupBox">
+              <property name="title">
+               <string>Interpolate range</string>
+              </property>
+              <layout class="QHBoxLayout" name="horizontalLayout_2">
+               <item>
+                <widget class="QLabel" name="label_2">
+                 <property name="text">
+                  <string>Factor:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="interpolateSpinBox">
+                 <property name="minimum">
+                  <number>2</number>
+                 </property>
+                 <property name="maximum">
+                  <number>9</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="interpolateButton">
+                 <property name="text">
+                  <string>Go</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item row="6" column="2" colspan="3">
+             <widget class="QGroupBox" name="groupBox_2">
+              <property name="title">
+               <string>Duplicate</string>
+              </property>
+              <layout class="QHBoxLayout" name="horizontalLayout_3">
+               <item>
+                <widget class="QPushButton" name="dupButton">
+                 <property name="text">
+                  <string>Same order</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="revDupButton">
+                 <property name="text">
+                  <string>Reverse</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </widget>
             </item>
            </layout>

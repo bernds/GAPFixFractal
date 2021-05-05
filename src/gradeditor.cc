@@ -46,6 +46,22 @@ public:
 		m_entries = entries;
 		endResetModel ();
 	}
+	void replace_at (int row, int del_count, const QVector<uint32_t> &entries)
+	{
+		beginRemoveRows (QModelIndex (), row, row + del_count - 1);
+		auto beg = m_entries.begin ();
+		m_entries.erase (beg + row, beg + row + del_count);
+		endRemoveRows ();
+		int newsz = entries.size ();
+		beginInsertRows (QModelIndex (), row, row + newsz - 1);
+		auto second_half = m_entries.mid (row);
+		// Can be invalidated by the first erase.
+		beg = m_entries.begin ();
+		m_entries.erase (beg + row, m_entries.end ());
+		m_entries.append (entries);
+		m_entries.append (second_half);
+		endInsertRows ();
+	}
 	void insert_after (int row, uint32_t val)
 	{
 		beginInsertRows (QModelIndex (), row + 1, row + 1);
@@ -421,12 +437,26 @@ void GradEditor::enable_buttons ()
 
 void GradEditor::interpolate ()
 {
-	auto new_colors = interpolate_colors (m_model->entries (), 2, 0, false);
-	m_model->replace_all (new_colors);
-	emit colors_changed (new_colors);
+	QItemSelectionModel *sel = ui->colorList->selectionModel ();
+	const QModelIndexList &selected = sel->selectedRows ();
+
+	int factor = ui->interpolateSpinBox->value ();
+	int sel_len = selected.length ();
+	int pos = sel_len < 2 ? 0 : selected.first ().row ();
+	int len = sel_len < 2 ? m_model->rowCount () : sel_len;
+	const auto &old = m_model->entries ().mid (pos, len);
+
+	auto new_colors = interpolate_colors (old, factor, 0, false, false, false, 1, sel_len < 2);
+	m_model->replace_at (pos, len, new_colors);
+	emit colors_changed (m_model->entries ());
 	m_changed = false;
 	push_undo ();
 	enable_buttons ();
+	if (sel_len >= 2) {
+		sel->clearSelection ();
+		for (int i = 0; i < (len - 1) * factor + 1; i++)
+			sel->select (m_model->index (pos + i, 0), QItemSelectionModel::Select);
+	}
 }
 
 void GradEditor::dup ()

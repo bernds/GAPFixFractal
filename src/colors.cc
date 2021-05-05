@@ -145,7 +145,7 @@ static bool is_black (uint32_t col)
 }
 
 QVector<uint32_t> interpolate_colors (const QVector<uint32_t> &src, int steps, int hue_shift, bool trad,
-				      bool narrow_blacks, bool narrow_whites, int nfactor)
+				      bool narrow_blacks, bool narrow_whites, int nfactor, bool circular)
 {
 	QVector<double> rvals;
 	QVector<double> gvals;
@@ -170,7 +170,8 @@ QVector<uint32_t> interpolate_colors (const QVector<uint32_t> &src, int steps, i
 		bvals.push_back (srgb_to_linear (c.blue ()));
 	}
 	QVector<uint32_t> new_colors;
-	for (int i = 0; i < count; i++) {
+	int i_count = circular ? count : count - 1;
+	for (int i = 0; i < i_count; i++) {
 		uint32_t thisc = src[i];
 		uint32_t nextc = src[(i + 1) % count];
 
@@ -185,5 +186,7 @@ QVector<uint32_t> interpolate_colors (const QVector<uint32_t> &src, int steps, i
 			new_colors.push_back (QColor::fromRgb (nr, ng, nb).rgb ());
 		}
 	}
+	if (!circular)
+		new_colors.push_back (src.back ());
 	return new_colors;
 }
