@@ -83,6 +83,9 @@ int GPU_handler::batch_setup (frac_desc *fd)
 	int idx = fd->start_idx;
 	if (idx == fd->n_threads)
 		return idx;
+	if (idx == 0)
+		fd->total_time = 0;
+
 	int w = fd->pixel_width;
 	int h = fd->pixel_height;
 	int pix_idx = fd->pixels_started.ffz (0);
