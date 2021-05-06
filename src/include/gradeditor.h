@@ -41,6 +41,9 @@ class GradEditor : public QDialog
 	color_model *m_model;
 
 	int m_h = 0, m_s = 0, m_v = 127;
+	// Set when the hue slider is moved so that we can reconstruct the original
+	// color.
+	int m_last_hue_off = 0;
 	uint32_t m_copied_color = 0;
 	bool m_changed;
 
@@ -54,8 +57,10 @@ class GradEditor : public QDialog
 	void select_range (int first, int len);
 	void enable_buttons ();
 	void update_color_selection ();
+	void reset_sliders ();
 
 	void push_undo ();
+	void pop_undo ();
 	void notice_change_for_undo ();
 	void undo_redo_common ();
 	void perform_undo ();
@@ -70,6 +75,7 @@ class GradEditor : public QDialog
 	void dup ();
 	void rev_dup ();
 
+	void update_hue (int);
 public:
 	GradEditor (MainWindow *, const QVector<uint32_t> &);
 	~GradEditor ();

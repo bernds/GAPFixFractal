@@ -192,6 +192,7 @@ void GradEditor::handle_doubleclick ()
 		notice_change_for_undo ();
 		m_model->change (i, dlg.selectedColor ().rgb ());
 		m_undo_stack[m_undo_pos] = m_model->entries ();
+		reset_sliders ();
 	}
 	emit colors_changed (m_model->entries ());
 	update_color_selection ();
@@ -207,12 +208,25 @@ void GradEditor::push_undo ()
 	m_changed = false;
 }
 
+void GradEditor::pop_undo ()
+{
+	m_undo_stack.pop_back ();
+	enable_buttons ();
+	m_changed = false;
+}
+
 void GradEditor::notice_change_for_undo ()
 {
 	if (!m_changed)
 		push_undo ();
 
 	m_changed = true;
+}
+
+void GradEditor::reset_sliders ()
+{
+	ui->hueSlider->setValue (0);
+	m_last_hue_off = 0;
 }
 
 void GradEditor::change_color ()
@@ -232,6 +246,7 @@ void GradEditor::change_color ()
 	m_undo_stack[m_undo_pos] = m_model->entries ();
 	emit colors_changed (m_model->entries ());
 	update_cursors ();
+	reset_sliders ();
 }
 
 void GradEditor::generate_vimg ()
@@ -312,6 +327,8 @@ void GradEditor::update_color_selection ()
 	QItemSelectionModel *sel = ui->colorList->selectionModel ();
 	const QModelIndexList &selected = sel->selectedRows ();
 	bool selection = selected.length () != 0;
+
+	ui->hueSlider->setEnabled (selection);
 
 	if (!selection)
 		return;
@@ -407,6 +424,7 @@ void GradEditor::undo_redo_common ()
 		m_model->replace_all (replacement);
 	emit colors_changed (m_model->entries ());
 	update_color_selection ();
+	reset_sliders ();
 }
 
 void GradEditor::perform_undo ()
@@ -515,6 +533,42 @@ void GradEditor::rev_dup ()
 		select_range (pos, 2 * len);
 }
 
+void GradEditor::update_hue (int slider)
+{
+	QItemSelectionModel *sel = ui->colorList->selectionModel ();
+	const QModelIndexList &selected = sel->selectedRows ();
+	int len = selected.length ();
+	if (len == 0)
+		return;
+
+	if (slider == m_last_hue_off)
+		return;
+
+	if (m_last_hue_off == 0)
+		push_undo ();
+	else if (slider == 0) {
+		perform_undo ();
+		return;
+	}
+	m_last_hue_off = slider;
+	const auto &old_cols = m_undo_stack[m_undo_pos - 1];
+
+	int pos = selected.first ().row ();
+	for (int i = 0; i < len; i++) {
+		auto idx = m_model->index (pos + i, 0);
+		QColor c = QColor::fromRgb (old_cols[pos + i]);
+		int h = c.hsvHue ();
+		int s = c.hsvSaturation ();
+		int v = c.value ();
+		if (h >= 0)
+			h = (h + 360 + slider) % 360;
+		m_model->change (idx, QColor::fromHsv (h, s, v).rgb ());
+	}
+	m_undo_stack[m_undo_pos] = m_model->entries ();
+	emit colors_changed (m_model->entries ());
+	update_color_selection ();
+}
+
 GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)
 	: QDialog (parent), ui (new Ui::GradEditor), m_model (new color_model (colors))
 {
@@ -530,7 +584,11 @@ GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)
 		 });
 	connect (ui->colorList, &ClickableListView::doubleclicked, this, &GradEditor::handle_doubleclick);
 	connect (ui->colorList->selectionModel (), &QItemSelectionModel::selectionChanged,
-		 [this] (const QItemSelection &, const QItemSelection &) { update_color_selection (); });
+		 [this] (const QItemSelection &, const QItemSelection &)
+		 {
+			 update_color_selection ();
+			 reset_sliders ();
+		 });
 
 	m_undo_stack.push_back (m_model->entries ());
 	connect (ui->undoButton, &QPushButton::clicked, this, &GradEditor::perform_undo);
@@ -539,6 +597,9 @@ GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)
 	connect (ui->interpolateButton, &QPushButton::clicked, this, &GradEditor::interpolate);
 	connect (ui->dupButton, &QPushButton::clicked, this, &GradEditor::dup);
 	connect (ui->revDupButton, &QPushButton::clicked, this, &GradEditor::rev_dup);
+	// Don't use valueChanged so we don't pick up signals from reset_slider.
+	connect (ui->hueSlider, &QSlider::sliderMoved, this, &GradEditor::update_hue);
+
 	connect (ui->deleteButton, &QPushButton::clicked, this, &GradEditor::perform_delete);
 	connect (ui->pasteButton, &QPushButton::clicked, this, &GradEditor::perform_paste);
 	connect (ui->pasteAfterButton, &QPushButton::clicked, this, &GradEditor::perform_paste_after);
