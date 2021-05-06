@@ -439,6 +439,18 @@ void GradEditor::enable_buttons ()
 	ui->pasteAfterButton->setEnabled (selection);
 }
 
+void GradEditor::select_range (int pos, int len)
+{
+	QItemSelectionModel *sel = ui->colorList->selectionModel ();
+	sel->clearSelection ();
+	for (int i = 0; i < len; i++) {
+		auto new_idx = m_model->index (pos + i, 0);
+		sel->select (new_idx, QItemSelectionModel::Select);
+		if (i == 0)
+			ui->colorList->scrollTo (new_idx);
+	}
+}
+
 void GradEditor::interpolate ()
 {
 	QItemSelectionModel *sel = ui->colorList->selectionModel ();
@@ -456,36 +468,51 @@ void GradEditor::interpolate ()
 	m_changed = false;
 	push_undo ();
 	enable_buttons ();
-	if (sel_len >= 2) {
-		sel->clearSelection ();
-		for (int i = 0; i < (len - 1) * factor + 1; i++)
-			sel->select (m_model->index (pos + i, 0), QItemSelectionModel::Select);
-	}
+	if (sel_len >= 2)
+		select_range (pos,  (len - 1) * factor + 1);
 }
 
 void GradEditor::dup ()
 {
-	auto &entries = m_model->entries ();
-	auto new_colors = entries;
-	new_colors.append (entries);
-	m_model->replace_all (new_colors);
-	emit colors_changed (new_colors);
+	QItemSelectionModel *sel = ui->colorList->selectionModel ();
+	const QModelIndexList &selected = sel->selectedRows ();
+
+	int sel_len = selected.length ();
+	int pos = sel_len < 2 ? 0 : selected.first ().row ();
+	int len = sel_len < 2 ? m_model->rowCount () : sel_len;
+	const auto &old = m_model->entries ().mid (pos, len);
+
+	auto new_colors = old;
+	new_colors.append (old);
+	m_model->replace_at (pos, len, new_colors);
+	emit colors_changed (m_model->entries ());
 	m_changed = false;
 	push_undo ();
 	enable_buttons ();
+	if (sel_len >= 2)
+		select_range (pos, 2 * len);
 }
 
 void GradEditor::rev_dup ()
 {
-	auto &entries = m_model->entries ();
-	auto new_colors = entries;
-	for (auto it = entries.rbegin (); it != entries.rend (); it++)
+	QItemSelectionModel *sel = ui->colorList->selectionModel ();
+	const QModelIndexList &selected = sel->selectedRows ();
+
+	int sel_len = selected.length ();
+	int pos = sel_len < 2 ? 0 : selected.first ().row ();
+	int len = sel_len < 2 ? m_model->rowCount () : sel_len;
+	const auto &old = m_model->entries ().mid (pos, len);
+
+	auto new_colors = old;
+	for (auto it = old.rbegin (); it != old.rend (); it++)
 		new_colors.append (*it);
-	m_model->replace_all (new_colors);
-	emit colors_changed (new_colors);
+	m_model->replace_at (pos, len, new_colors);
+	emit colors_changed (m_model->entries ());
 	m_changed = false;
 	push_undo ();
 	enable_buttons ();
+	if (sel_len >= 2)
+		select_range (pos, 2 * len);
 }
 
 GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)

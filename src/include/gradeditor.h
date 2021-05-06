@@ -51,6 +51,7 @@ class GradEditor : public QDialog
 	void hs_clicked (QMouseEvent *);
 	void v_clicked (QMouseEvent *);
 
+	void select_range (int first, int len);
 	void enable_buttons ();
 	void update_color_selection ();
 
