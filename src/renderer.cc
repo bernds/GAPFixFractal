@@ -446,7 +446,6 @@ public:
 			dstep = DBL_EPSILON;
 		for (int y = y0; y < y0e; y++) {
 			if (abort_render->load ()) {
-				printf ("aborting at %d of %d\n", y, y0e);
 				break;
 			}
 			for (int x = 0; x < w; x++) {
