@@ -26,6 +26,8 @@ class GradEditor : public QDialog
 
 	Ui::GradEditor *ui;
 
+	enum class pattern { bc, wc, bcw, bcwc };
+
 	QVector<uint32_t> m_tmp_colors;
 	vector<QVector<uint32_t>> m_undo_stack;
 	size_t m_undo_pos = 0;
@@ -76,6 +78,9 @@ class GradEditor : public QDialog
 	void rev_dup ();
 
 	void update_hue (int);
+
+	void apply_pattern (pattern);
+
 public:
 	GradEditor (MainWindow *, const QVector<uint32_t> &);
 	~GradEditor ();

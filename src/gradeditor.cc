@@ -569,6 +569,34 @@ void GradEditor::update_hue (int slider)
 	update_color_selection ();
 }
 
+void GradEditor::apply_pattern (pattern p)
+{
+	QItemSelectionModel *sel = ui->colorList->selectionModel ();
+	const QModelIndexList &selected = sel->selectedRows ();
+
+	int sel_len = selected.length ();
+	int pos = sel_len < 2 ? 0 : selected.first ().row ();
+	int len = sel_len < 2 ? m_model->rowCount () : sel_len;
+	const auto &old = m_model->entries ().mid (pos, len);
+
+	QVector<uint32_t> new_colors;
+	uint32_t alternate = 0;
+	for (auto col: old) {
+		new_colors.push_back (p == pattern::wc ? 0xFFFFFF : p == pattern::bcwc ? alternate : 0);
+		new_colors.push_back (col);
+		if (p == pattern::bcw)
+			new_colors.push_back (0xFFFFFF);
+		alternate ^= 0xFFFFFF;
+	}
+	m_model->replace_at (pos, len, new_colors);
+	emit colors_changed (m_model->entries ());
+	m_changed = false;
+	push_undo ();
+	enable_buttons ();
+	if (sel_len >= 2)
+		select_range (pos, new_colors.size ());
+}
+
 GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)
 	: QDialog (parent), ui (new Ui::GradEditor), m_model (new color_model (colors))
 {
@@ -611,6 +639,11 @@ GradEditor::GradEditor (MainWindow *parent, const QVector<uint32_t> &colors)
 			 if (selected.length () != 0)
 				 m_copied_color = m_model->find (selected.first ().row ());
 		 });
+	connect (ui->bcButton, &QPushButton::clicked, [this] (bool) { apply_pattern (pattern::bc); });
+	connect (ui->wcButton, &QPushButton::clicked, [this] (bool) { apply_pattern (pattern::wc); });
+	connect (ui->bcwButton, &QPushButton::clicked, [this] (bool) { apply_pattern (pattern::bcw); });
+	connect (ui->bcwcButton, &QPushButton::clicked, [this] (bool) { apply_pattern (pattern::bcwc); });
+
 	ui->hsView->setScene (&m_hs_scene);
 	ui->vView->setScene (&m_v_scene);
 
