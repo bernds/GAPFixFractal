@@ -974,6 +974,7 @@ void MainWindow::preview_wheel_event (QWheelEvent *e)
 	else
 		fd.width = div1 (mul1 (fd.width, 10), factor);
 	fd.bounds_w = fd.bounds_h = 0;
+	autoprec (fd);
 
 	m_preview_uptodate = false;
 	m_preview_renderer->abort_render.store (true);
@@ -1407,6 +1408,7 @@ void MainWindow::zoom_in (bool)
 	fd.bounds_w = fd.bounds_h = 0;
 
 	fd.width = div1 (mul1 (fd.width, 10), factor);
+	autoprec (fd);
 	m_reinit_render = true;
 	restart_computation ();
 }
