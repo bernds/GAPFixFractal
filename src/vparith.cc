@@ -80,12 +80,20 @@ vpvec from_string (QString str, int sz)
 	bool neg = str[0] == '-';
 	if (neg)
 		str.remove (0, 1);
-	int decimal = str.indexOf ('.', 0);
+	QChar dpoint = '.';
+	QChar sep = ',';
+	// Try to accomodate German-style numbers with comma instead of decimal point.
+	if (str.count (sep) == 1) {
+		if (str.count (dpoint) > 1 || str.count (dpoint) == 0)
+			std::swap (dpoint, sep);
+	}
+	int decimal = str.indexOf (dpoint, 0);
 	QString fraction = "0";
 	QString nonfrac = str;
 	if (decimal != -1) {
-		nonfrac = str.section ('.', 0, 0);
-		fraction = str.section ('.', 1);
+		nonfrac = str.section (dpoint, 0, 0);
+		fraction = str.section (dpoint, 1);
+		fraction.remove (sep);
 	}
 	bool ok;
 	int nonfrac_int = nonfrac.toInt (&ok);
