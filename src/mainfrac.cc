@@ -46,6 +46,9 @@ const formula formula_table[] = {
 
 constexpr int default_power = 2;
 
+// max_nwords is configurable to some degree, but there is a hard limit.
+constexpr int real_max_nwords = 32;
+
 // Old versions of Qt which we want to support don't have the recommended
 // range constructors, while the new version warns about the old style.
 // Shut it up.
@@ -564,9 +567,19 @@ void MainWindow::compute_fractal (frac_desc &fd, int nwords, int n_prev, int w, 
 	ss = 1 << ss;
 
 	// We need to ensure nthreads is always big enough to handle the initial_setup phase.
+	int min_nthreads = (w + 1) * (h + 1) / 4;
 	int nthreads = w * h;
+	// Save memory in extreme situations.
 	if (n_prev > 16 && !preview && !batch)
-		nthreads = (w + 1) * (h + 1) / 4;
+		nthreads = min_nthreads;
+	else if (nwords >= 12) {
+		uint64_t extra = nthreads - min_nthreads;
+		extra *= 32 - nwords;
+		extra /= 20;
+		printf ("nthreads limited from %d ", nthreads);
+		nthreads = min_nthreads + extra;
+		printf (" to %d\n", nthreads);
+	}
 	int npixels = w * h * ss * ss;
 	int n_rvals = n_formula_real_vals (fd.fm, isdem);
 	int n_ivals = n_formula_int_vals (fd.fm, isdem);
@@ -2040,6 +2053,7 @@ void MainWindow::choose_hybrid (bool on)
 MainWindow::MainWindow (QDataStream *init_file)
 	: ui (new Ui::MainWindow)
 {
+	assert (max_nwords <= real_max_nwords);
 	ui->setupUi (this);
 	ui->fractalView->setScene (&m_canvas);
 	ui->previewView->setScene (&m_preview_canvas);
