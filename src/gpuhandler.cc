@@ -65,7 +65,7 @@ static uint32_t encode_coord (int x, int y, int w, int h)
 
 int GPU_handler::initial_setup (frac_desc *fd)
 {
-	fd->total_time = 0;
+	fd->total_time = fd->almost_total_time = 0;
 	int w = fd->pixel_width;
 	int h = fd->pixel_height;
 	int pstep = fd->pixel_step;
@@ -84,7 +84,7 @@ int GPU_handler::batch_setup (frac_desc *fd)
 	if (idx == fd->n_threads)
 		return idx;
 	if (idx == 0)
-		fd->total_time = 0;
+		fd->total_time = fd->almost_total_time = 0;
 
 	int w = fd->pixel_width;
 	int h = fd->pixel_height;
@@ -292,6 +292,8 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 
 		qint64 ms = std::max ((qint64)5, timer.elapsed ());
 		fd->total_time += ms;
+		if (fd->n_completed + 5000 < fd->n_pixels)
+			fd->almost_total_time += ms;
 		uint32_t j = 0;
 		int w = fd->pixel_width;
 		int full_h = fd->full_height;
@@ -390,6 +392,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		}
 		if (fd->n_completed == fd->n_pixels) {
 			printf ("total time in kernel: %ld ms (%f us per pixel)\n", fd->total_time, (double)fd->total_time * 1000. / fd->n_pixels);
+			printf ("Excluding stragglers: %ld ms (%f us per pixel)\n", fd->almost_total_time, (double)fd->almost_total_time * 1000. / fd->n_pixels);
 			break;
 		}
 		if (ms < 500 || ms > 1000) {

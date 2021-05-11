@@ -71,6 +71,7 @@ struct frac_desc : public frac_params
 	uint32_t start_idx;
 
 	unsigned long total_time = 0;
+	unsigned long almost_total_time = 0;
 	vpvec step;
 	/* Updated by the GUI and used to compute the actual rotation matrix.  */
 	double rotation_angle = 0;
