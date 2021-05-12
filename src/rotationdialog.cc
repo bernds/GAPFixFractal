@@ -1,6 +1,4 @@
-#include <QSettings>
 #include <QPushButton>
-#include <QFileDialog>
 #include <QMainWindow>
 
 #include "rotationdialog.h"
