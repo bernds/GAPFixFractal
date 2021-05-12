@@ -255,24 +255,30 @@ inline std::pair<double, int> iter_value_at (frac_desc *fd, int idx, int power)
 	return { v + 5 - correction, 0 };
 }
 
-static inline double compute_sac (double *prev_vals, int count, double density, double radius, double power)
+static inline double compute_sac (double *prev_vals, int n_prev, int count, double density, double radius, double power)
 {
 	double re = prev_vals[0];
 	double im = prev_vals[1];
 	double re2 = re * re;
 	double im2 = im * im;
 	double firstval = 0.5 * sin (density * atan2 (im, re)) + 0.5;
+	double lastval = 0;
 	double sum = 0;
 	for (int i = 1; i < count; i++) {
 		double lastre = prev_vals[i * 2];
 		double lastim = prev_vals[i * 2 + 1];
 		double val = 0.5 * sin (density * atan2 (lastim, lastre)) + 0.5;
+		lastval = val;
 		sum += val;
 	}
+	int avg2_count = count == n_prev ? count - 1 : count;
+	if (count < n_prev)
+		lastval = 0;
 	double avg1 = count > 1 ? sum / (count - 1) : 0;
-	double avg2 = (sum + firstval) / count;
+	double avg2 = avg2_count > 0 ? (sum + firstval - lastval) / avg2_count : 0;
 	double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (power);
-	return avg1 * mixfactor + avg2 * (1 - mixfactor);
+	double result1 = avg1 * mixfactor + avg2 * (1 - mixfactor);
+	return result1;
 }
 
 static inline double compute_tia (double *prev_vals, double cre, double cim, int count,
@@ -370,7 +376,7 @@ public:
 			if (rp.sac && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
 				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
-				double mod = compute_sac (fd->pic_zprev + idx * 2 * n_prev, thisnp, rp.sac_factor, radius, power);
+				double mod = compute_sac (fd->pic_zprev + idx * 2 * n_prev, n_prev, thisnp, rp.sac_factor, radius, power);
 				col = color_for_sac_common (col, mod, fd, rp);
 			} else if (rp.tia && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
@@ -596,7 +602,7 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 			count++;
 			double v;
 			if (rp.sac)
-				v = compute_sac (fd->pic_zprev + i * 2 * fd->n_prev, r, rp.sac_factor, radius, power);
+				v = compute_sac (fd->pic_zprev + i * 2 * fd->n_prev, fd->n_prev, r, rp.sac_factor, radius, power);
 			else {
 				double cre = fd->pic_t[i * 2];
 				double cim = fd->pic_t[i * 2 + 1];
