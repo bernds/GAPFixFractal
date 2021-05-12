@@ -156,6 +156,7 @@
       <addaction name="action_FormulaFacing"/>
       <addaction name="action_FormulaFacingB"/>
       <addaction name="action_FormulaRings"/>
+      <addaction name="action_FormulaRat1"/>
      </widget>
      <widget class="QMenu" name="menuNon_analytic">
       <property name="title">
@@ -210,6 +211,7 @@
     <addaction name="action_p_enter"/>
     <addaction name="menuChoose_parameter_q"/>
     <addaction name="menuTransform"/>
+    <addaction name="action_Maxiter"/>
    </widget>
    <widget class="QMenu" name="menu_Colouring">
     <property name="title">
@@ -2243,6 +2245,19 @@
   <action name="action_CenterJ">
    <property name="text">
     <string>Center on &amp;Julia parameter</string>
+   </property>
+  </action>
+  <action name="action_FormulaRat1">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Rational 1: 1/(z³-z+c)</string>
+   </property>
+  </action>
+  <action name="action_Maxiter">
+   <property name="text">
+    <string>Maximum iterations...</string>
    </property>
   </action>
  </widget>

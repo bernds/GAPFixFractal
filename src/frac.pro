@@ -6,6 +6,7 @@ FORMS		      = mainwindow.ui \
 			gradeditor.ui \
 			batchrender.ui \
 			hybriddialog.ui \
+			maxiter.ui \
                         prefs.ui
 
 HEADERS		      = include/genkernel.h \

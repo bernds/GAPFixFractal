@@ -2,6 +2,7 @@
 #include <QGraphicsScene>
 #include <QImage>
 #include <QTimer>
+#include <QDialog>
 
 #include "fpvec.h"
 #include "fractal.h"
@@ -27,6 +28,7 @@ public:
 namespace Ui
 {
 	class MainWindow;
+	class MaxiterDialog;
 };
 
 class ClickablePixmap;
@@ -57,6 +59,18 @@ struct stored_preview {
 
 class Renderer;
 
+class MaxiterDialog : public QDialog
+{
+	Q_OBJECT
+
+	Ui::MaxiterDialog *ui;
+
+public:
+	MaxiterDialog (QMainWindow *, uint32_t);
+	~MaxiterDialog ();
+	QString result ();
+};
+
 class MainWindow: public QMainWindow
 {
 	Q_OBJECT
@@ -72,6 +86,7 @@ class MainWindow: public QMainWindow
 	static constexpr int iter_steps = 2000;
 	static constexpr int default_maxiter = 500000;
 
+	int m_cur_maxiter = default_maxiter;
 	formula m_formula = formula::standard;
 
 	frac_desc m_fd_mandel;
@@ -139,6 +154,7 @@ class MainWindow: public QMainWindow
 	void center_j (bool);
 	void enter_q (bool);
 	void enter_p (bool);
+	void enter_maxiter (bool);
 	double shear_slider_value ();
 	double scale_slider_value ();
 	void build_points (frac_desc &, int w, int h);

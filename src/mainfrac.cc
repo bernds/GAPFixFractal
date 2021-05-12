@@ -34,6 +34,7 @@
 #include "settings.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "ui_maxiter.h"
 
 #define PACKAGE "GAPFixFractal"
 
@@ -150,6 +151,37 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 	return s;
 }
 #pragma GCC diagnostic pop
+
+MaxiterDialog::MaxiterDialog (QMainWindow *w, uint32_t cur)
+	: QDialog (w), ui (new Ui::MaxiterDialog)
+{
+	ui->setupUi (this);
+	ui->lineEdit->setText (QString::number (cur));
+	ui->lineEdit->setValidator (new QIntValidator (40, 100000000, this));
+	disconnect (ui->buttonBox->button (QDialogButtonBox::Ok) ,&QPushButton::clicked, nullptr, nullptr);
+	connect (ui->buttonBox->button (QDialogButtonBox::Ok), &QPushButton::clicked,
+		 [this] (bool)
+		 {
+			 QString r = result ();
+			 int v;
+			 if (ui->lineEdit->validator ()->validate (r, v) != QValidator::Acceptable) {
+				 QMessageBox::warning (this, tr ("Invalid number specified"),
+						       tr ("Please enter a valid number of iterations (40...100000000)"));
+				 return;
+			 }
+			 QDialog::accept ();
+		 });
+}
+
+MaxiterDialog::~MaxiterDialog ()
+{
+	delete ui;
+}
+
+QString MaxiterDialog::result ()
+{
+	return ui->lineEdit->text ();
+}
 
 void MainWindow::layout_stored_params ()
 {
@@ -411,6 +443,18 @@ void MainWindow::enter_rotation (bool)
 	connect (&dlg, &RotationDialog::apply_rotation,
 		 [this, &fd] (double v) { printf ("rotate %f\n", v);set_rotation (fd, v); update_settings (false); });
 	dlg.exec ();
+}
+
+void MainWindow::enter_maxiter (bool)
+{
+	MaxiterDialog dlg (this, m_cur_maxiter);
+	if (!dlg.exec ())
+		return;
+	QString result = dlg.result ();
+	abort_computation ();
+	m_cur_maxiter = result.toInt ();
+	m_reinit_render = true;
+	restart_computation ();
 }
 
 void MainWindow::enter_location (bool)
@@ -830,7 +874,7 @@ void MainWindow::render_fractal ()
 	printf ("render_fractal size %d %d\n", w, h);
 
 	bool isdem = !ui->action_DEMOff->isChecked ();
-	compute_fractal (fd, m_nwords, n_prev_requested, w, h, h, default_maxiter, ui->sampleSpinBox->value (), isdem, false);
+	compute_fractal (fd, m_nwords, n_prev_requested, w, h, h, m_cur_maxiter, ui->sampleSpinBox->value (), isdem, false);
 }
 
 void MainWindow::render_preview ()
@@ -848,7 +892,7 @@ void MainWindow::render_preview ()
 	printf ("render_preview size %d %d\n", w, h);
 
 	bool isdem = !ui->action_DEMOff->isChecked ();
-	compute_fractal (m_fd_julia, m_nwords, n_prev_requested, w, h, h, default_maxiter, 0, isdem, true);
+	compute_fractal (m_fd_julia, m_nwords, n_prev_requested, w, h, h, m_cur_maxiter, 0, isdem, true);
 }
 
 void MainWindow::slot_new_data (frac_desc *fd, int generation, bool success)
@@ -1943,14 +1987,14 @@ void MainWindow::slot_batchrender (bool)
 		renderer.render_width = w;
 		bool alpha = settings.value ("render/alpha").toBool ();
 		renderer.result_image = QImage (w, h, alpha ? QImage::Format_ARGB32 : QImage::Format_RGB32);
-		int maxiter = default_maxiter;
+		int maxiter = m_cur_maxiter;
 		int dlg_maxiter = dlg.get_maxiter ();
 		int prev_maxiter = fp.maxiter_found;
 		if (dlg_maxiter != 0)
-			maxiter = std::min (maxiter, default_maxiter);
+			maxiter = std::min (maxiter, m_cur_maxiter);
 		if (prev_maxiter_factor != 0)
 			maxiter = std::min (maxiter, (int)(prev_maxiter / 100.0 * prev_maxiter_factor));
-		printf ("maxiter is %d (%d %d %d)\n", maxiter, default_maxiter, dlg_maxiter, prev_maxiter);
+		printf ("maxiter is %d (%d %d %d)\n", maxiter, m_cur_maxiter, dlg_maxiter, prev_maxiter);
 		for (int y0 = 0; y0 < h; y0 += batch_size) {
 			pdlg.setValue (progress + pro_step * ((double)y0 / h));
 
@@ -2298,6 +2342,8 @@ MainWindow::MainWindow (QDataStream *init_file)
 	connect (ui->demStrengthSpinBox, dchanged, [this] (bool) { update_views (); });
 	connect (ui->aspectBox, &QGroupBox::toggled, [this] (bool) { update_aspect (); });
 	connect (ui->aspectComboBox, cic, [this] (int) { update_aspect (); });
+
+	connect (ui->action_Maxiter, &QAction::triggered, this, &MainWindow::enter_maxiter);
 
 	connect (ui->action_Mandelbrot, &QAction::triggered,
 		 [this] (bool) { ui->typeComboBox->setCurrentIndex (0); });
