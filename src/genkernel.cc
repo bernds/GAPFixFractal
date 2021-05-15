@@ -13,13 +13,17 @@
 using std::string;
 using std::vector;
 using std::array;
-using std::shared_ptr;
-using std::make_shared;
+using std::unique_ptr;
+using std::make_unique;
+
+class expr;
 
 class generator
 {
 	int m_tmp = 0;
 	int m_lbl_tmp = 0;
+	vector<unique_ptr<expr>> m_cleanup;
+
 public:
 	QString m_code, m_regs;
 
@@ -50,9 +54,22 @@ public:
 		m_regs = QString ();
 		return t;
 	}
+	template<class T, class ... ARGS>
+	T *make (ARGS &&... args)
+	{
+		T *v = new T (std::forward<ARGS>(args)...);
+		m_cleanup.emplace_back ((expr *)v);
+		return v;
+	}
 };
 
-generator *codegen;
+static generator *codegen;
+
+template<class T, class ... ARGS>
+T *make (ARGS &&... args)
+{
+	return codegen->make<T> (std::forward<ARGS>(args)...);
+}
 
 class expr
 {
@@ -250,10 +267,10 @@ public:
 class addsub_expr : public expr
 {
 	QString m_op, m_cond;
-	shared_ptr<expr> m_a, m_b;
+	expr *m_a, *m_b;
 	bool nonzero_added = false;
 public:
-	addsub_expr (const QString &op, shared_ptr<expr> srca, shared_ptr<expr> srcb, QString cond = QString ()) :
+	addsub_expr (const QString &op, expr *srca, expr *srcb, QString cond = QString ()) :
 		expr (std::max (srca->length (), srcb->length ())),
 		m_op (op), m_cond (cond.isEmpty () ? "" : "@" + cond), m_a (srca), m_b (srcb)
 	{
@@ -306,9 +323,9 @@ public:
 template<int N>
 class arshift_expr : public expr
 {
-	shared_ptr<expr> m_op;
+	expr *m_op;
 public:
-	arshift_expr (shared_ptr<expr> op) :
+	arshift_expr (expr *op) :
 		expr (op->length ()), m_op (op)
 	{
 	}
@@ -335,10 +352,10 @@ public:
 
 class lshift_expr : public expr
 {
-	shared_ptr<expr> m_op;
+	expr *m_op;
 	int m_shift;
 public:
-	lshift_expr (shared_ptr<expr> op, int shift) :
+	lshift_expr (expr *op, int shift) :
 		expr (op->length ()), m_op (op), m_shift (shift)
 	{
 	}
@@ -365,9 +382,9 @@ public:
 
 class padlow_expr : public expr
 {
-	shared_ptr<expr> m_op;
+	expr *m_op;
 public:
-	padlow_expr (shared_ptr<expr> src, int len)
+	padlow_expr (expr *src, int len)
 		: expr (len), m_op (src)
 	{
 		assert (len > m_op->length ());
@@ -393,9 +410,9 @@ public:
 
 class padhigh_expr : public expr
 {
-	shared_ptr<expr> m_op;
+	expr *m_op;
 public:
-	padhigh_expr (shared_ptr<expr> src, int len)
+	padhigh_expr (expr *src, int len)
 		: expr (len), m_op (src)
 	{
 		assert (len >= m_op->length ());
@@ -421,9 +438,9 @@ public:
 
 class trunc_expr : public expr
 {
-	shared_ptr<expr> m_op;
+	expr *m_op;
 public:
-	trunc_expr (shared_ptr<expr> src, int len)
+	trunc_expr (expr *src, int len)
 		: expr (len), m_op (src)
 	{
 		assert (len <= m_op->length ());
@@ -444,9 +461,9 @@ public:
 
 class concat_expr : public expr
 {
-	shared_ptr<expr> m_low, m_high;
+	expr *m_low, *m_high;
 public:
-	concat_expr (shared_ptr<expr> op_low, shared_ptr<expr> op_high)
+	concat_expr (expr *op_low, expr *op_high)
 		: expr (op_low->length () + op_high->length ()), m_low (op_low), m_high (op_high)
 	{
 	}
@@ -472,11 +489,11 @@ public:
 
 class lowpart_expr : public expr
 {
-	shared_ptr<expr> m_op;
+	expr *m_op;
 	int m_off;
 
 public:
-	lowpart_expr (shared_ptr<expr> src, int off, int len)
+	lowpart_expr (expr *src, int off, int len)
 		: expr (len), m_op (src), m_off (off)
 	{
 		assert (len < m_op->length ());
@@ -513,10 +530,10 @@ void gen_cond_negate (expr *dest, expr *src, QString pred)
 
 class abs_expr : public expr
 {
-	shared_ptr<expr> m_op;
+	expr *m_op;
 	QString m_pred, m_pred_reg;
 public:
-	abs_expr (shared_ptr<expr> src, QString pred = QString ())
+	abs_expr (expr *src, QString pred = QString ())
 		: expr (src->length ()), m_op (src), m_pred_reg (pred)
 	{
 		src->require_carry ();
@@ -531,7 +548,7 @@ public:
 			QString dst = get_destreg ("u32");
 			m_values.push_back (dst);
 		}
-		gen_cond_negate (&*this, &*m_op, p);
+		gen_cond_negate (this, m_op, p);
 		return m_values[0];
 	}
 	QString get_pred ()
@@ -547,15 +564,15 @@ public:
 
 class mult_sign_fixup_expr : public expr
 {
-	shared_ptr<expr> m_op;
+	expr *m_op;
 	QString m_sgn1, m_sgn2;
 
 public:
-	mult_sign_fixup_expr (shared_ptr<expr> op, shared_ptr<abs_expr> sgn1, shared_ptr<abs_expr> sgn2)
+	mult_sign_fixup_expr (expr *op, abs_expr *sgn1, abs_expr *sgn2)
 		: expr (op->length ()), m_op (op), m_sgn1 (sgn1->get_pred ()), m_sgn2 (sgn2->get_pred ())
 	{
 	}
-	mult_sign_fixup_expr (shared_ptr<expr> op, const QString &pred1, const QString &pred2)
+	mult_sign_fixup_expr (expr *op, const QString &pred1, const QString &pred2)
 		: expr (op->length ()), m_op (op), m_sgn1 (pred1), m_sgn2 (pred2)
 	{
 	}
@@ -571,7 +588,7 @@ public:
 			QString dst = get_destreg ("u32");
 			m_values.push_back (dst);
 		}
-		gen_cond_negate (this, &*m_op, pred);
+		gen_cond_negate (this, m_op, pred);
 		return m_values[0];
 	}
 };
@@ -580,12 +597,12 @@ public:
 class mult_expr : public expr
 {
 	int m_parts_len;
-	shared_ptr<expr> m_a, m_b;
+	expr *m_a, *m_b;
 	QString m_carry, m_carry2;
 	vector<QString> m_preds_a, m_preds_b;
 	bool m_skip_ones;
 public:
-	mult_expr (shared_ptr<expr> srca, shared_ptr<expr> srcb, int discard_top = 1, bool skip_ones = false) :
+	mult_expr (expr *srca, expr *srcb, int discard_top = 1, bool skip_ones = false) :
 		expr (2 * std::max (srca->length (), srcb->length ()) - discard_top), m_a (srca), m_b (srcb),
 		m_skip_ones (skip_ones)
 	{
@@ -701,15 +718,15 @@ public:
    or one.  */
 class mult_special_expr : public expr
 {
-	shared_ptr<expr> m_a, m_b, m_tmpm;
+	expr *m_a, *m_b, *m_tmpm;
 
 public:
-	mult_special_expr (shared_ptr<expr> srca, shared_ptr<expr> srcb, int discard_top = 1) :
+	mult_special_expr (expr *srca, expr *srcb, int discard_top = 1) :
 		expr (2 * std::max (srca->length (), srcb->length ()) - discard_top), m_a (srca), m_b (srcb)
 	{
 		srca->require_carry ();
 		srcb->require_carry ();
-		m_tmpm = make_shared<mult_expr> (m_a, m_b, discard_top, true);
+		m_tmpm = make<mult_expr> (m_a, m_b, discard_top, true);
 
 	}
 	QString next_piece () override
@@ -782,7 +799,7 @@ public:
 	}
 };
 
-void gen_store (const QString &dst, shared_ptr<expr> ex)
+void gen_store (const QString &dst, expr *ex)
 {
 	int len = ex->length ();
 	QString addr = dst; // codegen->gen_reg ("u64", "addr");
@@ -794,7 +811,7 @@ void gen_store (const QString &dst, shared_ptr<expr> ex)
 	}
 }
 
-void gen_store (reg_expr *dst, shared_ptr<expr> ex)
+void gen_store (reg_expr *dst, expr *ex)
 {
 	int len = ex->length ();
 	for (int i = 0; i < len; i++) {
@@ -807,7 +824,7 @@ void gen_store (reg_expr *dst, shared_ptr<expr> ex)
 // Store v into scratch, normalized so that 1/2 <= stored < 1
 // We store one extra word so as to not lose precision. scratch needs to be
 // sized appropriately.
-QString emit_normalize (shared_ptr<expr> v, const QString &scratch)
+QString emit_normalize (expr *v, const QString &scratch)
 {
 	QString predreg = codegen->gen_reg ("pred", "nzfound");
 	QString ptr = codegen->gen_reg ("u32", "ptr");
@@ -850,7 +867,7 @@ QString emit_normalize (shared_ptr<expr> v, const QString &scratch)
 	return amt;
 }
 
-shared_ptr<expr> emit_normalize_amt (shared_ptr<expr> v, const QString &amt, const QString &scratch, int len)
+expr *emit_normalize_amt (expr *v, const QString &amt, const QString &scratch, int len)
 {
 	QString amtreg = codegen->gen_reg ("u32", "amtcp");
 	codegen->append_move ("u32", amtreg, amt);
@@ -891,9 +908,9 @@ shared_ptr<expr> emit_normalize_amt (shared_ptr<expr> v, const QString &amt, con
 		codegen->append_move ("u32", lastp, p);
 	}
 	codegen->append_code (endlab + ":\n");
-	auto v1 = make_shared<lds_expr> (scratch, "4", len);
-	auto reg = make_shared<reg_expr> (len, "namt");
-	gen_store (&*reg, v1);
+	auto v1 = make<lds_expr> (scratch, "4", len);
+	auto reg = make<reg_expr> (len, "namt");
+	gen_store (reg, v1);
 	QString allok = codegen->gen_label ("allok");
 	codegen->append_code (QString ("\tsetp.eq.u32\t%1, %2, 0;\n").arg (predreg2, discarded));
 	codegen->append_code (QString ("@%1\tbra\t%2;\n").arg (predreg2, allok));
@@ -911,24 +928,24 @@ constexpr int karatsuba_cutoff = 12;
     K := H − F − G == xh * yl + xl * yh
     result = F << 2n + K << n + G == (F << 2n) + (H << n) - (F << n) - (G << n) + G
  */
-shared_ptr<expr> gen_mult_karatsuba_1 (shared_ptr<expr> a, shared_ptr<expr> b)
+expr *gen_mult_karatsuba_1 (expr *a, expr *b)
 {
 	if (a->length () < karatsuba_cutoff) {
-		return make_shared<mult_special_expr> (a, b, 0);
+		return make<mult_special_expr> (a, b, 0);
 	}
 	int half = (a->length () + 1) / 2;
 	int full = 2 * half;
 
-	auto ah = make_shared<trunc_expr> (a, half);
-	auto bh = a == b ? ah : make_shared<trunc_expr> (b, half);
-	auto al = make_shared<lowpart_expr> (a, half, half);
-	auto bl = a == b ? al : make_shared<lowpart_expr> (b, half, half);
+	auto ah = make<trunc_expr> (a, half);
+	auto bh = a == b ? ah : make<trunc_expr> (b, half);
+	auto al = make<lowpart_expr> (a, half, half);
+	auto bl = a == b ? al : make<lowpart_expr> (b, half, half);
 
-	auto H1 = make_shared<addsub_expr> ("add", make_shared<padhigh_expr> (ah, half + 1),
-					    make_shared<padhigh_expr> (al, half + 1));
-	auto H2 = a == b ? H1 : make_shared<addsub_expr> ("add", make_shared<padhigh_expr> (bh, half + 1),
-							  make_shared<padhigh_expr> (bl, half + 1));
-	auto H = make_shared<lowpart_expr> (gen_mult_karatsuba_1 (H1, H2), 1, full + 1);
+	auto H1 = make<addsub_expr> ("add", make<padhigh_expr> (ah, half + 1),
+					    make<padhigh_expr> (al, half + 1));
+	auto H2 = a == b ? H1 : make<addsub_expr> ("add", make<padhigh_expr> (bh, half + 1),
+							  make<padhigh_expr> (bl, half + 1));
+	auto H = make<lowpart_expr> (gen_mult_karatsuba_1 (H1, H2), 1, full + 1);
 	auto F = gen_mult_karatsuba_1 (ah, bh);
 	auto G = gen_mult_karatsuba_1 (al, bl);
 	assert (F->length () == full);
@@ -937,29 +954,29 @@ shared_ptr<expr> gen_mult_karatsuba_1 (shared_ptr<expr> a, shared_ptr<expr> b)
 	F->set_destreg ("F");
 	G->set_destreg ("G");
 	H->set_destreg ("H");
-	auto sub1 = make_shared<addsub_expr> ("sub", H, make_shared<padhigh_expr> (G, full + 1));
-	auto sub2 = make_shared<addsub_expr> ("sub", sub1, make_shared<padhigh_expr> (F, full + 1));
+	auto sub1 = make<addsub_expr> ("sub", H, make<padhigh_expr> (G, full + 1));
+	auto sub2 = make<addsub_expr> ("sub", sub1, make<padhigh_expr> (F, full + 1));
 	sub2->set_destreg ("K");
-	auto highlow = make_shared<concat_expr> (G, F);
-	auto Ke = make_shared<padlow_expr> (make_shared<padhigh_expr> (sub2, full + half), 2 * full);
-	auto sum = make_shared<addsub_expr> ("add", highlow, Ke);
+	auto highlow = make<concat_expr> (G, F);
+	auto Ke = make<padlow_expr> (make<padhigh_expr> (sub2, full + half), 2 * full);
+	auto sum = make<addsub_expr> ("add", highlow, Ke);
 	sum->set_destreg ("msum");
 	if (half * 2 > a->length ())
-		return make_shared<trunc_expr> (sum, 2 * a->length ());
+		return make<trunc_expr> (sum, 2 * a->length ());
 	return sum;
 }
 
-shared_ptr<expr> gen_mult_unsigned (shared_ptr<expr> a, shared_ptr<expr> b, bool truncate = true)
+expr *gen_mult_unsigned (expr *a, expr *b, bool truncate = true)
 {
-	shared_ptr<expr> raw_mult;
+	expr *raw_mult;
 	if (a->length () < karatsuba_cutoff)
-		raw_mult = make_shared<mult_expr> (a, b);
+		raw_mult = make<mult_expr> (a, b);
 	else {
 		auto me = gen_mult_karatsuba_1 (a, b);
-		raw_mult = make_shared<lowpart_expr> (me, 1, me->length () - 1);
+		raw_mult = make<lowpart_expr> (me, 1, me->length () - 1);
 	}
 	if (truncate)
-		return make_shared<trunc_expr> (raw_mult, a->length ());
+		return make<trunc_expr> (raw_mult, a->length ());
 	return raw_mult;
 }
 
@@ -971,37 +988,37 @@ struct real_val;
    value around.  */
 class real_reg
 {
-	shared_ptr<reg_expr> m_reg;
-	shared_ptr<reg_expr> m_abs_val;
-	shared_ptr<reg_expr> m_square_val;
+	reg_expr *m_reg;
+	reg_expr *m_abs_val;
+	reg_expr *m_square_val;
 	QString m_neg_pred;
 	friend class real_val;
 
 public:
 	real_reg () = default;
 	real_reg (int size, const QString &name, bool keep_abs = false, bool keep_square = false)
-		: m_reg (make_shared<reg_expr> (size, name)),
-		  m_abs_val (keep_abs || keep_square ? make_shared<reg_expr> (size, name + "a") : nullptr),
-		  m_square_val (keep_square ? make_shared<reg_expr> (size, name + "sq") : nullptr),
+		: m_reg (make<reg_expr> (size, name)),
+		  m_abs_val (keep_abs || keep_square ? make<reg_expr> (size, name + "a") : nullptr),
+		  m_square_val (keep_square ? make<reg_expr> (size, name + "sq") : nullptr),
 		  m_neg_pred (keep_abs ? codegen->gen_reg ("pred", name + "n") : nullptr)
 	{
 	}
-	void store (shared_ptr<expr> val)
+	void store (expr *val)
 	{
-		gen_store (&*m_reg, val);
+		gen_store (m_reg, val);
 		if (!m_neg_pred.isEmpty () || m_square_val != nullptr) {
-			auto absexp = make_shared<abs_expr> (val, m_neg_pred);
+			auto absexp = make<abs_expr> (val, m_neg_pred);
 			if (!m_neg_pred.isEmpty ())
-				gen_store (&*m_abs_val, absexp);
+				gen_store (m_abs_val, absexp);
 			if (m_square_val != nullptr)
-				gen_store (&*m_square_val, gen_mult_unsigned (absexp, absexp));
+				gen_store (m_square_val, gen_mult_unsigned (absexp, absexp));
 		}
 	}
-	operator shared_ptr<expr> () const
+	operator expr *() const
 	{
 		return m_reg;
 	}
-	shared_ptr<expr> ex () const
+	expr *ex () const
 	{
 		return m_reg;
 	}
@@ -1009,7 +1026,7 @@ public:
 	{
 		return m_square_val != nullptr;
 	}
-	shared_ptr<expr> squared ()
+	expr *squared ()
 	{
 		if (m_square_val == nullptr) {
 			if (m_abs_val != nullptr)
@@ -1019,10 +1036,10 @@ public:
 		}
 		return m_square_val;
 	}
-	shared_ptr<expr> abs_val ()
+	expr *abs_val ()
 	{
 		if (m_abs_val == nullptr)
-			return make_shared<abs_expr> (m_reg, m_neg_pred);
+			return make<abs_expr> (m_reg, m_neg_pred);
 		return m_abs_val;
 	}
 	QString neg_pred ()
@@ -1038,39 +1055,39 @@ public:
 
 class real_val
 {
-	shared_ptr<expr> m_val;
-	shared_ptr<expr> m_abs_val;
-	shared_ptr<expr> m_square_val;
+	expr *m_val {};
+	expr *m_abs_val {};
+	expr *m_square_val {};
 	QString m_neg_pred;
 
 public:
 	real_val (const real_reg &reg) : m_val (reg.m_reg), m_abs_val (reg.m_abs_val), m_square_val (reg.m_square_val), m_neg_pred (reg.m_neg_pred)
 	{
 	}
-	real_val (shared_ptr<expr> expr) : m_val (expr)
+	real_val (expr *expr) : m_val (expr)
 	{
 	}
-	real_val (shared_ptr<expr> expr, const QString &pred) : m_abs_val (expr), m_neg_pred (pred)
+	real_val (expr *expr, const QString &pred) : m_abs_val (expr), m_neg_pred (pred)
 	{
 	}
 	real_val () = default;
-	operator shared_ptr<expr> () const
+	operator expr *() const
 	{
 		return ex ();
 	}
-	shared_ptr<expr> ex () const
+	expr *ex () const
 	{
 		if (m_val != nullptr)
 			return m_val;
-		shared_ptr<expr> dst = make_shared<reg_expr> (m_abs_val->length (), "sgn");
-		gen_cond_negate (&*dst, &*m_abs_val, m_neg_pred);
+		expr *dst = make<reg_expr> (m_abs_val->length (), "sgn");
+		gen_cond_negate (dst, m_abs_val, m_neg_pred);
 		return dst;
 	}
 	bool have_squared ()
 	{
 		return m_square_val != nullptr;
 	}
-	shared_ptr<expr> squared ()
+	expr *squared ()
 	{
 		if (m_square_val == nullptr) {
 			auto absv = abs_val ();
@@ -1078,10 +1095,10 @@ public:
 		}
 		return m_square_val;
 	}
-	shared_ptr<expr> abs_val ()
+	expr *abs_val ()
 	{
 		if (m_abs_val == nullptr)
-			m_abs_val = make_shared<abs_expr> (m_val, m_neg_pred);
+			m_abs_val = make<abs_expr> (m_val, m_neg_pred);
 		return m_abs_val;
 	}
 	QString neg_pred ()
@@ -1098,8 +1115,8 @@ public:
 template<class R1, class R2>
 real_val gen_mult (R1 &a, R2 &b, bool abs_required = true, bool truncate = true)
 {
-	shared_ptr<expr> aop = a.abs_val ();
-	shared_ptr<expr> bop = b.abs_val ();
+	expr *aop = a.abs_val ();
+	expr *bop = b.abs_val ();
 	auto prod = gen_mult_unsigned (aop, bop, truncate);
 	if (!abs_required || &a == &b)
 		return prod;
@@ -1109,7 +1126,7 @@ real_val gen_mult (R1 &a, R2 &b, bool abs_required = true, bool truncate = true)
 	return real_val (prod, pred);
 }
 
-QString convert_to_float (shared_ptr<expr> v)
+QString convert_to_float (expr *v)
 {
 	QString dstreg = codegen->gen_reg ("f64", "convdst");
 	int len = v->length ();
@@ -1141,31 +1158,31 @@ real_val emit_newton_iteration (real_val &d, real_val &xi, int dlen, const QStri
 {
 	// Compute Xi + Xi (1 - D * Xi)
 	auto mult = gen_mult_unsigned (d, xi);
-	auto const1 = make_shared<const_expr<1>> (mult->length ());
-	real_val sub (make_shared<addsub_expr> ("sub", const1, mult));
-	real_val subt (make_shared<trunc_expr> (sub, dlen));
-	auto result = make_shared<addsub_expr> ("add", xi, gen_mult (subt, xi));
+	auto const1 = make<const_expr<1>> (mult->length ());
+	real_val sub (make<addsub_expr> ("sub", const1, mult));
+	real_val subt (make<trunc_expr> (sub, dlen));
+	auto result = make<addsub_expr> ("add", xi, gen_mult (subt, xi));
 	result->set_destreg (name);
 	return real_val { result };
 }
 
-shared_ptr<expr> invert (const QString &addr, int len)
+expr *invert (const QString &addr, int len)
 {
-	real_val d (make_shared<lds_expr> (addr, "4", len));
+	real_val d (make<lds_expr> (addr, "4", len));
 	int est_n = len > 2 ? 3 : 2;
-	auto d2 = make_shared<trunc_expr> (d, est_n);
+	auto d2 = make<trunc_expr> (d, est_n);
 	QString flt = convert_to_float (d2);
 	codegen->append_code (QString ("\tdiv.rz.f64\t%1, 1.0, %1;\n").arg (flt));
-	real_val estimate (make_shared<padlow_expr> (make_shared<from_float_expr> (flt), len));
+	real_val estimate (make<padlow_expr> (make<from_float_expr> (flt), len));
 	for (int nwords = 1; nwords + 1 < len; nwords *= 2) {
 		estimate = emit_newton_iteration (d, estimate, len, QString ("est%1").arg (nwords));
 	}
 	if (estimate.ex ()->length () > len)
-		return make_shared<trunc_expr> (estimate, len);
+		return make<trunc_expr> (estimate, len);
 	return estimate;
 }
 
-std::pair<shared_ptr<expr>, QString> gen_inverse (shared_ptr<expr> d, const QString &scratch)
+std::pair<expr *, QString> gen_inverse (expr *d, const QString &scratch)
 {
 	QString shift_amt = emit_normalize (d, scratch);
 	QString zpred = codegen->gen_reg ("pred", "divz");
@@ -1179,30 +1196,30 @@ std::pair<shared_ptr<expr>, QString> gen_inverse (shared_ptr<expr> d, const QStr
 	return { inverse, shift_amt };
 }
 
-shared_ptr<expr> gen_div (shared_ptr<expr> n, shared_ptr<expr> d, const QString &scratch)
+expr *gen_div (expr *n, expr *d, const QString &scratch)
 {
-	auto na = make_shared<abs_expr> (n);
-	auto da = make_shared<abs_expr> (d);
+	auto na = make<abs_expr> (n);
+	auto da = make<abs_expr> (d);
 	auto [ inverse, shift_amt ] = gen_inverse (da, scratch);
 	int len = da->length ();
 	auto nanorm = emit_normalize_amt (na, shift_amt, scratch, len + 1);
 	nanorm->set_destreg ("nanorm");
-	auto q1 = make_shared<mult_expr> (nanorm, inverse);
+	auto q1 = make<mult_expr> (nanorm, inverse);
 	q1->set_destreg ("q1_");
-	auto q1r = make_shared<addsub_expr> ("add", q1, make_shared<round_cst_expr> (1 + len, 0x80000000));
+	auto q1r = make<addsub_expr> ("add", q1, make<round_cst_expr> (1 + len, 0x80000000));
 	q1r->set_destreg ("q1r_");
 #if 0
 	/* Now we have an estimate of the result of the division. Perform one more iteration:
 	   q2 = q1 + inv(n - d*q1).  */
-	auto dapad = make_shared<padlow_expr> (da, len + 1);
-	auto dq1 = gen_mult (dapad, make_shared<trunc_expr> (q1, len + 1));
-	auto nmdq1 = make_shared<addsub_expr> ("sub", nanorm, dq1);
-	auto addend = make_shared<mult_expr> (nmdq1, inverse);
-	auto q2 = make_shared<addsub_expr> ("add", q1, addend);
-	auto q2r = make_shared<addsub_expr> ("add", q2, make_shared<round_cst_expr> (1 + len, 0x80000000));
+	auto dapad = make<padlow_expr> (da, len + 1);
+	auto dq1 = gen_mult (dapad, make<trunc_expr> (q1, len + 1));
+	auto nmdq1 = make<addsub_expr> ("sub", nanorm, dq1);
+	auto addend = make<mult_expr> (nmdq1, inverse);
+	auto q2 = make<addsub_expr> ("add", q1, addend);
+	auto q2r = make<addsub_expr> ("add", q2, make<round_cst_expr> (1 + len, 0x80000000));
 #endif
 	// auto pos_result = emit_normalize_amt (q1, shift_amt, scratch, len + 1);
-	return make_shared<mult_sign_fixup_expr> (make_shared<trunc_expr> (q1r, len), na, da);
+	return make<mult_sign_fixup_expr> (make<trunc_expr> (q1r, len), na, da);
 }
 
 void gen_coord_muladd (QString &result, int dstsize, int srcsize)
@@ -1278,9 +1295,9 @@ void gen_mul_func (QString &result, int size, bool sqr)
 	   It's unclear how to avoid this.  */
 	generator cg;
 	codegen = &cg;
-	auto dst = make_shared<reg_expr> (size, "dst", false);
-	auto srca = make_shared<reg_expr> (size, "srca", false);
-	auto srcb = sqr ? srca : make_shared<reg_expr> (size, "srcb", false);
+	auto dst = make<reg_expr> (size, "dst", false);
+	auto srca = make<reg_expr> (size, "srca", false);
+	auto srcb = sqr ? srca : make<reg_expr> (size, "srcb", false);
 	result += ".func (";
 	for (int i = 0; i < dst->length (); i++) {
 		if (i > 0)
@@ -1303,7 +1320,7 @@ void gen_mul_func (QString &result, int size, bool sqr)
 		}
 	result += ")\n{\n";
 
-	gen_store (&*dst, gen_mult (srca, srcb));
+	gen_store (dst, gen_mult (srca, srcb));
 	result += cg.code ();
 	codegen = nullptr;
 	result += "}\n";
@@ -1429,17 +1446,17 @@ struct cplx_val
 	cplx_val (const real_val &r, const real_val &i) : re (r), im (i)
 	{
 	}
-	cplx_val (shared_ptr<expr> r, shared_ptr<expr> i) : re (r), im (i)
+	cplx_val (expr *r, expr *i) : re (r), im (i)
 	{
 	}
 	cplx_val (const cplx_reg &reg) : re (reg.re), im (reg.im)
 	{
 	}
-	void set_re (shared_ptr<expr> v)
+	void set_re (expr *v)
 	{
 		re = real_val (v);
 	}
-	void set_im (shared_ptr<expr> v)
+	void set_im (expr *v)
 	{
 		im = real_val (v);
 	}
@@ -1463,8 +1480,8 @@ cplx_val emit_complex_mult (cplx_val &va, cplx_val &vb)
 		real_val ip1_expr = gen_mult (va.re, vb.im);
 		real_val ip2_expr = gen_mult (va.im, vb.re);
 
-		auto re = make_shared<addsub_expr> ("sub", rp1_expr, rp2_expr);
-		auto im = make_shared<addsub_expr> ("add", ip1_expr, ip2_expr);
+		auto re = make<addsub_expr> ("sub", rp1_expr, rp2_expr);
+		auto im = make<addsub_expr> ("add", ip1_expr, ip2_expr);
 		return { re, im };
 	}
 	// k1 = c(a + b)
@@ -1472,14 +1489,14 @@ cplx_val emit_complex_mult (cplx_val &va, cplx_val &vb)
 	// k3 = b(c + d)
 	// re = k1 − k3
 	// im = k1 + k2.
-	real_val sum1 (make_shared<addsub_expr> ("add", va.re, va.im));
-	real_val sum2 (make_shared<addsub_expr> ("sub", vb.im, vb.re));
-	real_val sum3 (make_shared<addsub_expr> ("add", vb.re, vb.im));
+	real_val sum1 (make<addsub_expr> ("add", va.re, va.im));
+	real_val sum2 (make<addsub_expr> ("sub", vb.im, vb.re));
+	real_val sum3 (make<addsub_expr> ("add", vb.re, vb.im));
 	real_val k1 = gen_mult (vb.re, sum1);
 	real_val k2 = gen_mult (va.re, sum2);
 	real_val k3 = gen_mult (va.im, sum3);
-	auto re = make_shared<addsub_expr> ("sub", k1, k3);
-	auto im = make_shared<addsub_expr> ("add", k1, k2);
+	auto re = make<addsub_expr> ("sub", k1, k3);
+	auto im = make<addsub_expr> ("add", k1, k2);
 	return { re, im };
 }
 
@@ -1499,8 +1516,8 @@ cplx_val emit_complex_sqr (C &v)
 
 	auto tmp = gen_mult (v.re, v.im);
 
-	auto re = make_shared<addsub_expr> ("sub", sqre, sqim);
-	auto im = make_shared<addsub_expr> ("add", tmp, tmp);
+	auto re = make<addsub_expr> ("sub", sqre, sqim);
+	auto im = make<addsub_expr> ("add", tmp, tmp);
 	return { re, im };
 }
 
@@ -1511,34 +1528,34 @@ cplx_val gen_mult_int (C &v, int factor)
 	bool first = true;
 	for (int i = 0; i < 10; i++)
 		if (factor & (1 << i)) {
-			shared_ptr<expr> shfr = i == 0 ? v.re.ex () : make_shared<lshift_expr> (v.re, i);
-			shared_ptr<expr> shfi = i == 0 ? v.im.ex () : make_shared<lshift_expr> (v.im, i);
+			expr *shfr = i == 0 ? v.re.ex () : make<lshift_expr> (v.re, i);
+			expr *shfi = i == 0 ? v.im.ex () : make<lshift_expr> (v.im, i);
 			if (first) {
 				result = { shfr, shfi };
 				first = false;
 			} else {
-				auto re = make_shared<addsub_expr> ("add", result.re, shfr);
-				auto im = make_shared<addsub_expr> ("add", result.im, shfi);
+				auto re = make<addsub_expr> ("add", result.re, shfr);
+				auto im = make<addsub_expr> ("add", result.im, shfi);
 				result = { re, im };
 			}
 		}
 	return result;
 }
 
-shared_ptr<expr> gen_mult_by_inverse (shared_ptr<expr> v, shared_ptr<expr> inverse,
+expr *gen_mult_by_inverse (expr *v, expr *inverse,
 				      const QString &scratch, const QString &shift_amt)
 {
-	auto va = make_shared<abs_expr> (v);
+	auto va = make<abs_expr> (v);
 	int len = inverse->length () - 1;
 	auto vanorm = emit_normalize_amt (va, shift_amt, scratch, len + 1);
 	vanorm->set_destreg ("vanorm");
-	auto q1 = make_shared<mult_expr> (vanorm, inverse);
+	auto q1 = make<mult_expr> (vanorm, inverse);
 	q1->set_destreg ("q1_");
-	auto q1r = make_shared<addsub_expr> ("add", q1, make_shared<round_cst_expr> (1 + len, 0x80000000));
+	auto q1r = make<addsub_expr> ("add", q1, make<round_cst_expr> (1 + len, 0x80000000));
 	q1r->set_destreg ("q1r_");
 	// auto pos_result = emit_normalize_amt (q1, shift_amt, scratch, len + 1);
-	auto result = make_shared<reg_expr> (len);
-	gen_cond_negate (&*result, &*make_shared<trunc_expr> (q1r, len), va->get_pred ());
+	auto result = make<reg_expr> (len);
+	gen_cond_negate (result, make<trunc_expr> (q1r, len), va->get_pred ());
 	return result;
 }
 
@@ -1550,12 +1567,12 @@ cplx_val emit_complex_div (cplx_val &n, cplx_val &d)
 	auto ip2_expr = gen_mult (n.re, d.im, true, false);
 	auto ip1_expr = gen_mult (n.im, d.re, true, false);
 
-	auto nre = make_shared<addsub_expr> ("add", rp1_expr, rp2_expr);
-	auto nim = make_shared<addsub_expr> ("sub", ip1_expr, ip2_expr);
+	auto nre = make<addsub_expr> ("add", rp1_expr, rp2_expr);
+	auto nim = make<addsub_expr> ("sub", ip1_expr, ip2_expr);
 
 	auto d2re = d.re.squared ();
 	auto d2im = d.im.squared ();
-	auto d_sum = make_shared<addsub_expr> ("add", d2re, d2im);
+	auto d_sum = make<addsub_expr> ("add", d2re, d2im);
 	auto [ inv, shift_amt ] = gen_inverse (d_sum, "%scratch");
 	auto rre = gen_mult_by_inverse (nre, inv, "%scratch", shift_amt);
 	rre->calculate_full ();
@@ -1593,26 +1610,24 @@ cplx_val get_power (array<cplx_val, 20> &powers, int power)
 
 cplx_val cplx_ldc (const QString &name, int size, int stepsize)
 {
-	auto re = make_shared<ldc_expr> (QString ("%1 + %2")
+	auto re = make<ldc_expr> (QString ("%1 + %2")
 					 .arg (name).arg (stepsize * 4 - size * 4), size);
-	auto im = make_shared<ldc_expr> (QString ("%1 + %2")
+	auto im = make<ldc_expr> (QString ("%1 + %2")
 					 .arg (name).arg (2 * stepsize * 4 - size * 4), size);
 	return { re, im };
 }
 
 cplx_val emit_complex_add (const cplx_val &v1, const cplx_val &v2)
 {
-	shared_ptr<addsub_expr> newzr, newzi;
-	newzr = make_shared<addsub_expr> ("add", v1.re, v2.re);
-	newzi = make_shared<addsub_expr> ("add", v1.im, v2.im);
+	auto newzr = make<addsub_expr> ("add", v1.re, v2.re);
+	auto newzi = make<addsub_expr> ("add", v1.im, v2.im);
 	return { newzr, newzi };
 }
 
 cplx_val emit_complex_sub (const cplx_val &v1, const cplx_val &v2)
 {
-	shared_ptr<addsub_expr> newzr, newzi;
-	newzr = make_shared<addsub_expr> ("sub", v1.re, v2.re);
-	newzi = make_shared<addsub_expr> ("sub", v1.im, v2.im);
+	auto newzr = make<addsub_expr> ("sub", v1.re, v2.re);
+	auto newzi = make<addsub_expr> ("sub", v1.im, v2.im);
 	return { newzr, newzi };
 }
 
@@ -1630,8 +1645,8 @@ void gen_inner_standard (int size, int power, bool julia, bool dem,
 		cplx_val nrd = emit_complex_mult (dpwr, zdval);
 		nrd = gen_mult_int (nrd, power);
 		if (!julia) {
-			nrd.set_re (make_shared<addsub_expr> ("add", nrd.re,
-							      make_shared<ldg_expr> ("%dem_step", size)));
+			nrd.set_re (make<addsub_expr> ("add", nrd.re,
+							      make<ldg_expr> ("%dem_step", size)));
 		}
 		zder.store (nrd);
 	}
@@ -1642,8 +1657,8 @@ void gen_inner_standard (int size, int power, bool julia, bool dem,
 // continuing.
 void gen_inner_ship (int power, bool /* julia */, cplx_reg zreg, cplx_val cval)
 {
-	auto zar = make_shared<abs_expr> (zreg.re);
-	auto zai = make_shared<abs_expr> (zreg.im);
+	auto zar = make<abs_expr> (zreg.re);
+	auto zai = make<abs_expr> (zreg.im);
 	zreg.store ({ zar, zai});
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, power);
@@ -1663,8 +1678,8 @@ void gen_inner_tricorn (int size, int power, bool /* julia */, cplx_reg zreg, cp
 	cplx_val pwr = get_power (powers, power);
 	cplx_val newz = emit_complex_add (pwr, cval);
 
-	auto const0 = make_shared<const_expr<0>> (size);
-	newz.set_im (make_shared<addsub_expr> ("sub", const0, newz.im));
+	auto const0 = make<const_expr<0>> (size);
+	newz.set_im (make<addsub_expr> ("sub", const0, newz.im));
 
 	zreg.store (newz);
 }
@@ -1674,7 +1689,7 @@ void gen_inner_celtic (int power, bool /* julia */, cplx_reg zreg, cplx_val cval
 	array<cplx_val, 20> powers;
 	build_powers (powers, zreg, power);
 	cplx_val pwr = get_power (powers, power);
-	pwr.set_re (make_shared<abs_expr> (pwr.re));
+	pwr.set_re (make<abs_expr> (pwr.re));
 	cplx_val newz = emit_complex_add (pwr, cval);
 
 	zreg.store (newz);
@@ -1704,9 +1719,9 @@ void gen_inner_lambda (int size, int power, bool julia, bool dem,
 		cplx_val sum2 = emit_complex_sub (nrd, f);
 		cplx_val m = emit_complex_mult (sum2, cval);
 		if (!julia) {
-			real_val step (make_shared<ldg_expr> ("%dem_step", size));
-			shared_ptr<expr> scaled_re = gen_mult (sum.re, step);
-			shared_ptr<expr> scaled_im = gen_mult (sum.im, step);
+			real_val step (make<ldg_expr> ("%dem_step", size));
+			expr *scaled_re = gen_mult (sum.re, step);
+			expr *scaled_im = gen_mult (sum.im, step);
 			cplx_val scaled { scaled_re, scaled_im };
 			zder.store (emit_complex_add (scaled, m));
 		} else {
@@ -1745,12 +1760,12 @@ void gen_inner_magnet_a (int size, int power, bool /* julia */, cplx_reg zreg, c
 {
 	cplx_val pwr = emit_complex_sqr (zreg);
 	cplx_val newz1 = emit_complex_add (pwr, creg);
-	auto const1 = make_shared<const_expr<1>> (size);
-	auto const2 = make_shared<const_expr<2>> (size);
-	newz1.set_re (make_shared<addsub_expr> ("sub", newz1.re, const1));
+	auto const1 = make<const_expr<1>> (size);
+	auto const2 = make<const_expr<2>> (size);
+	newz1.set_re (make<addsub_expr> ("sub", newz1.re, const1));
 	cplx_val dnewz1 = gen_mult_int (zreg, 2);
 	cplx_val dnewz2 = emit_complex_add (dnewz1, creg);
-	dnewz2.set_re (make_shared<addsub_expr> ("sub", dnewz2.re, const2));
+	dnewz2.set_re (make<addsub_expr> ("sub", dnewz2.re, const2));
 	auto d = emit_complex_div (newz1, dnewz2);
 	auto newz = emit_complex_sqr (d);
 	zreg.store (newz);
@@ -1788,8 +1803,8 @@ void gen_inner_facing_b (int size, int power, bool /* julia */, cplx_reg zreg, c
 void gen_inner_rings (int size, int power, bool /* julia */, cplx_reg zreg, cplx_val creg)
 {
 	/* Compute the division first and then the powers - that's better for maintaining precision.  */
-	auto const0 = make_shared<const_expr<0>> (size);
-	auto const1 = make_shared<const_expr<1>> (size);
+	auto const0 = make<const_expr<0>> (size);
+	auto const1 = make<const_expr<1>> (size);
 	cplx_val one { const1, const0 };
 	cplx_val zval { zreg };
 	auto zinv = emit_complex_div (one, zval);
@@ -1806,8 +1821,8 @@ void gen_inner_rings (int size, int power, bool /* julia */, cplx_reg zreg, cplx
 		zreg.store (newz);
 	} else {
 		cplx_val p2m2 = gen_mult_int (pwr2, power + 1);
-		auto p2mp2r = make_shared<arshift_expr<1>> (p2m2.re);
-		auto p2mp2i = make_shared<arshift_expr<1>> (p2m2.im);
+		auto p2mp2r = make<arshift_expr<1>> (p2m2.re);
+		auto p2mp2i = make<arshift_expr<1>> (p2m2.im);
 		cplx_val p2mp2 { p2mp2r, p2mp2i };
 		auto sum = emit_complex_sub (pwr, p2mp2);
 		auto newz = emit_complex_mult (sum, creg);
@@ -1823,8 +1838,8 @@ void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg creg)
 
 	cplx_val newz = emit_complex_add (pwr, creg);
 
-	auto prhalf = make_shared<arshift_expr<1>> (creg.re);
-	auto pihalf = make_shared<arshift_expr<1>> (creg.im);
+	auto prhalf = make<arshift_expr<1>> (creg.re);
+	auto pihalf = make<arshift_expr<1>> (creg.im);
 	cplx_val np = emit_complex_add ({ prhalf, pihalf}, newz);
 	zreg.store (newz);
 	creg.store (np);
@@ -1841,8 +1856,8 @@ void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
 	cplx_val f = gen_mult_int (zreg, power);
 	cplx_val sum1 = emit_complex_sub (pwr, f);
 	cplx_val sum = sum1;
-	auto const2 = make_shared<const_expr<2>> (size);
-	sum.set_re (make_shared<addsub_expr> ("sub", sum.re, const2));
+	auto const2 = make<const_expr<2>> (size);
+	sum.set_re (make<addsub_expr> ("sub", sum.re, const2));
 	cplx_val newz1 = emit_complex_mult (sum, cval);
 	auto pq = cplx_ldc ("const_param_q", size, stepsize);
 	cplx_val newz = emit_complex_sub (newz1, pq);
@@ -1854,9 +1869,9 @@ void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
 		if (!julia) {
 			cplx_val sum2 = emit_complex_sub (nrd, gen_mult_int (zder, power));
 			cplx_val m = emit_complex_mult (sum2, cval);
-			real_val step (make_shared<ldg_expr> ("%dem_step", size));
-			shared_ptr<expr> scaled_re = gen_mult (sum.re, step);
-			shared_ptr<expr> scaled_im = gen_mult (sum.im, step);
+			real_val step (make<ldg_expr> ("%dem_step", size));
+			expr *scaled_re = gen_mult (sum.re, step);
+			expr *scaled_im = gen_mult (sum.im, step);
 			cplx_val scaled { scaled_re, scaled_im };
 			zder.store (emit_complex_add (scaled, m));
 		} else {
@@ -2071,45 +2086,45 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power,
 	generator cg;
 	codegen = &cg;
 
-	real_val incoord_x (make_shared<ldg_expr> ("%ar_t", size));
-	real_val incoord_y (make_shared<ldg_expr> ("%ar_tim", size));
-	real_val originx (make_shared<ldc_expr> (QString ("const_origin_x + %1")
+	real_val incoord_x (make<ldg_expr> ("%ar_t", size));
+	real_val incoord_y (make<ldg_expr> ("%ar_tim", size));
+	real_val originx (make<ldc_expr> (QString ("const_origin_x + %1")
 						 .arg (stepsize * 4 - size * 4), size));
-	real_val originy (make_shared<ldc_expr> (QString ("const_origin_y + %1")
+	real_val originy (make<ldc_expr> (QString ("const_origin_y + %1")
 						 .arg (stepsize * 4 - size * 4), size));
-	real_val mat00 (make_shared<ldc_expr> (QString ("const_matrix00 + %1")
+	real_val mat00 (make<ldc_expr> (QString ("const_matrix00 + %1")
 					       .arg (stepsize * 4 - size * 4), size));
-	real_val mat01 (make_shared<ldc_expr> (QString ("const_matrix01 + %1")
+	real_val mat01 (make<ldc_expr> (QString ("const_matrix01 + %1")
 					       .arg (stepsize * 4 - size * 4), size));
-	real_val mat10 (make_shared<ldc_expr> (QString ("const_matrix10 + %1")
+	real_val mat10 (make<ldc_expr> (QString ("const_matrix10 + %1")
 					       .arg (stepsize * 4 - size * 4), size));
-	real_val mat11 (make_shared<ldc_expr> (QString ("const_matrix11 + %1")
+	real_val mat11 (make<ldc_expr> (QString ("const_matrix11 + %1")
 					       .arg (stepsize * 4 - size * 4), size));
 
-	auto coord_x1 = make_shared<addsub_expr> ("add", gen_mult (incoord_x, mat00), gen_mult (incoord_y, mat01));
-	auto coord_y1 = make_shared<addsub_expr> ("add", gen_mult (incoord_x, mat10), gen_mult (incoord_y, mat11));
-	auto coord_x = make_shared<addsub_expr> ("add", originx, coord_x1);
-	auto coord_y = make_shared<addsub_expr> ("add", originy, coord_y1);
+	auto coord_x1 = make<addsub_expr> ("add", gen_mult (incoord_x, mat00), gen_mult (incoord_y, mat01));
+	auto coord_y1 = make<addsub_expr> ("add", gen_mult (incoord_x, mat10), gen_mult (incoord_y, mat11));
+	auto coord_x = make<addsub_expr> ("add", originx, coord_x1);
+	auto coord_y = make<addsub_expr> ("add", originy, coord_y1);
 
 	coord_x->calculate_full ();
 	coord_y->calculate_full ();
 	gen_store ("%ar_t", coord_x);
 	gen_store ("%ar_tim", coord_y);
 
-	auto const0 = make_shared<const_expr<0>> (size);
-	auto const1 = make_shared<const_expr<1>> (size);
+	auto const0 = make<const_expr<0>> (size);
+	auto const1 = make<const_expr<1>> (size);
 	if (dem) {
 		if (julia)
-			gen_store ("%ar_zder", make_shared<ldg_expr> ("%dem_step", size));
+			gen_store ("%ar_zder", make<ldg_expr> ("%dem_step", size));
 		else
 			gen_store ("%ar_zder", const0);
 		gen_store ("%ar_zderim", const0);
 	}
 
 	if (!julia) {
-		auto critr = make_shared<ldc_expr> (QString ("const_critpoint + %1")
+		auto critr = make<ldc_expr> (QString ("const_critpoint + %1")
 						    .arg (stepsize * 4 - size * 4), size);
-		auto criti = make_shared<ldc_expr> (QString ("const_critpoint + %1")
+		auto criti = make<ldc_expr> (QString ("const_critpoint + %1")
 						    .arg (2 * stepsize * 4 - size * 4), size);
 		if (f == formula::facing) {
 			gen_store ("%ar_z", coord_x);
@@ -2139,15 +2154,15 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power,
 	real_reg zr (size, "zr", true, true);
 	real_reg zi (size, "zi", true, true);
 
-	cr.store (make_shared<ldg_expr> ("%ar_t", size));
-	ci.store (make_shared<ldg_expr> ("%ar_tim", size));
-	zr.store (make_shared<ldg_expr> ("%ar_z", size));
-	zi.store (make_shared<ldg_expr> ("%ar_zim", size));
+	cr.store (make<ldg_expr> ("%ar_t", size));
+	ci.store (make<ldg_expr> ("%ar_tim", size));
+	zr.store (make<ldg_expr> ("%ar_z", size));
+	zi.store (make<ldg_expr> ("%ar_zim", size));
 	real_reg zderr = dem ? real_reg (size, "zderr", true) : real_reg ();
 	real_reg zderi = dem ? real_reg (size, "zderi", true) : real_reg ();
 	if (dem) {
-		zderr.store (make_shared<ldg_expr> ("%ar_zder", size));
-		zderi.store (make_shared<ldg_expr> ("%ar_zderim", size));
+		zderr.store (make<ldg_expr> ("%ar_zder", size));
+		zderi.store (make<ldg_expr> ("%ar_zderim", size));
 	}
 
 	bool fixpoints = formula_test_fixpoint (f);
@@ -2202,9 +2217,9 @@ loop:
 		   artifacts.  */
 		result += "\t.reg.u32\t%diff;\n";
 		result += "\t.reg.pred\t%fp_neq;\n";
-		auto constm1 = make_shared<const_expr<-1>> (size);
-		real_val zrm1 (make_shared<addsub_expr> ("add", zr, constm1));
-		real_val dist (make_shared<addsub_expr> ("add", gen_mult (zrm1, zrm1), zi.squared ()));
+		auto constm1 = make<const_expr<-1>> (size);
+		real_val zrm1 (make<addsub_expr> ("add", zr, constm1));
+		real_val dist (make<addsub_expr> ("add", gen_mult (zrm1, zrm1), zi.squared ()));
 		dist.ex ()->calculate_full ();
 		result += cg.code ();
 		gen_test_and_branch (result, dist, "%fp_neq", "%diff", "skip2", "16");
@@ -2212,9 +2227,9 @@ loop:
 	} else if (fixpoints) {
 		result += "\t.reg.u32\t%diff;\n";
 		result += "\t.reg.pred\t%fp_neq;\n";
-		real_val zrdelta (make_shared<addsub_expr> ("sub", zr, zlastr));
-		real_val zidelta (make_shared<addsub_expr> ("sub", zi, zlasti));
-		real_val dist (make_shared<addsub_expr> ("add", zrdelta.squared (), zidelta.squared ()));
+		real_val zrdelta (make<addsub_expr> ("sub", zr, zlastr));
+		real_val zidelta (make<addsub_expr> ("sub", zi, zlasti));
+		real_val dist (make<addsub_expr> ("add", zrdelta.squared (), zidelta.squared ()));
 		dist.ex ()->calculate_full ();
 		result += cg.code ();
 		gen_test_and_branch (result, dist, "%fp_neq", "%diff", "skip2", "16");
