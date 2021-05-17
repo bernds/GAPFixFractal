@@ -333,8 +333,16 @@ static inline uint32_t color_for_sac_common (uint32_t col, double mod, const fra
 	}
 	if (rp.angle_colour)
 		col = modify_color (col, mod);
-	else
-		col = 0x01010101 * floor (mod * 255);
+	else {
+		QColor base = QColor::fromRgb (rp.sac_tint);
+		int cr = base.red ();
+		int cg = base.green ();
+		int cb = base.blue ();
+		cr *= mod;
+		cg *= mod;
+		cb *= mod;
+		col = QColor::fromRgb (cr, cg, cb, floor (mod * 255)).rgba ();
+	}
 	return col;
 }
 

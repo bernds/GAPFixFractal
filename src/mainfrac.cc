@@ -805,6 +805,7 @@ void MainWindow::set_render_params (render_params &p)
 	p.dem_stop = m_dem_stop;
 	p.bin_a = m_bin_a;
 	p.bin_b = m_bin_b;
+	p.sac_tint = m_sac_tint;
 	p.aspect = chosen_aspect ();
 }
 
@@ -1396,6 +1397,10 @@ void MainWindow::update_color_buttons ()
 	p4.fill (QColor::fromRgb (m_bin_b));
 	QIcon i4 (p4);
 	ui->BinBButton->setIcon (i4);
+	QPixmap p5 (16, 16);
+	p5.fill (QColor::fromRgb (m_sac_tint));
+	QIcon i5 (p5);
+	ui->SACTintButton->setIcon (i5);
 }
 
 void MainWindow::choose_dem_color (int col)
@@ -1406,6 +1411,15 @@ void MainWindow::choose_dem_color (int col)
 		m_dem_start = n.rgb ();
 	else
 		m_dem_stop = n.rgb ();
+	update_color_buttons ();
+	update_views ();
+}
+
+void MainWindow::choose_sac_color ()
+{
+	QColor old = QColor::fromRgb (m_sac_tint);
+	QColor n = QColorDialog::getColor (old, this, tr ("Choose a color for the SAC or TIA tint"));
+	m_sac_tint = n.rgb ();
 	update_color_buttons ();
 	update_views ();
 }
@@ -2298,6 +2312,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	update_color_buttons ();
 	connect (ui->DEMStartButton, &QToolButton::clicked, [this] (bool) { choose_dem_color (0); });
 	connect (ui->DEMEndButton, &QToolButton::clicked, [this] (bool) { choose_dem_color (1); });
+	connect (ui->SACTintButton, &QToolButton::clicked, [this] (bool) { choose_sac_color (); });
 	connect (ui->BinAButton, &QToolButton::clicked, [this] (bool) { choose_bin_color (0); });
 	connect (ui->BinBButton, &QToolButton::clicked, [this] (bool) { choose_bin_color (1); });
 

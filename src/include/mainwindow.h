@@ -97,6 +97,7 @@ class MainWindow: public QMainWindow
 	uint32_t m_dem_stop = 0;
 	uint32_t m_bin_a = 0;
 	uint32_t m_bin_b = 0xFFFFFF;
+	uint32_t m_sac_tint = 0xFFFFFF;
 	QImage m_img_mandel, m_img_julia;
 	// Minimum niter values, computed during rendering
 	double m_min_mandel = 0, m_min_julia = 0;
@@ -190,6 +191,7 @@ class MainWindow: public QMainWindow
 	void zoom_in (bool = false);
 	void zoom_out (bool = false);
 
+	void choose_sac_color ();
 	void choose_dem_color (int);
 	void choose_bin_color (int);
 	void update_color_buttons ();

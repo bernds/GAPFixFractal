@@ -18,6 +18,7 @@ struct render_params
 	bool dem_shade;
 	uint32_t dem_start, dem_stop;
 	uint32_t bin_a, bin_b;
+	uint32_t sac_tint;
 	double dem_param, dem_strength;
 	// Used for stored parameters, holds either the aspect set in the GUI,
 	// or, if that is disabled, the image dimensions.
