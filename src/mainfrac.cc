@@ -2333,10 +2333,13 @@ MainWindow::MainWindow (QDataStream *init_file)
 
 	connect (ui->pauseButton, &QPushButton::toggled, this, &MainWindow::do_pause);
 	connect (ui->windDownButton, &QPushButton::clicked, this, &MainWindow::do_wind_down);
-	connect (ui->zinButton, &QPushButton::clicked, this, &MainWindow::zoom_in);
-	connect (ui->zoutButton, &QPushButton::clicked, this, &MainWindow::zoom_out);
 	connect (ui->storeButton, &QPushButton::clicked, [this] (bool) { store_params (false); });
 	connect (ui->storePreviewButton, &QPushButton::clicked, [this] (bool) { store_params (true); });
+
+	connect (ui->action_IncZoom, &QAction::triggered, this, &MainWindow::zoom_in);
+	connect (ui->action_DecZoom, &QAction::triggered, this, &MainWindow::zoom_out);
+	ui->zinButton->setDefaultAction (ui->action_IncZoom);
+	ui->zoutButton->setDefaultAction (ui->action_DecZoom);
 
 	connect (ui->demParamSpinBox, dchanged, [this] (bool) { update_views (); });
 	connect (ui->demStrengthSpinBox, dchanged, [this] (bool) { update_views (); });

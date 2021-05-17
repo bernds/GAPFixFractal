@@ -1596,16 +1596,10 @@
    <property name="text">
     <string>&amp;Increase</string>
    </property>
-   <property name="shortcut">
-    <string>+</string>
-   </property>
   </action>
   <action name="action_DecPrec">
    <property name="text">
     <string>&amp;Decrease</string>
-   </property>
-   <property name="shortcut">
-    <string>-</string>
    </property>
   </action>
   <action name="action_NarrowB">
@@ -2260,6 +2254,36 @@
     <string>Maximum iterations...</string>
    </property>
   </action>
+  <action name="action_IncZoom">
+   <property name="icon">
+    <iconset resource="frac.qrc">
+     <normaloff>:/MainWindow/icons/zoom-in32.png</normaloff>:/MainWindow/icons/zoom-in32.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Increase zoom</string>
+   </property>
+   <property name="toolTip">
+    <string>Increase zoom</string>
+   </property>
+   <property name="shortcut">
+    <string>+</string>
+   </property>
+  </action>
+  <action name="action_DecZoom">
+   <property name="icon">
+    <iconset resource="frac.qrc">
+     <normaloff>:/MainWindow/icons/zoom-out32.png</normaloff>:/MainWindow/icons/zoom-out32.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Decrease zoom</string>
+   </property>
+   <property name="toolTip">
+    <string>Decrease zoom</string>
+   </property>
+   <property name="shortcut">
+    <string>-</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -2274,6 +2298,8 @@
    <container>1</container>
   </customwidget>
  </customwidgets>
- <resources/>
+ <resources>
+  <include location="frac.qrc"/>
+ </resources>
  <connections/>
 </ui>

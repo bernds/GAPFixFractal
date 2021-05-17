@@ -1,4 +1,6 @@
 <RCC>
   <qresource prefix="/MainWindow">
+    <file>icons/zoom-in32.png</file>
+    <file>icons/zoom-out32.png</file>
   </qresource>
 </RCC>
