@@ -1172,7 +1172,7 @@ expr *invert (const QString &addr, int len)
 	int est_n = len > 2 ? 3 : 2;
 	auto d2 = make<trunc_expr> (d, est_n);
 	QString flt = convert_to_float (d2);
-	codegen->append_code (QString ("\tdiv.rz.f64\t%1, 1.0, %1;\n").arg (flt));
+	codegen->append_code (QString ("\trcp.rz.f64\t%1, %1;\n").arg (flt));
 	real_val estimate (make<padlow_expr> (make<from_float_expr> (flt), len));
 	for (int nwords = 1; nwords + 1 < len; nwords *= 2) {
 		estimate = emit_newton_iteration (d, estimate, len, QString ("est%1").arg (nwords));
