@@ -2148,12 +2148,17 @@ MainWindow::MainWindow (QDataStream *init_file)
 	ui->sampleSpinBox->setValue (1);
 	ui->action_NarrowB->setChecked (true);
 	ui->action_NarrowW->setChecked (true);
-	ui->action_RotateHSV->setChecked (true);
+	ui->action_RotateTrad->setChecked (true);
 	ui->action_DEMOff->setChecked (true);
 	ui->action_DEMColour->setChecked (false);
 	ui->action_AngleColour->setChecked (false);
 	ui->action_AngleNone->setChecked (true);
 	ui->action_AimAssist->setChecked (true);
+	ui->action_Shift100->setChecked (true);
+	ui->action_NFactor4->setChecked (true);
+	ui->action_StructDark->setChecked (true);
+	ui->action_ICBlack->setChecked (true);
+	ui->action_Contrast->setChecked (true);
 
 	reset_coords (m_fd_mandel);
 	reset_coords (m_fd_julia);
@@ -2260,11 +2265,6 @@ MainWindow::MainWindow (QDataStream *init_file)
 	m_formula_group->addAction (ui->action_FormulaRings);
 	m_formula_group->addAction (ui->action_FormulaTest);
 
-	ui->action_Shift10->setChecked (true);
-	ui->action_NFactor4->setChecked (true);
-	ui->action_StructDark->setChecked (true);
-	ui->action_ICBlack->setChecked (true);
-	ui->action_Contrast->setChecked (true);
 	ui->action_FD2->setChecked (true);
 	enable_interface_for_formula (m_formula);
 	enable_interface_for_settings ();
