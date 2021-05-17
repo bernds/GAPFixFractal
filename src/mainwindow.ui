@@ -269,7 +269,8 @@
      <addaction name="action_SAC"/>
      <addaction name="action_TIA"/>
      <addaction name="separator"/>
-     <addaction name="action_Contrast"/>
+     <addaction name="action_SACContrast"/>
+     <addaction name="action_SACFade"/>
     </widget>
     <widget class="QMenu" name="menuIncoloring">
      <property name="title">
@@ -2180,7 +2181,7 @@
     <string>Rotate 5°</string>
    </property>
   </action>
-  <action name="action_Contrast">
+  <action name="action_SACContrast">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -2296,6 +2297,14 @@
    </property>
    <property name="shortcut">
     <string>-</string>
+   </property>
+  </action>
+  <action name="action_SACFade">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fade in SAC</string>
    </property>
   </action>
  </widget>

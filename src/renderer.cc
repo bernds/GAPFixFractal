@@ -255,19 +255,19 @@ inline std::pair<double, int> iter_value_at (frac_desc *fd, int idx, int power)
 	return { v + 5 - correction, 0 };
 }
 
-static inline double compute_sac (double *prev_vals, int n_prev, int count, double density, double radius, double power)
+static inline double compute_sac (double iter_val, double *prev_vals, int n_prev, int count, double density, double radius, double power, bool fade)
 {
 	double re = prev_vals[0];
 	double im = prev_vals[1];
 	double re2 = re * re;
 	double im2 = im * im;
-	double firstval = 0.5 * sin (density * atan2 (im, re)) + 0.5;
+	double firstval = 0.5 * sin (density * atan2 (im, re));
 	double lastval = 0;
 	double sum = 0;
 	for (int i = 1; i < count; i++) {
 		double lastre = prev_vals[i * 2];
 		double lastim = prev_vals[i * 2 + 1];
-		double val = 0.5 * sin (density * atan2 (lastim, lastre)) + 0.5;
+		double val = 0.5 * sin (density * atan2 (lastim, lastre));
 		lastval = val;
 		sum += val;
 	}
@@ -278,7 +278,11 @@ static inline double compute_sac (double *prev_vals, int n_prev, int count, doub
 	double avg2 = avg2_count > 0 ? (sum + firstval - lastval) / avg2_count : 0;
 	double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (power);
 	double result1 = avg1 * mixfactor + avg2 * (1 - mixfactor);
-	return result1;
+	if (fade) {
+		iter_val /= 20;
+		result1 *= iter_val / (1 + iter_val);
+	}
+	return result1 + 0.5;
 }
 
 static inline double compute_tia (double *prev_vals, double cre, double cim, int count,
@@ -384,7 +388,7 @@ public:
 			if (rp.sac && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
 				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
-				double mod = compute_sac (fd->pic_zprev + idx * 2 * n_prev, n_prev, thisnp, rp.sac_factor, radius, power);
+				double mod = compute_sac (v - rp.sub_val, fd->pic_zprev + idx * 2 * n_prev, n_prev, thisnp, rp.sac_factor, radius, power, rp.sac_fade);
 				col = color_for_sac_common (col, mod, fd, rp);
 			} else if (rp.tia && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
@@ -557,7 +561,10 @@ public:
 	}
 };
 
-/* The view is null if we are being called for a batch render.  */
+/* The view is null if we are being called for a batch render.  In
+   that case we use values computed earlier in live view rather than
+   recomputing them, since we only ever get to see a slice of the
+   entire render.  */
 void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_desc *fd, QGraphicsView *view, int gen)
 {
 	QMutexLocker lock (&mutex);
@@ -584,10 +591,11 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 	}
 	bool recompute_sactia = false;
 	if (view != nullptr) {
-		recompute_sactia = ((rp.sac && (m_sac_density != rp.sac_factor))
+		recompute_sactia = ((rp.sac && (m_sac_density != rp.sac_factor || m_sac_fade != rp.sac_fade))
 				    || (rp.tia && (m_tia_power != rp.tia_power)));
 		m_tia_power = rp.tia ? rp.tia_power : 0;
 		m_sac_density = rp.sac ? rp.sac_factor : 0;
+		m_sac_fade = rp.sac_fade;
 	}
 	if ((rp.sac || rp.tia) && (gen != m_min_gen || recompute_sactia)) {
 		/* If we are in batch mode, this value should have been precomputed and the generation
@@ -600,6 +608,9 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 		std::array<int, n_bins> bins {};
 		double radius = fd->dem ? 10 : 100;
 		int count = 0;
+		// fd->min_stripeval = 1;
+		// fd->max_stripeval = 0;
+
 		for (int i = 0; i < fd->n_pixels; i += 13) {
 			if (!fd->pic_pixels_done.test_bit (i))
 				continue;
@@ -609,27 +620,32 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 			r = std::min (fd->n_prev, r);
 			count++;
 			double v;
-			if (rp.sac)
-				v = compute_sac (fd->pic_zprev + i * 2 * fd->n_prev, fd->n_prev, r, rp.sac_factor, radius, power);
-			else {
+			if (rp.sac) {
+				auto [ iterval, attractor ] = iter_value_at (fd, i, power);
+				v = compute_sac (iterval - minimum, fd->pic_zprev + i * 2 * fd->n_prev, fd->n_prev, r, rp.sac_factor, radius, power, rp.sac_fade);
+			} else {
 				double cre = fd->pic_t[i * 2];
 				double cim = fd->pic_t[i * 2 + 1];
 				v = compute_tia (fd->pic_zprev + i * 2 * fd->n_prev, cre, cim,
 						 r, rp.tia_power, radius, power);
 			}
 			v = std::clamp (v, 0.0, 1.0);
+			// fd->min_stripeval = std::min (v, fd->min_stripeval);
+			// fd->max_stripeval = std::max (v, fd->max_stripeval);
 			bins[trunc (v * (n_bins - 1))]++;
 		}
-		double margin1 = count / (rp.sac ? 200 : 400.);
-		double margin2 = margin1 * (rp.sac ? 199 : 399.);
-		int total = 0;
-		for (int i = 0; i < n_bins; i++) {
-			int newt = total + bins[i];
-			if (total < margin1 && newt >= margin1)
-				fd->min_stripeval = (double)i / (n_bins - 1);
-			if (total < margin2 && newt >= margin2)
-				fd->max_stripeval = (double)(i + 1) / (n_bins - 1);
-			total = newt;
+		if (1) {
+			double margin1 = count / 400;
+			double margin2 = margin1 * 399;
+			int total = 0;
+			for (int i = 0; i < n_bins; i++) {
+				int newt = total + bins[i];
+				if (total < margin1 && newt >= margin1)
+					fd->min_stripeval = (double)i / (n_bins - 1);
+				if (total < margin2 && newt >= margin2)
+					fd->max_stripeval = (double)(i + 1) / (n_bins - 1);
+				total = newt;
+			}
 		}
 	}
 	if (fd->n_completed == fd->n_pixels) {

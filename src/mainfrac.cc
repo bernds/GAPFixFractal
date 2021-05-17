@@ -791,7 +791,8 @@ void MainWindow::set_render_params (render_params &p)
 	p.sac = ui->action_SAC->isChecked ();
 	p.sac_factor = ui->stripesSpinBox->value ();
 	p.tia_power = ui->tiaSpinBox->value ();
-	p.sac_contrast = ui->action_Contrast->isChecked ();
+	p.sac_contrast = ui->action_SACContrast->isChecked ();
+	p.sac_fade = ui->action_SACFade->isChecked ();
 	p.sub = !ui->action_ShiftNone->isChecked ();
 	p.sub_val = ui->action_Shift10->isChecked () ? 10 : ui->action_Shift100->isChecked () ? 100 : 0;
 	p.slider = ui->colStepSlider->value ();
@@ -2172,7 +2173,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	ui->action_NFactor4->setChecked (true);
 	ui->action_StructDark->setChecked (true);
 	ui->action_ICBlack->setChecked (true);
-	ui->action_Contrast->setChecked (true);
+	ui->action_SACContrast->setChecked (true);
 
 	reset_coords (m_fd_mandel);
 	reset_coords (m_fd_julia);
@@ -2333,6 +2334,9 @@ MainWindow::MainWindow (QDataStream *init_file)
 	connect (ui->action_AngleBin, &QAction::toggled, this, &MainWindow::slot_disable_sac);
 	connect (ui->action_SAC, &QAction::toggled, [this] (bool) { enable_sac_or_tia (); });
 	connect (ui->action_TIA, &QAction::toggled, [this] (bool) { enable_sac_or_tia (); });
+
+	connect (ui->action_SACFade, &QAction::toggled, [this] (bool) { update_views (); });
+	connect (ui->action_SACContrast, &QAction::toggled, [this] (bool) { update_views (); });
 
 	connect (ui->action_ICBlack, &QAction::toggled, [this] (bool) { update_views (); });
 	connect (ui->action_ICWhite, &QAction::toggled, [this] (bool) { update_views (); });
