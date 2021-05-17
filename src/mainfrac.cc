@@ -2141,7 +2141,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	ui->powerSpinBox->setMaximum (7);
 	ui->widthSpinBox->setValue (1);
 	ui->widthSpinBox->setMinimum (1);
-	ui->widthSpinBox->setMaximum (20);
+	ui->widthSpinBox->setMaximum (50);
 
 	ui->zoomSpinBox->setMinimum (1.1);
 	ui->zoomSpinBox->setMaximum (5);
