@@ -1132,8 +1132,8 @@ QString convert_to_float (expr *v)
 	int len = v->length ();
 	QString conv = codegen->gen_reg ("f64", "fltconv");
 	QString mult = codegen->gen_reg ("f64", "multiplier");
-	codegen->append_move ("f64", conv, "1.0");
-	codegen->append_code (QString ("\tdiv.rn.f64\t%1, %1, 4294967296.0;\n").arg (conv));
+	// 2^-32.
+	codegen->append_move ("f64", conv, "2.3283064365386963e-10");
 
 	codegen->append_move ("f64", mult, "1.0");
 	bool first = true;
