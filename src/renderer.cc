@@ -173,22 +173,31 @@ static int col_sum (uint32_t col)
 	return (col & 255) + ((col >> 8) & 255) + (col >> 16);
 }
 #endif
-static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double niter, int type, double steps,
+
+static inline double niter_transfer (double niter, int type)
+{
+	switch (type) {
+	default:
+		return niter;
+	case 1:
+		return sqrt (niter);
+	case 2:
+		return cbrt (niter);
+	case 3:
+		return pow (niter, 1/4.);
+	case 4:
+		return log (niter);
+	case 5:
+		return log (sqrt (niter));
+	case 6:
+		return log (log (niter));
+	}
+}
+
+static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double niter, double sub_val, int type, double steps,
 				     int slider)
 {
-	if (type == 1) {
-		niter = sqrt (niter);
-	} else if (type == 2) {
-		niter = cbrt (niter);
-	} else if (type == 3) {
-		niter = pow (niter, 1/4.);
-	} else if (type == 4) {
-		niter = log (niter);
-	} else if (type == 5) {
-		niter = log (sqrt (niter));
-	} else if (type == 6) {
-		niter = log (log (niter));
-	}
+	niter = niter_transfer (niter, type) - sub_val;
 	niter *= interpolation_factor;
 	int x = niter / steps;
 	double y = niter - x * steps;
@@ -360,6 +369,7 @@ class runner : public QRunnable
 	double minimum;
 	QRgb *data;
 	double dstep;
+	double colour_sub_val;
 	int power;
 public:
 	runner (QSemaphore *sem, std::atomic<bool> *succ_in, std::atomic<bool> *abrt, const render_params &rp_in,
@@ -368,6 +378,7 @@ public:
 		  rp (rp_in), w (w_in), y0 (y0_in), y0e (y0e_in), fd (fd_in), minimum (min_in), data (data_in)
 	{
 		setAutoDelete (true);
+		colour_sub_val = rp.sub ? niter_transfer (rp.sub_val, rp.mod_type) : 0;
 	}
 
 	void compute_color (size_t idx, int &r, int &g, int &b, int &alpha, int &outcolor)
@@ -383,7 +394,7 @@ public:
 
 			if (rp.sub)
 				v -= minimum - rp.sub_val;
-			uint32_t col = color_from_niter (rp.palette, v, rp.mod_type, rp.steps, rp.slider);
+			uint32_t col = color_from_niter (rp.palette, v, colour_sub_val, rp.mod_type, rp.steps, rp.slider);
 
 			if (rp.sac && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
