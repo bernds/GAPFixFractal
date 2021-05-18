@@ -38,6 +38,12 @@
 
 #define PACKAGE "GAPFixFractal"
 
+static QString basic_usage ()
+{
+	return (QObject::tr ("<p>Left-click to zoom. Use Ctrl-click to select a parameter for Julia sets and Alt-click to move the view. Use shortcuts M, J and P to switch between Mandelbrot, Julia or Mandelbrot with preview modes.</p>")
+		+ QObject::tr ("<p>The current position can be stored in a list with the Store button, and stored positions can be rendered to a file with a higher resolution.</p>"));
+}
+
 const formula formula_table[] = {
 	formula::standard, formula::lambda, formula::spider, formula::tricorn,
 	formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b,
@@ -2107,8 +2113,9 @@ void MainWindow::slot_batchrender (bool)
 void MainWindow::help_about ()
 {
 	QString txt = "<p>" PACKAGE "</p>";
-	txt = "<p>Copyright \u00a9 2021\nBernd Schmidt &lt;bernds_cb1@t-online.de&gt;</p>";
-	txt += "<p>This is a fractal image generator using arbitrary precision arithmetic on a GPU. It is still experimental. It is distributed in the hope that you will find it fun to use already, but expect it to be rough around the edges.</p>";
+	txt = tr ("<p>Copyright \u00a9 2021\nBernd Schmidt &lt;bernds_cb1@t-online.de&gt;</p>");
+	txt += tr ("<p>This is a fractal image generator using arbitrary precision arithmetic on a GPU.</p>");
+	txt += basic_usage ();
 
 	QMessageBox mb (this);
 	mb.setWindowTitle (PACKAGE);
@@ -2576,8 +2583,7 @@ int main (int argc, char **argv)
 		QMessageBox::information (nullptr, PACKAGE,
 					  QObject::tr ("<p>Welcome to " PACKAGE "!</p>")
 					  + QObject::tr ("<p>This program is stll in development, but hopefully already fun to use.</p>")
-					  + QObject::tr ("<p>Left-click to zoom. Use Ctrl-click to select a parameter for Julia sets and Alt-click to move the view. Use shortcuts M, J and P to switch between Mandelbrot, Julia or Mandelbrot with preview modes.</p>")
-					  + QObject::tr ("<p>The current position can be stored in a list with the Store button, and stored positions can be rendered to a file with a higher resolution.</p>")
+					  + basic_usage ()
 					  + QObject::tr ("<p>This dialog will not be shown again.</p>"));
 		settings.setValue ("helpshown", true);
 	}
