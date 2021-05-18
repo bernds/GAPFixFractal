@@ -125,6 +125,13 @@ class MainWindow: public QMainWindow
 	QGraphicsScene m_canvas;
 	QGraphicsScene m_preview_canvas;
 	QGraphicsScene m_stored_canvas;
+	QGraphicsPixmapItem *m_fractal_img {};
+
+	bool m_mouse_moving = false;
+	int m_mouse_xbase = 0;
+	int m_mouse_ybase = 0;
+	int m_mouse_xoff = 0;
+	int m_mouse_yoff = 0;
 
 	QActionGroup *m_formula_group {};
 	QActionGroup *m_sub_group {};

@@ -772,11 +772,18 @@ void MainWindow::slot_render_complete (QGraphicsView *view, frac_desc *fd, QImag
 	}
 	QPixmap pm = QPixmap::fromImage (img);
 	QGraphicsScene *canvas = view->scene ();
-	canvas->clear ();
-	canvas->addItem (new QGraphicsPixmapItem (pm));
 
-//	ui->fractalView->setBackgroundBrush (img);
-//	ui->fractalView->setCacheMode(QGraphicsView::CacheBackground);
+	if (view == ui->fractalView) {
+		delete m_fractal_img;
+		m_fractal_img = nullptr;
+		m_fractal_img = new QGraphicsPixmapItem (pm);
+		canvas->addItem (m_fractal_img);
+		m_fractal_img->setPos (m_mouse_xoff, m_mouse_yoff);
+	} else {
+		canvas->clear ();
+		auto pmi = new QGraphicsPixmapItem (pm);
+		canvas->addItem (pmi);
+	}
 }
 
 void MainWindow::set_render_params (render_params &p)
@@ -1071,12 +1078,54 @@ static vpvec aim_assist_1 (vpvec v, vpvec step)
 
 void MainWindow::fractal_mouse_event (QMouseEvent *e)
 {
+	frac_desc &fd = current_fd ();
+
+	if (e->type () == QEvent::MouseButtonRelease) {
+		if (!m_mouse_moving)
+			return;
+		m_mouse_moving = false;
+		if (m_mouse_xoff == 0 && m_mouse_yoff == 0)
+			return;
+
+		int real_px = to_double (fd.matrix[0][0]) * -m_mouse_xoff + to_double (fd.matrix[0][1]) * -m_mouse_yoff;
+		int real_py = to_double (fd.matrix[1][0]) * -m_mouse_xoff + to_double (fd.matrix[1][1]) * -m_mouse_yoff;
+		auto pxstep = mul1 (fd.step, fd.samples * abs (real_px));
+		auto pystep = mul1 (fd.step, fd.samples * abs (real_py));
+		vpvec a = real_px < 0 ? sub (fd.center_x, pxstep) : add (fd.center_x, pxstep);
+		vpvec b = real_py < 0 ? sub (fd.center_y, pystep) : add (fd.center_y, pystep);
+
+		m_mouse_xoff = m_mouse_yoff = 0;
+
+		abort_computation ();
+		m_renderer->abort_render.store (true);
+
+		fd.center_x = a;
+		fd.center_y = b;
+
+		m_reinit_render = true;
+		restart_computation ();
+		return;
+	}
+	if (e->type () == QEvent::MouseMove && m_mouse_moving) {
+		m_mouse_xoff = e->x () - m_mouse_xbase;
+		m_mouse_yoff = e->y () - m_mouse_ybase;
+		if (m_fractal_img != nullptr)
+			m_fractal_img->setPos (m_mouse_xoff, m_mouse_yoff);
+		return;
+	}
 	if (e->type () != QEvent::MouseButtonPress)
 		return;
 
+	if ((e->modifiers () & Qt::AltModifier) != 0) {
+		m_mouse_moving = true;
+		m_mouse_xbase = e->x ();
+		m_mouse_ybase = e->y ();
+		m_mouse_xoff = m_mouse_yoff = 0;
+		return;
+	}
+
 	auto pos = e->pos ();
 	auto scene_pos = ui->fractalView->mapToScene (pos);
-	frac_desc &fd = current_fd ();
 
 	bool shf = (e->modifiers () & Qt::ShiftModifier) != 0;
 	bool param = (e->modifiers () & Qt::ControlModifier) != 0;
@@ -2526,7 +2575,10 @@ int main (int argc, char **argv)
 	if (!shown) {
 		QMessageBox::information (nullptr, PACKAGE,
 					  QObject::tr ("<p>Welcome to " PACKAGE "!</p>")
-					  + QObject::tr ("<p>This program is stll in development, but hopefully already fun to use.</p><p>Left-click to zoom. Use Ctrl-click to select a parameter for Julia sets. Use shortcuts M, J and P to switch between Mandelbrot, Julia or Mandelbrot with preview modes.</p><p>This dialog will not be shown again.</p>"));
+					  + QObject::tr ("<p>This program is stll in development, but hopefully already fun to use.</p>")
+					  + QObject::tr ("<p>Left-click to zoom. Use Ctrl-click to select a parameter for Julia sets and Alt-click to move the view. Use shortcuts M, J and P to switch between Mandelbrot, Julia or Mandelbrot with preview modes.</p>")
+					  + QObject::tr ("<p>The current position can be stored in a list with the Store button, and stored positions can be rendered to a file with a higher resolution.</p>")
+					  + QObject::tr ("<p>This dialog will not be shown again.</p>"));
 		settings.setValue ("helpshown", true);
 	}
 
