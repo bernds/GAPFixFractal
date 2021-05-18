@@ -806,6 +806,7 @@ void MainWindow::set_render_params (render_params &p)
 	p.tia_power = ui->tiaSpinBox->value ();
 	p.sac_contrast = ui->action_SACContrast->isChecked ();
 	p.sac_fade = ui->action_SACFade->isChecked ();
+	p.sac_fade_amount = 2 << ui->SACFadeSlider->value ();
 	p.sub = !ui->action_ShiftNone->isChecked ();
 	p.sub_val = ui->action_Shift10->isChecked () ? 10 : ui->action_Shift100->isChecked () ? 100 : 0;
 	p.slider = ui->colStepSlider->value ();
@@ -2402,6 +2403,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 
 	connect (ui->action_SACFade, &QAction::toggled, [this] (bool) { update_views (); });
 	connect (ui->action_SACContrast, &QAction::toggled, [this] (bool) { update_views (); });
+	connect (ui->SACFadeSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
 
 	connect (ui->action_ICBlack, &QAction::toggled, [this] (bool) { update_views (); });
 	connect (ui->action_ICWhite, &QAction::toggled, [this] (bool) { update_views (); });

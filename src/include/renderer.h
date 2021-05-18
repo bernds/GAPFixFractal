@@ -24,7 +24,7 @@ class Renderer : public QObject
 	double m_tia_power = 0;
 	double m_sac_density = 0;
 	bool m_sac_fade = false;
-
+	int m_fade_amount = 0;
 public:
 
 	// One big mutex around the drawing function

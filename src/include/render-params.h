@@ -13,6 +13,7 @@ struct render_params
 	bool sub;
 	bool sac, tia, sac_contrast, sac_fade;
 	double sac_factor, tia_power;
+	int sac_fade_amount;
 	bool dem_colour, angle_colour;
 	bool dem;
 	bool dem_shade;

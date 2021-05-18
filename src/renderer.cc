@@ -264,7 +264,7 @@ inline std::pair<double, int> iter_value_at (frac_desc *fd, int idx, int power)
 	return { v + 5 - correction, 0 };
 }
 
-static inline double compute_sac (double iter_val, double *prev_vals, int n_prev, int count, double density, double radius, double power, bool fade)
+static inline double compute_sac (double iter_val, double *prev_vals, int n_prev, int count, double density, double radius, double power, int fade_amount)
 {
 	double re = prev_vals[0];
 	double im = prev_vals[1];
@@ -287,8 +287,8 @@ static inline double compute_sac (double iter_val, double *prev_vals, int n_prev
 	double avg2 = avg2_count > 0 ? (sum + firstval - lastval) / avg2_count : 0;
 	double mixfactor = log (0.5 * log (re2 + im2) / log (radius)) / log (power);
 	double result1 = avg1 * mixfactor + avg2 * (1 - mixfactor);
-	if (fade) {
-		iter_val /= 20;
+	if (fade_amount != 0) {
+		iter_val /= fade_amount;
 		result1 *= iter_val / (1 + iter_val);
 	}
 	return result1 + 0.5;
@@ -371,6 +371,7 @@ class runner : public QRunnable
 	double dstep;
 	double colour_sub_val;
 	int power;
+	int fade_amount;
 public:
 	runner (QSemaphore *sem, std::atomic<bool> *succ_in, std::atomic<bool> *abrt, const render_params &rp_in,
 		int w_in, int y0_in, int y0e_in, frac_desc *fd_in, double min_in, QRgb *data_in)
@@ -379,6 +380,7 @@ public:
 	{
 		setAutoDelete (true);
 		colour_sub_val = rp.sub ? niter_transfer (rp.sub_val, rp.mod_type) : 0;
+		fade_amount = rp.sac_fade ? rp.sac_fade_amount : 0;
 	}
 
 	void compute_color (size_t idx, int &r, int &g, int &b, int &alpha, int &outcolor)
@@ -399,7 +401,7 @@ public:
 			if (rp.sac && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
 				int thisnp = std::min ((uint32_t)n_prev, fd->pic_result[idx]);
-				double mod = compute_sac (v - rp.sub_val, fd->pic_zprev + idx * 2 * n_prev, n_prev, thisnp, rp.sac_factor, radius, power, rp.sac_fade);
+				double mod = compute_sac (v - rp.sub_val, fd->pic_zprev + idx * 2 * n_prev, n_prev, thisnp, rp.sac_factor, radius, power, fade_amount);
 				col = color_for_sac_common (col, mod, fd, rp);
 			} else if (rp.tia && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
@@ -602,11 +604,12 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 	}
 	bool recompute_sactia = false;
 	if (view != nullptr) {
-		recompute_sactia = ((rp.sac && (m_sac_density != rp.sac_factor || m_sac_fade != rp.sac_fade))
+		recompute_sactia = ((rp.sac && (m_sac_density != rp.sac_factor || m_sac_fade != rp.sac_fade || (rp.sac_fade && m_fade_amount != rp.sac_fade_amount)))
 				    || (rp.tia && (m_tia_power != rp.tia_power)));
 		m_tia_power = rp.tia ? rp.tia_power : 0;
 		m_sac_density = rp.sac ? rp.sac_factor : 0;
 		m_sac_fade = rp.sac_fade;
+		m_fade_amount = rp.sac_fade ? rp.sac_fade_amount : 0;
 	}
 	if ((rp.sac || rp.tia) && (gen != m_min_gen || recompute_sactia)) {
 		/* If we are in batch mode, this value should have been precomputed and the generation
@@ -633,7 +636,7 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 			double v;
 			if (rp.sac) {
 				auto [ iterval, attractor ] = iter_value_at (fd, i, power);
-				v = compute_sac (iterval - minimum, fd->pic_zprev + i * 2 * fd->n_prev, fd->n_prev, r, rp.sac_factor, radius, power, rp.sac_fade);
+				v = compute_sac (iterval - minimum, fd->pic_zprev + i * 2 * fd->n_prev, fd->n_prev, r, rp.sac_factor, radius, power, m_fade_amount);
 			} else {
 				double cre = fd->pic_t[i * 2];
 				double cim = fd->pic_t[i * 2 + 1];
