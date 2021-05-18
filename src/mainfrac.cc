@@ -1487,6 +1487,15 @@ void MainWindow::zoom_in (bool)
 
 void MainWindow::update_fractal_type (int t)
 {
+	if (t < 2) {
+		abort_computation ();
+		QMutexLocker preview_lock (&m_preview_renderer->mutex);
+		QMutexLocker render_lock (&m_renderer->mutex);
+		if (t == 0)
+			discard_fd_data (m_fd_julia);
+		else
+			discard_fd_data (m_fd_mandel);
+	}
 	ui->action_CenterJ->setEnabled (t != 1);
 	ui->previewDock->setVisible (t == 2);
 	ui->storePreviewButton->setEnabled (t == 2);
