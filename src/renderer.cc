@@ -245,19 +245,38 @@ static inline uint32_t modify_color (uint32_t col, double v)
 	return col;
 }
 
-inline std::pair<double, int> iter_value_at (frac_desc *fd, int idx, int power)
+inline std::pair<double, int> iter_value_at (frac_desc *fd, int idx, int power, render_params::smooth_t smooth)
 {
 	double v = fd->pic_result[idx];
 	if (v == 0)
 		return { 0, 0 };
-	double re2 = fd->pic_zprev[idx * 2 * fd->n_prev];
-	double im2 = fd->pic_zprev[idx * 2 * fd->n_prev + 1];
-	re2 *= re2;
-	im2 *= im2;
-	// Some attractor other than infinity.
-	if (re2 + im2 < 16)
-		return { v, 1 };
+	double re = fd->pic_zprev[idx * 2 * fd->n_prev];
+	double im = fd->pic_zprev[idx * 2 * fd->n_prev + 1];
+	double re2 = re * re;
+	double im2 = im * im;
 	double radius = fd->dem ? 10 : 100;
+	int attractor = re2 + im2 < 16 ? 1 : 0;
+	if (smooth == render_params::smooth_t::makin && attractor != 0) {
+		// Formula from fractalforums, by David Makin
+		double log_tolerance = log (1.0 / (1 << 28)) / 2;
+		double prev1re = fd->pic_zprev[idx * 2 * fd->n_prev + 2];
+		double prev1im = fd->pic_zprev[idx * 2 * fd->n_prev + 3];
+		double prev2re = fd->pic_zprev[idx * 2 * fd->n_prev + 4];
+		double prev2im = fd->pic_zprev[idx * 2 * fd->n_prev + 5];
+		double rdiff0 = prev1re - re;
+		double idiff0 = prev1im - im;
+		double diff0 = rdiff0 * rdiff0 + idiff0 * idiff0;
+		double rdiff1 = prev2re - prev1re;
+		double idiff1 = prev2im - prev1im;
+		double diff1 = rdiff1 * rdiff1 + idiff1 * idiff1;
+		double log0 = log (diff0);
+		double log1 = log (diff1);
+		v += (log (-log_tolerance) - log (-log0/2)) / log (log0 / log1);
+		return { v, attractor };
+	}
+	// Some attractor other than infinity.
+	if (attractor != 0)
+		return { v, 0 };
 	double correction = log (0.5 * log ((double)re2 + im2) / log (radius)) / log (power);
 	fd->cmin = std::min (fd->cmin, correction);
 	fd->cmax = std::max (fd->cmax, correction);
@@ -389,14 +408,14 @@ public:
 		double re = fd->pic_zprev[idx * 2 * n_prev];
 		double im = fd->pic_zprev[idx * 2 * n_prev + 1];
 
-		auto [ v, attractor ] = iter_value_at (fd, idx, power);
+		auto [ v, attractor ] = iter_value_at (fd, idx, power, rp.smooth);
 		double v1 = v;
 		if (v != 0) {
 			outcolor++;
 
 			if (rp.sub)
 				v -= minimum - rp.sub_val;
-			uint32_t col = color_from_niter (rp.palette, v, colour_sub_val, rp.mod_type, rp.steps, rp.slider);
+			uint32_t col = color_from_niter (rp.palette, v, colour_sub_val, rp.mod_type, rp.steps, rp.col_off + attractor * rp.basin_col_off);
 
 			if (rp.sac && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
@@ -596,7 +615,7 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 		for (int i = 0; i < fd->n_pixels; i++) {
 			if (!fd->pic_pixels_done.test_bit (i))
 				continue;
-			auto [ v, attractor ] = iter_value_at (fd, i, power);
+			auto [ v, attractor ] = iter_value_at (fd, i, power, rp.smooth);
 			v = floor (v);
 			if (v > 0 && (minimum == 0 || v < minimum))
 				minimum = v;
@@ -635,7 +654,7 @@ void Renderer::do_render (const render_params &rp, int w, int h, int yoff, frac_
 			count++;
 			double v;
 			if (rp.sac) {
-				auto [ iterval, attractor ] = iter_value_at (fd, i, power);
+				auto [ iterval, attractor ] = iter_value_at (fd, i, power, rp.smooth);
 				v = compute_sac (iterval - minimum, fd->pic_zprev + i * 2 * fd->n_prev, fd->n_prev, r, rp.sac_factor, radius, power, m_fade_amount);
 			} else {
 				double cre = fd->pic_t[i * 2];
@@ -707,6 +726,9 @@ void Renderer::slot_render (frac_desc *fd, QGraphicsView *view, int generation)
 		this_p.tia = false;
 	if (fd->n_prev == 1)
 		this_p.sac = this_p.tia = false;
+	if (fd->n_prev < 4)
+		this_p.smooth = render_params::smooth_t::std;
+
 	int w = render_width;
 	int h = render_height;
 	queue_mutex.unlock ();

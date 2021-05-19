@@ -236,14 +236,14 @@
     </widget>
     <widget class="QMenu" name="menuColour_rotation">
      <property name="title">
-      <string>Colour rotation</string>
+      <string>&amp;Colour rotation</string>
      </property>
      <addaction name="action_RotateHSV"/>
      <addaction name="action_RotateTrad"/>
     </widget>
     <widget class="QMenu" name="menuShift_minimum">
      <property name="title">
-      <string>Shift minimum </string>
+      <string>Shift mi&amp;nimum </string>
      </property>
      <addaction name="action_ShiftNone"/>
      <addaction name="action_Shift0"/>
@@ -252,7 +252,7 @@
     </widget>
     <widget class="QMenu" name="menuDEM">
      <property name="title">
-      <string>Use DEM for</string>
+      <string>Use &amp;DEM for</string>
      </property>
      <addaction name="action_DEMOff"/>
      <addaction name="action_DEMDist"/>
@@ -261,7 +261,7 @@
     </widget>
     <widget class="QMenu" name="menuAngle_modifiers">
      <property name="title">
-      <string>Angle modifiers</string>
+      <string>&amp;Angle modifiers</string>
      </property>
      <addaction name="action_AngleNone"/>
      <addaction name="action_AngleSmooth"/>
@@ -274,11 +274,19 @@
     </widget>
     <widget class="QMenu" name="menuIncoloring">
      <property name="title">
-      <string>Incoloring</string>
+      <string>&amp;Incoloring</string>
      </property>
      <addaction name="action_ICBlack"/>
      <addaction name="action_ICWhite"/>
     </widget>
+    <widget class="QMenu" name="menuSmoothing">
+     <property name="title">
+      <string>S&amp;moothing</string>
+     </property>
+     <addaction name="action_SmoothStd"/>
+     <addaction name="action_SmoothMakin"/>
+    </widget>
+    <addaction name="menuSmoothing"/>
     <addaction name="menuNarrow_black_white"/>
     <addaction name="menuStructure_modifier"/>
     <addaction name="menuColour_rotation"/>
@@ -497,22 +505,42 @@
          </widget>
         </item>
         <item>
-         <widget class="QSlider" name="colStepSlider">
-          <property name="maximum">
-           <number>30</number>
-          </property>
-          <property name="pageStep">
-           <number>1</number>
-          </property>
-          <property name="value">
-           <number>0</number>
-          </property>
-          <property name="tracking">
-           <bool>false</bool>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Horizontal</enum>
-          </property>
+         <widget class="QWidget" name="widget_11" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_17">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="label_17">
+             <property name="text">
+              <string>Offset</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="colStepSpinBox">
+             <property name="toolTip">
+              <string>&lt;p&gt;An offset into the colour gradient, used to shift the entire colour palette.&lt;/p&gt;
+</string>
+             </property>
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>999</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
         <item>
@@ -867,7 +895,7 @@
         <item>
          <widget class="QDoubleSpinBox" name="stripesSpinBox">
           <property name="toolTip">
-           <string>&lt;p&gt;The parameter to use when distance estimation is enabled.&lt;/p&gt;&lt;p&gt;Lower values reduce the minimum distance before a pixel is determined to be near the set, leading to thinner-looking pictures.&lt;/p&gt;</string>
+           <string>&lt;p&gt;A factor used to control the density of stripes in stripe average colouring. Higher values make the picture stripier.&lt;/p&gt;</string>
           </property>
           <property name="decimals">
            <number>2</number>
@@ -914,7 +942,7 @@
         <item>
          <widget class="QDoubleSpinBox" name="tiaSpinBox">
           <property name="toolTip">
-           <string>&lt;p&gt;The parameter to use when distance estimation is enabled.&lt;/p&gt;&lt;p&gt;Lower values reduce the minimum distance before a pixel is determined to be near the set, leading to thinner-looking pictures.&lt;/p&gt;</string>
+           <string>&lt;p&gt;A parameter used to control the appearance of triangle average colouring.&lt;/p&gt;</string>
           </property>
           <property name="decimals">
            <number>2</number>
@@ -1597,6 +1625,44 @@
              </property>
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QWidget" name="basinWidget" native="true">
+          <layout class="QHBoxLayout" name="horizontalLayout_18">
+           <property name="leftMargin">
+            <number>0</number>
+           </property>
+           <property name="topMargin">
+            <number>0</number>
+           </property>
+           <property name="rightMargin">
+            <number>0</number>
+           </property>
+           <property name="bottomMargin">
+            <number>0</number>
+           </property>
+           <item>
+            <widget class="QLabel" name="label_18">
+             <property name="text">
+              <string>Basin offset:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="basinStepSpinBox">
+             <property name="toolTip">
+              <string>&lt;p&gt;Extra color offset for points attracted to something other than infinity.&lt;/p&gt;</string>
+             </property>
+             <property name="minimum">
+              <number>0</number>
+             </property>
+             <property name="maximum">
+              <number>999</number>
              </property>
             </widget>
            </item>
@@ -2364,6 +2430,22 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Alt+F</string>
+   </property>
+  </action>
+  <action name="action_SmoothStd">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Default</string>
+   </property>
+  </action>
+  <action name="action_SmoothMakin">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Makin's formula for finite attractors</string>
    </property>
   </action>
  </widget>

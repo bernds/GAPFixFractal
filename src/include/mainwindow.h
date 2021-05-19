@@ -143,6 +143,7 @@ class MainWindow: public QMainWindow
 	QActionGroup *m_rotate_group {};
 	QActionGroup *m_angles_group {};
 	QActionGroup *m_incolor_group {};
+	QActionGroup *m_smooth_group {};
 	QActionGroup *m_q_group {};
 
 	int m_last_pal_idx = 0;
@@ -214,6 +215,7 @@ class MainWindow: public QMainWindow
 
 	void enable_sac_or_tia ();
 	void slot_disable_sac (bool);
+	void change_smoothing (bool);
 
 	void slot_save_as (bool);
 	void slot_save_params ();

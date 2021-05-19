@@ -4,10 +4,12 @@
 struct render_params
 {
 	QVector<uint32_t> palette;
+	enum class smooth_t { std, makin };
+	smooth_t smooth;
 	uint32_t incol;
 	int mod_type;
 	double steps;
-	int slider;
+	int col_off, basin_col_off;
 	int sub_val;
 	int angle;
 	bool sub;

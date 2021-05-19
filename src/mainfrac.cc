@@ -725,7 +725,9 @@ void MainWindow::enable_sac_or_tia ()
 		return;
 	}
 	QSettings settings;
-	n_prev_requested = 1 << settings.value ("coloring/nprev").toInt ();
+	int this_req = 1 << settings.value ("coloring/nprev").toInt ();
+	if (this_req > n_prev_requested)
+		n_prev_requested = this_req;
 	bool safety = settings.value ("coloring/nosuper-sac").toBool ();
 	ui->superBox->setEnabled (!safety);
 	if (safety)
@@ -736,11 +738,29 @@ void MainWindow::enable_sac_or_tia ()
 /* Called whenever an angle group menu item other than SAC is chosen.  */
 void MainWindow::slot_disable_sac (bool on)
 {
-	if (n_prev_requested != 1) {
-		n_prev_requested = 1;
+	int n_smooth = ui->action_SmoothStd->isChecked () ? 1 : 4;
+	if (n_prev_requested != n_smooth) {
+		n_prev_requested = n_smooth;
 		update_settings (false);
 	} else
 		update_views ();
+}
+
+void MainWindow::change_smoothing (bool)
+{
+	bool sac = ui->action_SAC->isChecked ();
+	bool tia = ui->action_TIA->isChecked ();
+	bool sactia = sac || tia;
+
+	if (ui->action_SmoothStd->isChecked ()) {
+		if (!sactia)
+			n_prev_requested = 1;
+		return;
+	}
+	if (n_prev_requested < 4) {
+		n_prev_requested = 4;
+		update_settings (false);
+	}
 }
 
 void MainWindow::closeEvent (QCloseEvent *event)
@@ -795,6 +815,7 @@ void MainWindow::slot_render_complete (QGraphicsView *view, frac_desc *fd, QImag
 void MainWindow::set_render_params (render_params &p)
 {
 	p.palette = m_palette;
+	p.smooth = ui->action_SmoothStd->isChecked () ? render_params::smooth_t::std : render_params::smooth_t::makin;
 	p.incol = ui->action_ICWhite->isChecked () ? 0xFFFFFF : 0;
 	p.mod_type = ui->modifyComboBox->currentIndex ();
 	int steps_spin = ui->widthSpinBox->value ();
@@ -809,7 +830,8 @@ void MainWindow::set_render_params (render_params &p)
 	p.sac_fade_amount = 2 << ui->SACFadeSlider->value ();
 	p.sub = !ui->action_ShiftNone->isChecked ();
 	p.sub_val = ui->action_Shift10->isChecked () ? 10 : ui->action_Shift100->isChecked () ? 100 : 0;
-	p.slider = ui->colStepSlider->value ();
+	p.col_off = ui->colStepSpinBox->value ();
+	p.basin_col_off = ui->basinStepSpinBox->value ();
 	p.dem = ui->action_DEMDist->isChecked () || ui->action_DEMBoth->isChecked ();
 	p.dem_shade = ui->action_DEMShading->isChecked () || ui->action_DEMBoth->isChecked ();
 	p.dem_colour = ui->action_DEMColour->isChecked ();
@@ -1393,6 +1415,12 @@ void MainWindow::enable_interface_for_formula (formula f)
 	ui->DEMGroup->setEnabled (dem_allowed);
 	if (!dem_allowed)
 		ui->action_DEMOff->setChecked (true);
+
+	ui->basinWidget->setEnabled (f == formula::magnet_a);
+	ui->action_SmoothMakin->setEnabled (f == formula::magnet_a);
+	if (f != formula::magnet_a)
+		ui->action_SmoothStd->setChecked (true);
+
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
 				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
 				      || f == formula::celtic || f == formula::facing || f == formula::facing_b
@@ -2240,6 +2268,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	ui->action_StructDark->setChecked (true);
 	ui->action_ICBlack->setChecked (true);
 	ui->action_SACContrast->setChecked (true);
+	ui->action_SmoothStd->setChecked (true);
 
 	reset_coords (m_fd_mandel);
 	reset_coords (m_fd_julia);
@@ -2317,6 +2346,10 @@ MainWindow::MainWindow (QDataStream *init_file)
 	m_incolor_group->addAction (ui->action_ICBlack);
 	m_incolor_group->addAction (ui->action_ICWhite);
 
+	m_smooth_group = new QActionGroup (this);
+	m_smooth_group->addAction (ui->action_SmoothStd);
+	m_smooth_group->addAction (ui->action_SmoothMakin);
+
 	m_q_group = new QActionGroup (this);
 	m_q_group->addAction (ui->action_q_1);
 	m_q_group->addAction (ui->action_q_2);
@@ -2372,7 +2405,8 @@ MainWindow::MainWindow (QDataStream *init_file)
 	connect (ui->tiaSpinBox, dchanged, this, &MainWindow::update_views);
 	connect (ui->modifyComboBox, cic, this, &MainWindow::update_views);
 	connect (ui->gradComboBox, cic,  [this] (int) { update_palette (); });
-	connect (ui->colStepSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
+	connect (ui->colStepSpinBox, changed, [this] (int) { update_views (); });
+	connect (ui->basinStepSpinBox, changed, [this] (int) { update_views (); });
 	connect (m_sub_group, &QActionGroup::triggered, [this] (QAction *) { update_views (); });
 	connect (m_dem_group, &QActionGroup::triggered, this, &MainWindow::update_dem_settings);
 
@@ -2404,6 +2438,9 @@ MainWindow::MainWindow (QDataStream *init_file)
 	connect (ui->action_SACFade, &QAction::toggled, [this] (bool) { update_views (); });
 	connect (ui->action_SACContrast, &QAction::toggled, [this] (bool) { update_views (); });
 	connect (ui->SACFadeSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
+
+	connect (ui->action_SmoothStd, &QAction::toggled, this, &MainWindow::change_smoothing);
+	connect (ui->action_SmoothMakin, &QAction::toggled, this, &MainWindow::change_smoothing);
 
 	connect (ui->action_ICBlack, &QAction::toggled, [this] (bool) { update_views (); });
 	connect (ui->action_ICWhite, &QAction::toggled, [this] (bool) { update_views (); });
@@ -2558,6 +2595,7 @@ MainWindow::~MainWindow ()
 	delete m_angles_group;
 	delete m_hybrid_group;
 	delete m_incolor_group;
+	delete m_smooth_group;
 	delete m_q_group;
 	delete ui;
 }

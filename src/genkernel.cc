@@ -1986,9 +1986,9 @@ static void gen_compare_and_branch (QString &result, real_reg &r1, real_reg &r2,
 	}
 }
 
-static void gen_test_and_branch (QString &result, real_val &r1, const QString &predreg, const QString &tmpreg, const QString &neq_label, const QString distance)
+static void gen_test_and_branch (QString &result, real_val &r1, const QString &predreg, const QString &tmpreg, const QString &neq_label, const QString distance, int maxlen = 0)
 {
-	int len = r1.ex ()->length ();
+	int len = maxlen != 0 ? maxlen : r1.ex ()->length ();
 	for (int i = 0; i < len; i++) {
 		QString p1 = r1.ex ()->get_piece_high (i);
 		if (i + 1 < len) {
@@ -2222,7 +2222,7 @@ loop:
 		real_val dist (make<addsub_expr> ("add", gen_mult (zrm1, zrm1), zi.squared ()));
 		dist.ex ()->calculate_full ();
 		result += cg.code ();
-		gen_test_and_branch (result, dist, "%fp_neq", "%diff", "skip2", "16");
+		gen_test_and_branch (result, dist, "%fp_neq", "%diff", "skip2", "16", 2);
 		result += "\tbra\t\tbailout;\n";
 	} else if (fixpoints) {
 		result += "\t.reg.u32\t%diff;\n";
