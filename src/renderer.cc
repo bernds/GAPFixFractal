@@ -214,23 +214,15 @@ static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double ni
 static inline uint32_t modify_color (uint32_t col, double v)
 {
 	QColor c = QColor::fromRgb (col);
-	int cl = c.value ();
-	// Lighten dark colors, darken light colors
-	v -= (1 - cl / 255.) / 2;
-#if 0
-	/* Both HSV and HSL introduce ugly artifacts.  */
-	int ch = c.hsvHue ();
-	int cs = c.hsvSaturation ();
-	if (v < 0) {
-		cl = 255 - (255 - cl) * (v + 1);
-	} else {
-		cl *= 1 - v;
-	}
-	col = QColor::fromHsv (ch, cs, cl).rgb ();
-#else
+
 	int cr = c.red ();
 	int cg = c.green ();
 	int cb = c.blue ();
+
+	// Lighten dark colors, darken light colors.  Try to distinguish between
+	// the two with something better than just the HSV value.
+	int sum = (cr * 13762 + cg * 47186 + cb * 4588) / 65536;
+	v -= (1 - sum / 255.) / 2;
 	if (v < 0) {
 		cr = 255 - (255 - cr) * (v + 1);
 		cg = 255 - (255 - cg) * (v + 1);
@@ -241,7 +233,6 @@ static inline uint32_t modify_color (uint32_t col, double v)
 		cb *= 1 - v;
 	}
 	col = QColor::fromRgb (cr, cg, cb).rgb ();
-#endif
 	return col;
 }
 
@@ -435,17 +426,18 @@ public:
 				double re2 = re * re;
 				double im2 = im * im;
 				double size = sqrt (re2 + im2);
-				double init_angle = atan2 (re, im);
-				init_angle += M_PI * 2;
+				double init_angle = atan2 (im, re);
+				init_angle += M_PI;
 #if 0
 				double compare_angle = M_PI * v1 * 2;
 				compare_angle -= M_PI * 2 * floor (compare_angle / (M_PI * 2));
 				init_angle = init_angle - compare_angle + M_PI * 2;
 #endif
-				double ang = init_angle - M_PI * 2 * floor (init_angle / (M_PI * 2));
-#if 0
-				double v = fabs (sin (ang)) / 2;
+#if 1
+				double ang = init_angle / 2;
+				double v = fabs (cos (ang));
 #else
+				double ang = init_angle - M_PI * 2 * floor (init_angle / (M_PI * 2));
 				ang += M_PI / 2;
 				ang = fmod (ang, M_PI * 2);
 				double v = fabs (ang / (M_PI * 2) - 0.5);
