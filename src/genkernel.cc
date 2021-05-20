@@ -82,6 +82,7 @@ public:
 	expr (int len) : m_len (len)
 	{
 	}
+	virtual ~expr () { }
 	int length ()
 	{
 		return m_len;
