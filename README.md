@@ -22,9 +22,18 @@ GAPFix Fractal has the following main features:
 - Arbitrary precision kernels generated on the fly as needed
 - Julia set previews
 - Supersampling
-- A few different formulas
-- DEM black and white images for the standard formula
 - Storing parameters with previews and using them for navigation
+- Batch rendering of stored parameters
+
+A fair number of different formulas are supported, with both Mandelbrot and Julia versions:
+
+![screenshot](screens/fractal-types.jpg)
+
+There is a large variety of colouring options, which can be combined freely
+for the most part.  Distance estimation is available for several formulas,
+allowing both distance and shading options for colouring.
+
+![screenshot](screens/samples.jpg)
 
 ## Usage
 
@@ -51,10 +60,6 @@ There are some prerequisites for building and running this program:
 ## Limitations
 
 Among the things currently known to need improvement are:
-- The DEM algorithm works better than in the initial release (thanks Claude!),
-  but still has issues rendering Julia sets near the origin point.
-- There are also overflow issues at higher power variants that lead
-  to some banding in color gradients which are supposed to be smooth.
 - The "Spider" formula doesn't produce quite the same images seen
   elsewhere on the web. Probably a math error somewhere.
 - Color palettes are still somewhat haphazard and subject to change.
