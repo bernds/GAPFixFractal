@@ -120,18 +120,22 @@ static double cubic_vector_offs (QVector<double> &v, int offs, double step)
 	return cubic (x0, x1, x2, x3, step);
 }
 
-static double srgb_to_linear (int v)
+static inline double srgb_to_linear (int v)
 {
 	double s = v / 255.;
+	if (s < 0.04045)
+		return s / 12.92;
 	constexpr double a = 0.055;
 	return pow ((s + a) / (1 + a), 2.4);
 }
 
-static int linear_to_srgb (double v)
+static inline int linear_to_srgb (double v)
 {
+	if (v < 0.0031308)
+		return floor (v * 12.92 * 255);
 	constexpr double a = 0.055;
 	double nv = (1 + a) * pow (v, 1 / 2.4) - a;
-	return nv * 255;
+	return floor (nv * 255);
 }
 
 static bool is_white (uint32_t col)
