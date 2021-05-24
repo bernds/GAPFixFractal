@@ -308,16 +308,18 @@ void GradEditor::v_clicked (QMouseEvent *e)
 
 void GradEditor::update_cursors ()
 {
+	QRgb col = QColor::fromHsv (m_h / 255. * 359, m_s, m_v).rgb ();
+	double sum1 = ((col >> 16) & 0xFF) * 0.21 + ((col >> 8) & 0xFF) * 0.72 + (col & 0xFF) * 0.07;
 	m_vcursor->setY (255 - m_v);
-	m_vcursor->setPen (m_v < 128 ? QPen (Qt::white) : QPen (Qt::black));
+	m_vcursor->setPen (sum1 < 128 ? QPen (Qt::white) : QPen (Qt::black));
 	m_hscursor_h->setX (m_h);
 	m_hscursor_v->setX (m_h);
 	m_hscursor_h->setY (255 - m_s);
 	m_hscursor_v->setY (255 - m_s);
 	QRgb pixel = m_hs_img->pixel (m_h, 255 - m_s);
-	double sum = ((pixel >> 16) & 0xFF) * 0.21 + ((pixel >> 8) & 0xFF) * 0.72 + (pixel & 0xFF) * 0.07;
-	m_hscursor_v->setPen (sum < 128 ? QPen (Qt::white) : QPen (Qt::black));
-	m_hscursor_h->setPen (sum < 128 ? QPen (Qt::white) : QPen (Qt::black));
+	double sum2 = ((pixel >> 16) & 0xFF) * 0.21 + ((pixel >> 8) & 0xFF) * 0.72 + (pixel & 0xFF) * 0.07;
+	m_hscursor_v->setPen (sum2 < 128 ? QPen (Qt::white) : QPen (Qt::black));
+	m_hscursor_h->setPen (sum2 < 128 ? QPen (Qt::white) : QPen (Qt::black));
 }
 
 void GradEditor::update_color_selection ()
