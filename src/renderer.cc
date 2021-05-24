@@ -195,7 +195,7 @@ static inline double niter_transfer (double niter, int type)
 }
 
 static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double niter, double sub_val, bool dwell, int type, double steps,
-				     int slider)
+				     int slider, bool circular)
 {
 	niter = niter_transfer (niter, type) - sub_val;
 	size_t size = palette.size ();
@@ -204,8 +204,10 @@ static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double ni
 		idx *= size;
 		int x = floor (idx);
 		double m1 = idx - x;
-		uint32_t col1 = palette[(x + 1) % size];
 		uint32_t col2 = palette[x % size];
+		if (x + 1 >= size && !circular)
+			return col2;
+		uint32_t col1 = palette[(x + 1) % size];
 		uint32_t primary = color_merge (col1, col2, m1);
 		return primary | 0xFF000000;
 	} else {
@@ -433,7 +435,7 @@ public:
 			if (rp.oc_atom)
 				col = color_from_period (fd->pic_period[idx]);
 			else
-				col = color_from_niter (rp.palette, v, colour_sub_val, rp.oc_dwell, rp.mod_type, rp.steps, rp.col_off + attractor * rp.basin_col_off);
+				col = color_from_niter (rp.palette, v, colour_sub_val, rp.oc_dwell, rp.mod_type, rp.steps, rp.col_off + attractor * rp.basin_col_off, rp.circular_palette);
 
 			if (rp.sac && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;

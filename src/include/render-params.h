@@ -14,6 +14,7 @@ struct render_params
 	int sub_val;
 	int angle;
 	bool sub;
+	bool circular_palette;
 	bool bin_invert;
 	bool sac, tia, sac_contrast, sac_fade;
 	double sac_factor, tia_power;

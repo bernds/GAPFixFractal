@@ -838,6 +838,7 @@ void MainWindow::set_render_params (render_params &p)
 	p.palette = m_palette;
 	p.smooth = ui->action_SmoothStd->isChecked () ? render_params::smooth_t::std : render_params::smooth_t::makin;
 	p.incol = ui->action_ICWhite->isChecked () ? 0xFFFFFF : 0;
+	p.circular_palette = ui->action_PCircular->isChecked ();
 	p.ic_atom = ui->action_ICAtom->isChecked ();
 	p.oc_atom = ui->action_OCAtom->isChecked ();
 	p.oc_dwell = ui->action_OCDwell->isChecked ();
