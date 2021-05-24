@@ -7,13 +7,14 @@ struct render_params
 	enum class smooth_t { std, makin };
 	smooth_t smooth;
 	uint32_t incol;
-	bool oc_atom, ic_atom;
+	bool oc_atom, ic_atom, oc_dwell;
 	int mod_type;
 	double steps;
 	int col_off, basin_col_off;
 	int sub_val;
 	int angle;
 	bool sub;
+	bool bin_invert;
 	bool sac, tia, sac_contrast, sac_fade;
 	double sac_factor, tia_power;
 	int sac_fade_amount;

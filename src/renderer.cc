@@ -194,21 +194,32 @@ static inline double niter_transfer (double niter, int type)
 	}
 }
 
-static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double niter, double sub_val, int type, double steps,
+static inline QRgb color_from_niter (const QVector<uint32_t> &palette, double niter, double sub_val, bool dwell, int type, double steps,
 				     int slider)
 {
 	niter = niter_transfer (niter, type) - sub_val;
-	niter *= interpolation_factor;
-	int x = niter / steps;
-	double y = niter - x * steps;
-	x += 0.5 * slider * interpolation_factor;
 	size_t size = palette.size ();
-	// return palette[x % size];
-	double m1 = y / steps;
-	uint32_t col1 = palette[(x + 1) % size];
-	uint32_t col2 = palette[x % size];
-	uint32_t primary = color_merge (col1, col2, m1);
-	return primary | 0xFF000000;
+	if (dwell) {
+		double idx = fmod (niter, steps) / steps;
+		idx *= size;
+		int x = floor (idx);
+		double m1 = idx - x;
+		uint32_t col1 = palette[(x + 1) % size];
+		uint32_t col2 = palette[x % size];
+		uint32_t primary = color_merge (col1, col2, m1);
+		return primary | 0xFF000000;
+	} else {
+		niter *= interpolation_factor;
+		int x = niter / steps;
+		double y = niter - x * steps;
+		x += 0.5 * slider * interpolation_factor;
+		// return palette[x % size];
+		double m1 = y / steps;
+		uint32_t col1 = palette[(x + 1) % size];
+		uint32_t col2 = palette[x % size];
+		uint32_t primary = color_merge (col1, col2, m1);
+		return primary | 0xFF000000;
+	}
 }
 
 static inline QRgb color_from_period (uint32_t p)
@@ -422,7 +433,7 @@ public:
 			if (rp.oc_atom)
 				col = color_from_period (fd->pic_period[idx]);
 			else
-				col = color_from_niter (rp.palette, v, colour_sub_val, rp.mod_type, rp.steps, rp.col_off + attractor * rp.basin_col_off);
+				col = color_from_niter (rp.palette, v, colour_sub_val, rp.oc_dwell, rp.mod_type, rp.steps, rp.col_off + attractor * rp.basin_col_off);
 
 			if (rp.sac && attractor == 0) {
 				double radius = fd->dem ? 10 : 100;
@@ -461,10 +472,10 @@ public:
 				col = modify_color (col, v);
 			}
 			else if (rp.angle == 2) {
-				if (im < 0)
-					col = rp.bin_a;
-				else if (!rp.angle_colour)
-					col = rp.bin_b;
+				if (!rp.angle_colour)
+					col = im < 0 ? rp.bin_a : rp.bin_b;
+				else if (im < 0)
+					col = rp.bin_invert ? col ^ 0xFFFFFF : rp.bin_a;
 			}
 			double dem_shade = 1;
 			if (rp.dem || rp.dem_shade) {

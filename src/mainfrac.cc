@@ -840,14 +840,16 @@ void MainWindow::set_render_params (render_params &p)
 	p.incol = ui->action_ICWhite->isChecked () ? 0xFFFFFF : 0;
 	p.ic_atom = ui->action_ICAtom->isChecked ();
 	p.oc_atom = ui->action_OCAtom->isChecked ();
+	p.oc_dwell = ui->action_OCDwell->isChecked ();
 	p.mod_type = ui->modifyComboBox->currentIndex ();
 	int steps_spin = ui->widthSpinBox->value ();
-	p.steps = (pow (steps_spin + 1, 1.3) - 2) / 2;
+	p.steps = p.oc_dwell ? steps_spin : (pow (steps_spin + 1, 1.3) - 2) / 2;
 	p.angle = !!ui->action_AngleSmooth->isChecked () + 2 * !!ui->action_AngleBin->isChecked ();
 	p.tia = ui->action_TIA->isChecked ();
 	p.sac = ui->action_SAC->isChecked ();
 	p.sac_factor = ui->stripesSpinBox->value ();
 	p.tia_power = ui->tiaSpinBox->value ();
+	p.bin_invert = ui->action_BinInvert->isChecked ();
 	p.sac_contrast = ui->action_SACContrast->isChecked ();
 	p.sac_fade = ui->action_SACFade->isChecked ();
 	p.sac_fade_amount = 2 << ui->SACFadeSlider->value ();
@@ -1964,7 +1966,8 @@ void MainWindow::update_palette ()
 	int nfactor = ui->action_NFactor4->isChecked () ? 4 : 2;
 	int hue_shift = ui->hueSlider->value ();
 	bool trad = ui->action_RotateTrad->isChecked ();
-	m_palette = interpolate_colors (pal, interpolation_factor, hue_shift, trad, narrowb, narroww, nfactor);
+	bool circular = ui->action_PCircular->isChecked ();
+	m_palette = interpolate_colors (pal, interpolation_factor, hue_shift, trad, narrowb, narroww, nfactor, circular);
 	if (ui->structureGroup->isChecked ()) {
 		int strtype = ui->action_StructLight->isChecked () ? 0 : ui->action_StructDark->isChecked () ? 1 : 2;
 		int str = ui->structureSlider->value ();
@@ -2009,13 +2012,14 @@ void MainWindow::gradient_edit (bool)
 	int nfactor = ui->action_NFactor4->isChecked () ? 4 : 2;
 	int hue_shift = ui->hueSlider->value ();
 	bool trad = ui->action_RotateTrad->isChecked ();
+	bool circular = ui->action_PCircular->isChecked ();
 	GradEditor edit (this, pal);
 	connect (&edit, &GradEditor::colors_changed,
-		 [this, &new_pal, narrowb, hue_shift, trad, narroww, nfactor] (const QVector<uint32_t> &newcols)
+		 [this, &new_pal, narrowb, hue_shift, trad, narroww, nfactor, circular] (const QVector<uint32_t> &newcols)
 		 {
 			 new_pal = newcols;
 			 m_palette = interpolate_colors (newcols, interpolation_factor, hue_shift, trad,
-							 narrowb, narroww, nfactor);
+							 narrowb, narroww, nfactor, circular);
 			 update_views ();
 		 });
 	if (edit.exec ()) {
@@ -2282,11 +2286,13 @@ MainWindow::MainWindow (QDataStream *init_file)
 	ui->sampleSpinBox->setValue (1);
 	ui->action_NarrowB->setChecked (true);
 	ui->action_NarrowW->setChecked (true);
+	ui->action_PCircular->setChecked (true);
 	ui->action_RotateTrad->setChecked (true);
 	ui->action_DEMOff->setChecked (true);
 	ui->action_DEMColour->setChecked (false);
 	ui->action_AngleColour->setChecked (false);
 	ui->action_AngleNone->setChecked (true);
+	ui->action_BinInvert->setChecked (true);
 	ui->action_AimAssist->setChecked (true);
 	ui->action_Shift100->setChecked (true);
 	ui->action_NFactor4->setChecked (true);
@@ -2376,6 +2382,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	m_outcolor_group = new QActionGroup (this);
 	m_outcolor_group->addAction (ui->action_OCDefault);
 	m_outcolor_group->addAction (ui->action_OCAtom);
+	m_outcolor_group->addAction (ui->action_OCDwell);
 
 	m_smooth_group = new QActionGroup (this);
 	m_smooth_group->addAction (ui->action_SmoothStd);
@@ -2455,6 +2462,8 @@ MainWindow::MainWindow (QDataStream *init_file)
 	connect (ui->action_NarrowW, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_NFactor2, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_NFactor4, &QAction::toggled, [this] (bool) { update_palette (); });
+	connect (ui->action_PCircular, &QAction::toggled, [this] (bool) { update_palette (); });
+
 	connect (ui->action_RotateTrad, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_RotateHSV, &QAction::toggled, [this] (bool) { update_palette (); });
 	connect (ui->action_StructLight, &QAction::toggled, [this] (bool) { update_palette (); });
@@ -2466,6 +2475,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	connect (ui->action_SAC, &QAction::toggled, [this] (bool) { enable_sac_or_tia (); });
 	connect (ui->action_TIA, &QAction::toggled, [this] (bool) { enable_sac_or_tia (); });
 
+	connect (ui->action_BinInvert, &QAction::toggled, [this] (bool) { update_views (); });
 	connect (ui->action_SACFade, &QAction::toggled, [this] (bool) { update_views (); });
 	connect (ui->action_SACContrast, &QAction::toggled, [this] (bool) { update_views (); });
 	connect (ui->SACFadeSlider, &QSlider::valueChanged, this, &MainWindow::update_views);
@@ -2479,6 +2489,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 
 	connect (ui->action_OCDefault, &QAction::toggled, this, &MainWindow::update_ic_oc_color);
 	connect (ui->action_OCAtom, &QAction::toggled, this, &MainWindow::update_ic_oc_color);
+	connect (ui->action_OCDwell, &QAction::toggled, this, &MainWindow::update_ic_oc_color);
 
 	connect (ui->action_DEMColour, &QAction::toggled,
 		 [this] (bool) { if (!ui->action_DEMOff->isChecked ()) update_views (); });
