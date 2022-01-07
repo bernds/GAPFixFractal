@@ -156,7 +156,6 @@
       <addaction name="action_FormulaFacing"/>
       <addaction name="action_FormulaFacingB"/>
       <addaction name="action_FormulaRings"/>
-      <addaction name="action_FormulaRat1"/>
      </widget>
      <widget class="QMenu" name="menuNon_analytic">
       <property name="title">
