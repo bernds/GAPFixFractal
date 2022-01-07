@@ -1950,7 +1950,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Family z ↦ c(z³ - 3z -2) + q &quot;Mixture&quot;</string>
+    <string>Family z ↦ c(z³ - 3z -2) - q &quot;Mixture&quot;</string>
    </property>
    <property name="toolTip">
     <string>Mixture</string>
@@ -2215,7 +2215,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Family z ↦ (z + 1/z)ⁿ (&quot;Facing A&quot;/&quot;Zazbcgd&quot;)</string>
+    <string>Family z ↦ (z + c²/z)ⁿ (&quot;Facing A&quot;/&quot;Zazbcgd&quot;)</string>
    </property>
    <property name="toolTip">
     <string>Family z ↦ (z + c²/z)ⁿ (&quot;Facing A&quot;/&quot;Zazbcgd&quot;)</string>
