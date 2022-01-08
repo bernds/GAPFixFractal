@@ -48,7 +48,7 @@ const formula formula_table[] = {
 	formula::standard, formula::lambda, formula::spider, formula::tricorn,
 	formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b,
 	formula::celtic, formula::magnet_a, formula::facing, formula::facing_b,
-	formula::rings, formula::testing
+	formula::rings, formula::e90_mix, formula::testing
 };
 
 constexpr int default_power = 2;
@@ -1323,6 +1323,14 @@ void MainWindow::reset_coords (frac_desc &fd)
 		fd.width[max_nwords - 1] = 2;
 		fd.bounds_w = 2;
 		fd.bounds_h = 1;
+	} else if (m_formula == formula::e90_mix && !fd.julia) {
+		fd.center_x[max_nwords - 2] = 0x00000000;
+		fd.center_x[max_nwords - 1] = 0xffffffff;
+		fd.width[max_nwords - 1] = 4;
+		fd.bounds_w = 4;
+		fd.bounds_h = 2;
+	} else if (m_formula == formula::e90_mix && fd.julia) {
+		fd.center_x[max_nwords - 1] = 1;
 	} else if (m_formula == formula::magnet_a) {
 		if (!fd.julia)
 			fd.center_x[max_nwords - 1] = 1;
@@ -1376,6 +1384,16 @@ void MainWindow::set_q (int qr, int qi)
 	val[max_nwords * 2 - 1] = qi;
 	m_fd_mandel.param_q = val;
 	m_fd_julia.param_q = val;
+	if (qr == 0 && qi == 0) {
+		ui->action_q_0->setChecked (true);
+	} else if (qr == 1 && qi == 0) {
+		ui->action_q_1->setChecked (true);
+	} else if (qr == 2 && qi == 0) {
+		ui->action_q_2->setChecked (true);
+	} else if (qr == -1 && qi == 0) {
+		ui->action_q_m1->setChecked (true);
+	} else
+		ui->action_q_enter->setChecked (true);
 }
 
 void MainWindow::init_formula (formula f)
@@ -1395,13 +1413,15 @@ void MainWindow::init_formula (formula f)
 		one[max_nwords - 1] = 1;
 		m_fd_mandel.critpoint = one;
 	}
-	if (f == formula::mix || f == formula::facing || f == formula::facing_b || f == formula::rings) {
+	if (f == formula::mix || f == formula::e90_mix || f == formula::facing || f == formula::facing_b || f == formula::rings) {
 		vpvec one = cplx_zero;
 		one[max_nwords - 1] = 1;
 		m_fd_mandel.critpoint = one;
 	}
 	if (f == formula::mix)
 		set_q (2, 0);
+	else if (f == formula::e90_mix)
+		set_q (1, 0);
 }
 
 void MainWindow::enable_interface_for_settings ()
@@ -1424,6 +1444,7 @@ void MainWindow::enable_interface_for_formula (formula f)
 		       : f == formula::lambda ? ui->action_FormulaLambda
 		       : f == formula::spider ? ui->action_FormulaSpider
 		       : f == formula::mix ? ui->action_FormulaMix
+		       : f == formula::e90_mix ? ui->action_FormulaE90Mix
 		       : f == formula::sqtwice_a ? ui->action_FormulaSqTwiceA
 		       : f == formula::sqtwice_b ? ui->action_FormulaSqTwiceB
 		       : f == formula::testing ? ui->action_FormulaTest
@@ -1452,14 +1473,15 @@ void MainWindow::enable_interface_for_formula (formula f)
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
 				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
 				      || f == formula::celtic || f == formula::facing || f == formula::facing_b
-				      || f == formula::rings || f == formula::testing);
+				      || f == formula::rings || f == formula::e90_mix || f == formula::testing);
 	ui->menuHybrid->setEnabled (formula_supports_hybrid (f));
 	ui->action_HybridOff->setChecked (true);
 
-	ui->action_q_1->setEnabled (f == formula::mix);
 	ui->action_q_m1->setEnabled (f == formula::mix);
+	ui->action_q_0->setEnabled (f == formula::mix || f == formula::e90_mix);
+	ui->action_q_1->setEnabled (f == formula::mix || f == formula::e90_mix);
 	ui->action_q_2->setEnabled (f == formula::mix);
-	ui->action_q_enter->setEnabled (f == formula::mix);
+	ui->action_q_enter->setEnabled (f == formula::mix || f == formula::e90_mix);
 }
 
 void MainWindow::formula_chosen (formula f, int power)
@@ -2390,6 +2412,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	m_smooth_group->addAction (ui->action_SmoothMakin);
 
 	m_q_group = new QActionGroup (this);
+	m_q_group->addAction (ui->action_q_0);
 	m_q_group->addAction (ui->action_q_1);
 	m_q_group->addAction (ui->action_q_2);
 	m_q_group->addAction (ui->action_q_m1);
@@ -2410,6 +2433,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	m_formula_group->addAction (ui->action_FormulaLambda);
 	m_formula_group->addAction (ui->action_FormulaSpider);
 	m_formula_group->addAction (ui->action_FormulaMix);
+	m_formula_group->addAction (ui->action_FormulaE90Mix);
 	m_formula_group->addAction (ui->action_FormulaSqTwiceA);
 	m_formula_group->addAction (ui->action_FormulaSqTwiceB);
 	m_formula_group->addAction (ui->action_FormulaMagnetA);
@@ -2549,6 +2573,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 		 [this] (bool) { inc_rotation (current_fd (), 0); update_settings (false); });
 	connect (ui->scaleSlider, &QSlider::valueChanged,
 		 [this] (bool) { inc_rotation (current_fd (), 0); update_settings (false); });
+	connect (ui->action_q_0, &QAction::triggered, [this] (bool) { set_q (0, 0); update_settings (true); });
 	connect (ui->action_q_1, &QAction::triggered, [this] (bool) { set_q (1, 0); update_settings (true); });
 	connect (ui->action_q_m1, &QAction::triggered, [this] (bool) { set_q (-1, 0); update_settings (true); });
 	connect (ui->action_q_2, &QAction::triggered, [this] (bool) { set_q (2, 0); update_settings (true); });
@@ -2575,6 +2600,8 @@ MainWindow::MainWindow (QDataStream *init_file)
 		 [this] (bool) { formula_chosen (formula::celtic, 2); });
 	connect (ui->action_FormulaMix, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::mix, 3); });
+	connect (ui->action_FormulaE90Mix, &QAction::triggered,
+		 [this] (bool) { formula_chosen (formula::e90_mix, 2); });
 	connect (ui->action_FormulaSqTwiceA, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::sqtwice_a, 2); });
 	connect (ui->action_FormulaSqTwiceB, &QAction::triggered,

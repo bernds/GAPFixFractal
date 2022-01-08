@@ -1885,6 +1885,28 @@ void gen_inner_mix (int size, int stepsize, int power, bool julia, bool dem,
 	zreg.store (newz);
 }
 
+// "Mixture" from the Saturn program: (c(2z - z^2) + q)^p
+
+void gen_inner_e90mix (int size, int stepsize, int power, bool julia, bool dem,
+		       cplx_reg zreg, cplx_val cval, cplx_reg zder)
+{
+	cplx_val zval { zreg };
+	cplx_val twice = emit_complex_add (zval, zval);
+	cplx_val pwr = emit_complex_mult (zval, zval);
+	cplx_val diff = emit_complex_sub (twice, pwr);
+	cplx_val cdiff = emit_complex_mult (cval, diff);
+	auto pq = cplx_ldc ("const_param_q", size, stepsize);
+	cplx_val sum = emit_complex_add (cdiff, pq);
+	array<cplx_val, 20> powers;
+	build_powers (powers, sum, power);
+	cplx_val newz = get_power (powers, power);
+	if (dem) {
+		// Needs working out.
+	}
+
+	zreg.store (newz);
+}
+
 static void gen_inner (formula f, int size, int stepsize, int power, bool julia, bool dem,
 		       cplx_reg zreg, cplx_reg creg, cplx_val cval, cplx_reg zder)
 {
@@ -1910,6 +1932,9 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 		break;
 	case formula::mix:
 		gen_inner_mix (size, stepsize, power, julia, dem, zreg, cval, zder);
+		break;
+	case formula::e90_mix:
+		gen_inner_e90mix (size, stepsize, power, julia, dem, zreg, cval, zder);
 		break;
 	case formula::sqtwice_a:
 		gen_inner_sqtwice_a (power, julia, zreg, cval);

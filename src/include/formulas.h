@@ -7,7 +7,7 @@
 enum class formula
 {
 	testing, standard, lambda, tricorn, spider, ship, mix, sqtwice_a, sqtwice_b, celtic, magnet_a,
-		facing, facing_b, rings
+	facing, facing_b, rings, e90_mix
 };
 
 extern const formula formula_table[];

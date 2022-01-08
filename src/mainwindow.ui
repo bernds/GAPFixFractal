@@ -145,6 +145,7 @@
       <addaction name="action_FormulaStandard"/>
       <addaction name="action_FormulaLambda"/>
       <addaction name="action_FormulaMix"/>
+      <addaction name="action_FormulaE90Mix"/>
       <addaction name="action_FormulaSqTwiceA"/>
       <addaction name="action_FormulaSqTwiceB"/>
      </widget>
@@ -187,8 +188,9 @@
      <property name="title">
       <string>Choose parameter &amp;q</string>
      </property>
-     <addaction name="action_q_1"/>
      <addaction name="action_q_m1"/>
+     <addaction name="action_q_0"/>
+     <addaction name="action_q_1"/>
      <addaction name="action_q_2"/>
      <addaction name="action_q_enter"/>
     </widget>
@@ -1994,16 +1996,25 @@
    </property>
   </action>
   <action name="action_q_1">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>q=1</string>
    </property>
   </action>
   <action name="action_q_m1">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>q=-1</string>
    </property>
   </action>
   <action name="action_q_2">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>q=2</string>
    </property>
@@ -2509,6 +2520,28 @@
    </property>
    <property name="text">
     <string>Invert second colour for binary</string>
+   </property>
+  </action>
+  <action name="action_FormulaE90Mix">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Family z ↦ (c(2z-z²)+q)² &quot;E90 Mixture&quot;</string>
+   </property>
+   <property name="toolTip">
+    <string>Mixture (E90)</string>
+   </property>
+  </action>
+  <action name="action_q_0">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>q=0</string>
+   </property>
+   <property name="toolTip">
+    <string>q=0</string>
    </property>
   </action>
  </widget>

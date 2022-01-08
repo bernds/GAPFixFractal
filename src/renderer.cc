@@ -164,6 +164,8 @@ static int power_from_fp (frac_params &fp)
 	int power = fp.power;
 	if (fp.fm == formula::sqtwice_a || fp.fm == formula::sqtwice_b)
 		power += 2;
+	if (fp.fm == formula::e90_mix)
+		power *= 2;
 	return power;
 }
 
