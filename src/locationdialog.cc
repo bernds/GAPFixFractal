@@ -15,6 +15,8 @@ LocationDialog::LocationDialog (QMainWindow *w, type t, const QString &cx, const
 	ui->radiusEdit->setText (r);
 	if (t == type::location)
 		return;
+	ui->radiusEdit->setVisible (false);
+	ui->rLabel->setVisible (false);
 	ui->xLabel->setText (tr ("Parameter re:"));
 	ui->yLabel->setText (tr ("Parameter im:"));
 	if (t == type::paramp)
