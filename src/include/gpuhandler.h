@@ -44,7 +44,7 @@ public slots:
 		done_sem.release ();
 	}
 	void slot_start_kernel (frac_desc *, int generation, int max_nwords, int steps, bool batch);
-	void slot_compile_kernel (int, int power, int nwords, int max_nwords, bool incolor, QString *);
+	void slot_compile_kernel (int, int power, int off, int nwords, int max_nwords, bool incolor, QString *);
 signals:
         void signal_new_data (frac_desc *, int generation, bool);
         void signal_kernel_complete ();

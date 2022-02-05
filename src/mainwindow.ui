@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1091</width>
-    <height>980</height>
+    <height>987</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -146,8 +146,6 @@
       <addaction name="action_FormulaLambda"/>
       <addaction name="action_FormulaMix"/>
       <addaction name="action_FormulaE90Mix"/>
-      <addaction name="action_FormulaSqTwiceA"/>
-      <addaction name="action_FormulaSqTwiceB"/>
      </widget>
      <widget class="QMenu" name="menuRational">
       <property name="title">
@@ -435,6 +433,44 @@
         </item>
         <item>
          <widget class="QSpinBox" name="powerSpinBox">
+          <property name="stepType">
+           <enum>QAbstractSpinBox::DefaultStepType</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QWidget" name="offsetWidget" native="true">
+       <layout class="QHBoxLayout" name="horizontalLayout_5b">
+        <property name="leftMargin">
+         <number>0</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <property name="bottomMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="label_3b">
+          <property name="text">
+           <string>Pwr B:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="pwrBSpinBox">
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>10</number>
+          </property>
           <property name="stepType">
            <enum>QAbstractSpinBox::DefaultStepType</enum>
           </property>
@@ -2017,28 +2053,6 @@
    </property>
    <property name="text">
     <string>q=2</string>
-   </property>
-  </action>
-  <action name="action_FormulaSqTwiceA">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Family z ↦ (zⁿ + c)²  &quot;Square twice A&quot;</string>
-   </property>
-   <property name="toolTip">
-    <string>Square twice</string>
-   </property>
-  </action>
-  <action name="action_FormulaSqTwiceB">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Family z ↦ (z² + c)ⁿ  &quot;Square twice B&quot;</string>
-   </property>
-   <property name="toolTip">
-    <string>Square twice B</string>
    </property>
   </action>
   <action name="action_BatchRender">

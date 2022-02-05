@@ -1023,7 +1023,7 @@ public:
 	{
 		return m_reg;
 	}
-	bool have_squared ()
+	bool have_squared () const
 	{
 		return m_square_val != nullptr;
 	}
@@ -1037,13 +1037,13 @@ public:
 		}
 		return m_square_val;
 	}
-	expr *abs_val ()
+	expr *abs_val () const
 	{
 		if (m_abs_val == nullptr)
 			return make<abs_expr> (m_reg, m_neg_pred);
 		return m_abs_val;
 	}
-	QString neg_pred ()
+	QString neg_pred () const
 	{
 		if (!m_neg_pred.isEmpty ())
 			return m_neg_pred;
@@ -1084,7 +1084,7 @@ public:
 		gen_cond_negate (dst, m_abs_val, m_neg_pred);
 		return dst;
 	}
-	bool have_squared ()
+	bool have_squared () const
 	{
 		return m_square_val != nullptr;
 	}
@@ -1588,7 +1588,7 @@ void build_powers (array<cplx_val, 20> &powers, C &z, int power)
 	powers[0] = z;
 	powers[1] = emit_complex_sqr (z);
 	int pidx = 2;
-	for (int p = 4; p <= power; p *= p, pidx++) {
+	for (int p = 4; p <= power; p *= 2, pidx++) {
 		powers[pidx] = emit_complex_sqr (powers[pidx - 1]);
 	}
 }
@@ -1632,6 +1632,14 @@ cplx_val emit_complex_sub (const cplx_val &v1, const cplx_val &v2)
 	return { newzr, newzi };
 }
 
+cplx_val mul_by_power (cplx_val &v, array<cplx_val, 20> &powers, int p)
+{
+	if (p == 0)
+		return v;
+	cplx_val pwr = get_power (powers, p);
+	return emit_complex_mult (pwr, v);
+}
+
 void gen_inner_standard (int size, int power, bool julia, bool dem,
 			 cplx_reg zreg, cplx_val cval, cplx_reg zder)
 {
@@ -1641,9 +1649,8 @@ void gen_inner_standard (int size, int power, bool julia, bool dem,
 
 	cplx_val newz = emit_complex_add (pwr, cval);
 	if (dem) {
-		cplx_val dpwr = get_power (powers, power - 1);
 		cplx_val zdval (zder);
-		cplx_val nrd = emit_complex_mult (dpwr, zdval);
+		cplx_val nrd = mul_by_power (zdval, powers, power - 1);
 		nrd = gen_mult_int (nrd, power);
 		if (!julia) {
 			nrd.set_re (make<addsub_expr> ("add", nrd.re,
@@ -1733,29 +1740,6 @@ void gen_inner_lambda (int size, int power, bool julia, bool dem,
 	zreg.store (newz);
 }
 
-void gen_inner_sqtwice_a (int power, bool /* julia */, cplx_reg zreg, cplx_val cval)
-{
-	array<cplx_val, 20> powers;
-	build_powers (powers, zreg, power);
-	cplx_val pwr = get_power (powers, power);
-	cplx_val newz1 = emit_complex_add (pwr, cval);
-	cplx_val newz = emit_complex_sqr (newz1);
-
-	zreg.store (newz);
-}
-
-
-void gen_inner_sqtwice_b (int power, bool /* julia */, cplx_reg zreg, cplx_val cval)
-{
-	cplx_val pwr = emit_complex_sqr (zreg);
-	cplx_val newz1 = emit_complex_add (pwr, cval);
-
-	array<cplx_val, 20> powers_b;
-	build_powers (powers_b, newz1, power);
-	cplx_val newz = get_power (powers_b, power);
-
-	zreg.store (newz);
-}
 
 void gen_inner_magnet_a (int size, int power, bool /* julia */, cplx_reg zreg, cplx_val creg)
 {
@@ -1936,12 +1920,6 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 	case formula::e90_mix:
 		gen_inner_e90mix (size, stepsize, power, julia, dem, zreg, cval, zder);
 		break;
-	case formula::sqtwice_a:
-		gen_inner_sqtwice_a (power, julia, zreg, cval);
-		break;
-	case formula::sqtwice_b:
-		gen_inner_sqtwice_b (power, julia, zreg, cval);
-		break;
 	case formula::magnet_a:
 		gen_inner_magnet_a (size, power, julia, zreg, cval);
 		break;
@@ -2042,7 +2020,7 @@ static void gen_compare_lt_and_branch (QString &result, real_val &r1, real_val &
 	}
 }
 
-void gen_kernel (formula f, QString &result, int size, int stepsize, int power, bool incolor,
+void gen_kernel (formula f, QString &result, int size, int stepsize, int power, int pwrb, bool incolor,
 		 bool julia, bool dem, bool hybrid = false)
 {
 	QString nm = julia ? "iter_julia" : "iter_mandel";
@@ -2059,6 +2037,23 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	int n_rvals = n_formula_real_vals (f, dem, incolor);
 	int n_ivals = n_formula_int_vals (f, dem, incolor);
 	int n_dvals = n_formula_extra_doubles (f, dem, incolor);
+
+	generator cg;
+	codegen = &cg;
+
+	real_reg cr (size, "cr", true);
+	real_reg ci (size, "ci", true);
+	real_reg zr (size, "zr", true, true);
+	real_reg zi (size, "zi", true, true);
+	real_reg zderr = dem ? real_reg (size, "zderr", true) : real_reg ();
+	real_reg zderi = dem ? real_reg (size, "zderi", true) : real_reg ();
+
+	cplx_reg zreg (zr, zi);
+	cplx_reg zder (zderr, zderi);
+	cplx_reg creg (cr, ci);
+	cplx_val cval;
+
+	result += cg.code ();
 
 	QString kernel_init = R"(
 	.reg.s32 %idx, %tidx, %ctaidx, %ntidx, %n_prev, %nprev_mask, %npoff;
@@ -2139,23 +2134,21 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	call		coord_mul, (%ar_t, %ar_step, %xpos);
 	call		coord_mul, (%ar_tim, %ar_step, %ypos);
 )";
-	generator cg;
-	codegen = &cg;
 
 	real_val incoord_x (make<ldg_expr> ("%ar_t", size));
 	real_val incoord_y (make<ldg_expr> ("%ar_tim", size));
 	real_val originx (make<ldc_expr> (QString ("const_origin_x + %1")
-						 .arg (stepsize * 4 - size * 4), size));
+					  .arg (stepsize * 4 - size * 4), size));
 	real_val originy (make<ldc_expr> (QString ("const_origin_y + %1")
-						 .arg (stepsize * 4 - size * 4), size));
+					  .arg (stepsize * 4 - size * 4), size));
 	real_val mat00 (make<ldc_expr> (QString ("const_matrix00 + %1")
-					       .arg (stepsize * 4 - size * 4), size));
+					.arg (stepsize * 4 - size * 4), size));
 	real_val mat01 (make<ldc_expr> (QString ("const_matrix01 + %1")
-					       .arg (stepsize * 4 - size * 4), size));
+					.arg (stepsize * 4 - size * 4), size));
 	real_val mat10 (make<ldc_expr> (QString ("const_matrix10 + %1")
-					       .arg (stepsize * 4 - size * 4), size));
+					.arg (stepsize * 4 - size * 4), size));
 	real_val mat11 (make<ldc_expr> (QString ("const_matrix11 + %1")
-					       .arg (stepsize * 4 - size * 4), size));
+					.arg (stepsize * 4 - size * 4), size));
 
 	auto coord_x1 = make<addsub_expr> ("add", gen_mult (incoord_x, mat00), gen_mult (incoord_y, mat01));
 	auto coord_y1 = make<addsub_expr> ("add", gen_mult (incoord_x, mat10), gen_mult (incoord_y, mat11));
@@ -2208,7 +2201,37 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 		gen_store ("%ar_z", coord_x);
 		gen_store ("%ar_zim", coord_y);
 	}
+	auto do_setup_loads = [ f, &cr, &ci, &zr, &zi, &zderr, &zderi, &cval, &creg, size, stepsize, dem, julia ] ()
+	{
+		cr.store (make<ldg_expr> ("%ar_t", size));
+		ci.store (make<ldg_expr> ("%ar_tim", size));
+		zr.store (make<ldg_expr> ("%ar_z", size));
+		zi.store (make<ldg_expr> ("%ar_zim", size));
+		if (dem) {
+			zderr.store (make<ldg_expr> ("%ar_zder", size));
+			zderi.store (make<ldg_expr> ("%ar_zderim", size));
+		}
+		cval = creg;
+		if (julia)
+			cval = cplx_ldc ("const_param_p", size, stepsize);
+		if (f == formula::facing) {
+			cval = emit_complex_sqr (cval);
+		}
+	};
+	auto do_finish_stores = [ f, &cr, &ci, &zr, &zi, &zderr, &zderi, dem ] ()
+	{
+		gen_store ("%ar_z", zr);
+		gen_store ("%ar_zim", zi);
 
+		if (f == formula::spider) {
+			gen_store ("%ar_t", cr);
+			gen_store ("%ar_tim", ci);
+		}
+		if (dem) {
+			gen_store ("%ar_zder", zderr);
+			gen_store ("%ar_zderim", zderi);
+		}
+	};
 	if (incolor) {
 		result += "\tst.global.u32\t[%ar_iters], 0;\n";
 		result += "\tst.global.u32\t[%ar_period], 0;\n";
@@ -2217,25 +2240,20 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 	result += cg.code ();
 	result += "\tst.global.u32\t[%ar_zpidx], 0;\n";
 
+	if (pwrb > 1 && julia) {
+		do_setup_loads ();
+		gen_inner (f, size, stepsize, pwrb, julia, dem, zreg, creg, cval, zder);
+		do_finish_stores ();
+		result += cg.code ();
+	}
+
 	result += "notfirst:\n";
 	result += "\t.reg.u32\t\t%zpidx;\n";
 	result += "\tld.global.u32\t%zpidx, [%ar_zpidx];\n";
 
-	real_reg cr (size, "cr", true);
-	real_reg ci (size, "ci", true);
-	real_reg zr (size, "zr", true, true);
-	real_reg zi (size, "zi", true, true);
+	do_setup_loads ();
 
-	cr.store (make<ldg_expr> ("%ar_t", size));
-	ci.store (make<ldg_expr> ("%ar_tim", size));
-	zr.store (make<ldg_expr> ("%ar_z", size));
-	zi.store (make<ldg_expr> ("%ar_zim", size));
-	real_reg zderr = dem ? real_reg (size, "zderr", true) : real_reg ();
-	real_reg zderi = dem ? real_reg (size, "zderi", true) : real_reg ();
-	if (dem) {
-		zderr.store (make<ldg_expr> ("%ar_zder", size));
-		zderi.store (make<ldg_expr> ("%ar_zderim", size));
-	}
+	result += cg.code ();
 
 	bool fixpoints = formula_test_fixpoint (f);
 	real_reg zlastr = fixpoints ? real_reg (size, "zlastr", true) : real_reg ();
@@ -2249,18 +2267,6 @@ void gen_kernel (formula f, QString &result, int size, int stepsize, int power, 
 		zmin.store (make<ldg_expr> ("%ar_zmin", size));
 	}
 
-	result += cg.code ();
-
-	cplx_reg zreg (zr, zi);
-	cplx_reg zder (zderr, zderi);
-	cplx_reg creg (cr, ci);
-	cplx_val cval = creg;
-
-	if (julia)
-		cval = cplx_ldc ("const_param_p", size, stepsize);
-	if (f == formula::facing) {
-		cval = emit_complex_sqr (cval);
-	}
 	result += cg.code ();
 
 	result += R"(
@@ -2367,26 +2373,16 @@ store_and_exit:
 	st.global.u32	[%ar_zpidx], %zpidx;
 )";
 
-	gen_store ("%ar_z", zr);
-	gen_store ("%ar_zim", zi);
-
 	if (incolor) {
 		result += "\tst.global.u32\t[%ar_iters], %iters;\n";
 		gen_store ("%ar_zmin", zmin);
 	}
-	if (f == formula::spider) {
-		gen_store ("%ar_t", cr);
-		gen_store ("%ar_tim", ci);
-	}
-	if (dem) {
-		gen_store ("%ar_zder", zderr);
-		gen_store ("%ar_zderim", zderi);
-	}
+	do_finish_stores ();
 	result += cg.code ();
 	result += "}\n";
 }
 
-char *gen_mprec_funcs (formula f, int size, int stepsize, int power, bool incolor)
+char *gen_mprec_funcs (formula f, int size, int stepsize, int power, int pwrb, bool incolor)
 {
 	QString result;
 	result += QString (R"(	.version	6.2
@@ -2412,17 +2408,16 @@ char *gen_mprec_funcs (formula f, int size, int stepsize, int power, bool incolo
 	gen_coord_muladd (result, size, stepsize);
 	gen_coord_mul (result, size, stepsize);
 
-	gen_kernel (f, result, size, stepsize, power, incolor, true, false);
-	gen_kernel (f, result, size, stepsize, power, incolor, false, false);
+	gen_kernel (f, result, size, stepsize, power, pwrb, incolor, true, false);
+	gen_kernel (f, result, size, stepsize, power, pwrb, incolor, false, false);
 	if (formula_supports_dem (f)) {
-		gen_kernel (f, result, size, stepsize, power, incolor, true, true);
-		gen_kernel (f, result, size, stepsize, power, incolor, false, true);
+		gen_kernel (f, result, size, stepsize, power, pwrb, incolor, true, true);
+		gen_kernel (f, result, size, stepsize, power, pwrb, incolor, false, true);
 	} else if (formula_supports_hybrid (f)) {
-		gen_kernel (f, result, size, stepsize, power, incolor, true, false, true);
-		gen_kernel (f, result, size, stepsize, power, incolor, false, false, true);
+		gen_kernel (f, result, size, stepsize, power, pwrb, incolor, true, false, true);
+		gen_kernel (f, result, size, stepsize, power, pwrb, incolor, false, false, true);
 	}
 
-	// std::cerr << result;
 	QByteArray a = result.toLatin1 ();
 #if 0
 	std::cerr << a.constData ();

@@ -21,6 +21,7 @@ struct frac_params
 
 	int nwords = 0;
 	int power = 2;
+	int offset = 0;
 
 	uint32_t maxiter = 100;
 	// Adjusted during computation

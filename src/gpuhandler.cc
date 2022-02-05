@@ -415,7 +415,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 }
 
 /* The caller should invalidate all existing frac_desc structures before calling this.  */
-void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_nwords, bool incolor, QString *errstr)
+void GPU_handler::slot_compile_kernel (int fidx, int power, int off, int nwords, int max_nwords, bool incolor, QString *errstr)
 {
 	if (m_have_module) {
 		CUresult err;
@@ -428,7 +428,7 @@ void GPU_handler::slot_compile_kernel (int fidx, int power, int nwords, int max_
 	}
 
 	formula f = formula_table[fidx];
-	char *ptx = gen_mprec_funcs (f, nwords, max_nwords, power, incolor);
+	char *ptx = gen_mprec_funcs (f, nwords, max_nwords, power, off, incolor);
 
 	vector<CUjit_option> opts;
 	vector<void *>ovals;

@@ -64,7 +64,10 @@ constexpr int real_max_nwords = 32;
 
 QDataStream &operator<< (QDataStream &s, const frac_params &fp)
 {
-	s << (qint32)2;
+	int ver = 2;
+	if (fp.fm == formula::standard && fp.offset > 1)
+		ver = 3;
+	s << (qint32)ver;
 	s << fp.julia;
 	s << (qint32)fp.fm;
 	s << QVector<uint32_t>::fromStdVector (fp.center_x);
@@ -77,6 +80,8 @@ QDataStream &operator<< (QDataStream &s, const frac_params &fp)
 	// We stream another formula::standard in case we ever want to support
 	// things like hybrids of tricon/ship.
 	s << fp.hybrid_code << fp.hybrid_len << (qint32)formula::standard;
+	if (ver == 3)
+		s << (qint32)fp.offset;
 	return s;
 }
 
@@ -148,6 +153,12 @@ QDataStream &operator>> (QDataStream &s, frac_params &fp)
 		qint32 dummy;
 		s >> fp.hybrid_code >> fp.hybrid_len >> dummy;
 	}
+	if (version >= 3) {
+		qint32 off;
+		s >> off;
+		fp.offset = fp.offset;
+	} else
+		fp.offset = 0;
 
 	set (fp.matrix[0][0], 1);
 	set (fp.matrix[0][1], 0);
@@ -1015,11 +1026,13 @@ void MainWindow::do_compile ()
 	gpu_handler->done_sem.acquire ();
 
 	int power = ui->powerSpinBox->value ();
+	int pwrb = ui->pwrBSpinBox->value ();
 	auto it = std::find (std::begin (formula_table), std::end (formula_table), m_formula);
 	int fidx = it - std::begin (formula_table);
-	emit signal_compile_kernel (fidx, power, m_nwords, max_nwords, m_incolor, &errstr);
+	emit signal_compile_kernel (fidx, power, pwrb, m_nwords, max_nwords, m_incolor, &errstr);
 
 	m_power = power;
+	m_pwrb = pwrb;
 	gpu_handler->done_sem.acquire ();
 	if (!errstr.isEmpty ()) {
 		QMessageBox::critical (this, PACKAGE, errstr);
@@ -1028,6 +1041,8 @@ void MainWindow::do_compile ()
 	}
 	m_fd_mandel.power = power;
 	m_fd_julia.power = power;
+	m_fd_mandel.offset = pwrb;
+	m_fd_julia.offset = pwrb;
 	m_fd_mandel.fm = m_formula;
 	m_fd_julia.fm = m_formula;
 	m_fd_mandel.incolor = m_incolor;
@@ -1235,7 +1250,13 @@ void MainWindow::update_settings (bool reset)
 	m_preview_renderer->abort_render.store (true);
 	m_nwords = ui->precSpinBox->value ();
 	int power = ui->powerSpinBox->value ();
-	if (m_power != power || m_fd_julia.nwords != m_nwords || m_fd_mandel.nwords != m_nwords
+	int off = ui->pwrBSpinBox->value ();
+	if (0 && off >= power) {
+		bool_changer (m_inhibit_updates, true);
+		off = power - 1;
+		ui->pwrBSpinBox->setValue (off);
+	}
+	if (m_power != power || m_pwrb != off || m_fd_julia.nwords != m_nwords || m_fd_mandel.nwords != m_nwords
 	    || m_fd_julia.fm != m_formula || m_fd_mandel.fm != m_formula)
 		m_recompile = true;
 	m_reinit_render = true;
@@ -1445,8 +1466,6 @@ void MainWindow::enable_interface_for_formula (formula f)
 		       : f == formula::spider ? ui->action_FormulaSpider
 		       : f == formula::mix ? ui->action_FormulaMix
 		       : f == formula::e90_mix ? ui->action_FormulaE90Mix
-		       : f == formula::sqtwice_a ? ui->action_FormulaSqTwiceA
-		       : f == formula::sqtwice_b ? ui->action_FormulaSqTwiceB
 		       : f == formula::testing ? ui->action_FormulaTest
 		       : f == formula::magnet_a ? ui->action_FormulaMagnetA
 		       : f == formula::facing ? ui->action_FormulaFacing
@@ -1470,8 +1489,9 @@ void MainWindow::enable_interface_for_formula (formula f)
 	if (f != formula::magnet_a)
 		ui->action_SmoothStd->setChecked (true);
 
+	ui->pwrBSpinBox->setEnabled (f == formula::standard);
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
-				      || f == formula::ship || f == formula::sqtwice_a || f == formula::sqtwice_b
+				      || f == formula::ship
 				      || f == formula::celtic || f == formula::facing || f == formula::facing_b
 				      || f == formula::rings || f == formula::e90_mix || f == formula::testing);
 	ui->menuHybrid->setEnabled (formula_supports_hybrid (f));
@@ -1484,14 +1504,17 @@ void MainWindow::enable_interface_for_formula (formula f)
 	ui->action_q_enter->setEnabled (f == formula::mix || f == formula::e90_mix);
 }
 
-void MainWindow::formula_chosen (formula f, int power)
+void MainWindow::formula_chosen (formula f, int power, int off)
 {
-	if (m_inhibit_updates || (m_formula == f && power == m_power))
+	if (m_inhibit_updates || (m_formula == f && power == m_power && off == m_pwrb))
 		return;
 
 	bool old_inhibit_updates = m_inhibit_updates;
 	m_inhibit_updates = true;
 	ui->powerSpinBox->setValue (power);
+	if (off >= power)
+		off = 1;
+	ui->pwrBSpinBox->setValue (off);
 	if (m_formula != f) {
 		m_formula = f;
 		init_formula (f);
@@ -1877,14 +1900,26 @@ void MainWindow::restore_params (const frac_params &p)
 	m_fd_mandel.fm = p.fm;
 	m_fd_julia.fm = p.fm;
 
-	ui->precSpinBox->setValue (p.nwords);
-	ui->powerSpinBox->setValue (p.power);
+	ui->pwrBSpinBox->setValue (0);
 	ui->typeComboBox->setCurrentIndex (p.julia ? 1 : 0);
 
 	m_power = std::max (2, std::min (8, p.power));
 	m_nwords = std::max (2, std::min (16, p.nwords));
+	m_formula = p.fm;
+	if (m_formula == formula::sqtwice_a) {
+		m_formula = formula::standard;
+		m_pwrb = m_power;
+		m_power = m_power * 2;
+	} else if (m_formula == formula::sqtwice_b) {
+		m_formula = formula::standard;
+		m_pwrb = 2;
+		m_power = m_power * 2;
+	}
+	if (m_pwrb < 1 || m_pwrb >= 10)
+		m_pwrb = 1;
 	ui->powerSpinBox->setValue (m_power);
 	ui->precSpinBox->setValue (m_nwords);
+	ui->pwrBSpinBox->setValue (m_pwrb);
 	if (p.julia) {
 		m_fd_julia.set (p);
 		ui->typeComboBox->setCurrentIndex (1);
@@ -1892,7 +1927,6 @@ void MainWindow::restore_params (const frac_params &p)
 		m_fd_mandel.set (p);
 		ui->typeComboBox->setCurrentIndex (0);
 	}
-	m_formula = p.fm;
 	enable_interface_for_formula (m_formula);
 
 	reset_coords (m_fd_mandel);
@@ -2115,7 +2149,7 @@ void MainWindow::slot_batchrender (bool)
 		if (rp.sac || rp.tia) {
 			n_prev = 1 << settings.value ("coloring/nprev").toInt ();
 		}
-		emit signal_compile_kernel (fidx, fp.power, fp.nwords, max_nwords, rp.ic_atom || rp.oc_atom, &errstr);
+		emit signal_compile_kernel (fidx, fp.power, fp.offset, fp.nwords, max_nwords, rp.ic_atom || rp.oc_atom, &errstr);
 		gpu_handler->done_sem.acquire ();
 		if (!errstr.isEmpty ()) {
 			QMessageBox::critical (this, PACKAGE, errstr);
@@ -2284,9 +2318,10 @@ MainWindow::MainWindow (QDataStream *init_file)
 
 	QString errstr;
 	m_power = default_power;
+	m_pwrb = 1;
 	auto it = std::find (std::begin (formula_table), std::end (formula_table), m_formula);
 	int fidx = it - std::begin (formula_table);
-	emit signal_compile_kernel (fidx, default_power, m_nwords, max_nwords, m_incolor, &errstr);
+	emit signal_compile_kernel (fidx, default_power, m_pwrb, m_nwords, max_nwords, m_incolor, &errstr);
 	gpu_handler->done_sem.acquire ();
 	if (!errstr.isEmpty ()) {
 		QMessageBox::critical (this, PACKAGE, errstr);
@@ -2434,8 +2469,6 @@ MainWindow::MainWindow (QDataStream *init_file)
 	m_formula_group->addAction (ui->action_FormulaSpider);
 	m_formula_group->addAction (ui->action_FormulaMix);
 	m_formula_group->addAction (ui->action_FormulaE90Mix);
-	m_formula_group->addAction (ui->action_FormulaSqTwiceA);
-	m_formula_group->addAction (ui->action_FormulaSqTwiceB);
 	m_formula_group->addAction (ui->action_FormulaMagnetA);
 	m_formula_group->addAction (ui->action_FormulaFacing);
 	m_formula_group->addAction (ui->action_FormulaFacingB);
@@ -2461,6 +2494,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 		 // The spinbox value can be changed programmatically, so we check before calling update_settings.
 		 [this] (int v) { if (v != m_nwords) update_settings (false); });
 	connect (ui->powerSpinBox, changed, [this] (int) { update_settings (true); });
+	connect (ui->pwrBSpinBox, changed, [this] (int) { update_settings (true); });
 	connect (ui->sampleSpinBox, changed, [this] (int) { update_settings (false); });
 	connect (ui->typeComboBox, cic, this, &MainWindow::update_fractal_type);
 	connect (ui->widthSpinBox, changed, this, &MainWindow::update_views);
@@ -2580,42 +2614,38 @@ MainWindow::MainWindow (QDataStream *init_file)
 	connect (ui->action_q_enter, &QAction::triggered, this, &MainWindow::enter_q);
 	connect (ui->action_p_enter, &QAction::triggered, this, &MainWindow::enter_p);
 
-	connect (ui->action_FD2, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 2); });
-	connect (ui->action_FD3, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 3); });
-	connect (ui->action_FD4, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 4); });
-	connect (ui->action_FD5, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 5); });
-	connect (ui->action_FD6, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 6); });
-	connect (ui->action_FD7, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 6); });
+	connect (ui->action_FD2, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 2, m_pwrb); });
+	connect (ui->action_FD3, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 3, m_pwrb); });
+	connect (ui->action_FD4, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 4, m_pwrb); });
+	connect (ui->action_FD5, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 5, m_pwrb); });
+	connect (ui->action_FD6, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 6, m_pwrb); });
+	connect (ui->action_FD7, &QAction::triggered, [this] (bool) { formula_chosen (m_formula, 6, m_pwrb); });
 	connect (ui->action_FormulaStandard, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::standard, 2); });
+		 [this] (bool) { formula_chosen (formula::standard, 2, 1); });
 	connect (ui->action_FormulaLambda, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::lambda, 3); });
+		 [this] (bool) { formula_chosen (formula::lambda, 3, 1); });
 	connect (ui->action_FormulaSpider, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::spider, 2); });
+		 [this] (bool) { formula_chosen (formula::spider, 2, 1); });
 	connect (ui->action_FormulaTricorn, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::tricorn, 2); });
+		 [this] (bool) { formula_chosen (formula::tricorn, 2, 1); });
 	connect (ui->action_FormulaShip, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::ship, 2); });
+		 [this] (bool) { formula_chosen (formula::ship, 2, 1); });
 	connect (ui->action_FormulaCeltic, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::celtic, 2); });
+		 [this] (bool) { formula_chosen (formula::celtic, 2, 1); });
 	connect (ui->action_FormulaMix, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::mix, 3); });
+		 [this] (bool) { formula_chosen (formula::mix, 3, 1); });
 	connect (ui->action_FormulaE90Mix, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::e90_mix, 2); });
-	connect (ui->action_FormulaSqTwiceA, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::sqtwice_a, 2); });
-	connect (ui->action_FormulaSqTwiceB, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::sqtwice_b, 2); });
+		 [this] (bool) { formula_chosen (formula::e90_mix, 2, 1); });
 	connect (ui->action_FormulaMagnetA, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::magnet_a, 2); });
+		 [this] (bool) { formula_chosen (formula::magnet_a, 2, 1); });
 	connect (ui->action_FormulaFacing, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::facing, 2); });
+		 [this] (bool) { formula_chosen (formula::facing, 2, 1); });
 	connect (ui->action_FormulaFacingB, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::facing_b, 2); });
+		 [this] (bool) { formula_chosen (formula::facing_b, 2, 1); });
 	connect (ui->action_FormulaRings, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::rings, 2); });
+		 [this] (bool) { formula_chosen (formula::rings, 2, 1); });
 	connect (ui->action_FormulaTest, &QAction::triggered,
-		 [this] (bool) { formula_chosen (formula::testing, 2); });
+		 [this] (bool) { formula_chosen (formula::testing, 2, 1); });
 
 	connect (ui->action_HybridOn, &QAction::triggered, [this] (bool) { choose_hybrid (true); });
 	connect (ui->action_HybridOff, &QAction::triggered, [this] (bool) { choose_hybrid (false); });

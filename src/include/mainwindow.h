@@ -108,6 +108,7 @@ class MainWindow: public QMainWindow
 	int m_generation = 0;
 	int m_nwords = 2;
 	int m_power;
+	int m_pwrb = 0;
 	int n_prev_requested = 1;
 
 	bool m_new_data_queued = false;
@@ -238,7 +239,7 @@ class MainWindow: public QMainWindow
 	void enable_interface_for_formula (formula);
 	void enable_interface_for_settings ();
 	void init_formula (formula);
-	void formula_chosen (formula, int);
+	void formula_chosen (formula, int, int);
 	void choose_hybrid (bool);
 
 	void help_about ();
@@ -254,7 +255,7 @@ signals:
 	void signal_start_kernel (frac_desc *, int generation, int, int, bool);
 	void signal_alloc_mem (frac_desc *, int, int, int, int, QString *err);
 	void signal_invalidate (frac_desc *);
-	void signal_compile_kernel (int, int, int, int, bool, QString *err);
+	void signal_compile_kernel (int, int, int, int, int, bool, QString *err);
 
 	void signal_render (frac_desc *, QGraphicsView *, int);
 	void signal_render_preview (frac_desc *, QGraphicsView *, int);
