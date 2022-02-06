@@ -86,7 +86,7 @@ void BatchRenderDialog::choose_file ()
 QString BatchRenderDialog::get_file_template ()
 {
 	QString t = ui->fileTemplateEdit->text ();
-	bool has_pat = t.contains ("%p");
+	bool has_pat = t.contains ("%n");
 	bool has_png = t.endsWith (".png");
 	QString t_no_suffix = has_png ? t.chopped (4) : t;
 	if (!has_pat) {
