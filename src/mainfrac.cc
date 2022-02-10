@@ -2190,7 +2190,11 @@ void MainWindow::slot_batchrender (bool)
 			maxiter = std::min (maxiter, (int)(prev_maxiter / 100.0 * prev_maxiter_factor));
 		printf ("maxiter is %d (%d %d %d)\n", maxiter, m_cur_maxiter, dlg_maxiter, prev_maxiter);
 		for (int y0 = 0; y0 < h; y0 += batch_size) {
-			pdlg.setValue (progress + pro_step * ((double)y0 / h));
+			double totalProgress = progress + pro_step * ((double)y0 / h);
+			pdlg.setValue (totalProgress);
+			QString progressText = QString(tr("%1% batch | %2% %3")).arg(totalProgress, 0, 'f', 2).arg((100. * (double)y0 / h), 0, 'f', 2).arg(filename);
+			pdlg.setWindowTitle(progressText);
+			setWindowTitle(QString(PACKAGE) + " - " + progressText);
 
 			temp_fd.yoff = y0 * (1 << samples);
 			int this_h = std::min (h - y0, batch_size);
