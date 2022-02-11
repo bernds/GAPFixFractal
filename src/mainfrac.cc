@@ -2343,8 +2343,6 @@ MainWindow::MainWindow (QDataStream *init_file)
 	ui->widthSpinBox->setMinimum (1);
 	ui->widthSpinBox->setMaximum (50);
 
-	ui->zoomSpinBox->setMinimum (1.1);
-	ui->zoomSpinBox->setMaximum (5);
 	ui->sampleSpinBox->setValue (1);
 	ui->action_NarrowB->setChecked (true);
 	ui->action_NarrowW->setChecked (true);
