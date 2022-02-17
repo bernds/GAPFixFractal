@@ -229,7 +229,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 		if (count > maxiter)
 			count = maxiter;
 		if (fd->hybrid_len > 0) {
-			count = (count + fd->hybrid_len - 1) / fd->hybrid_len * fd->hybrid_len;
+			count = (count + fd->hybrid_len - 1) / (fd->hybrid_len * fd->hybrid_len);
 		}
 		else if (iter_scale_factor != 1)
 			printf ("scaling niter from %d to %d\n", steps, count);
