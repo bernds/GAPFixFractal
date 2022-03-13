@@ -1815,6 +1815,25 @@ void gen_inner_rings (int size, int power, bool /* julia */, cplx_reg zreg, cplx
 	}
 }
 
+void gen_inner_tails (int size, int stepsize, int power, bool julia, cplx_reg zreg, cplx_val cval)
+{
+	auto const1 = make<const_expr<1>> (size);
+	auto const0 = make<const_expr<0>> (size);
+
+	array<cplx_val, 20> powers;
+	build_powers (powers, zreg, power);
+	cplx_val pwr = get_power (powers, power);
+
+	cplx_val newz1 = emit_complex_add (pwr, cval);
+	cplx_val one { const1, const0 };
+	cplx_val newz1b = emit_complex_div (one, newz1);
+	cplx_val sum = emit_complex_add (newz1, newz1b);
+	cplx_val scaled { make<arshift_expr<1>> (sum.re), make<arshift_expr<1>> (sum.im) };
+	auto pq = cplx_ldc ("const_param_q", size, stepsize);
+	cplx_val newz = emit_complex_sub (scaled, pq);
+	zreg.store (newz);
+}
+
 void gen_inner_spider (int size, int power, cplx_reg zreg, cplx_reg creg)
 {
 	array<cplx_val, 20> powers;
@@ -1931,6 +1950,9 @@ static void gen_inner (formula f, int size, int stepsize, int power, bool julia,
 		break;
 	case formula::rings:
 		gen_inner_rings (size, power, julia, zreg, cval);
+		break;
+	case formula::tails:
+		gen_inner_tails (size, stepsize, power, julia, zreg, cval);
 		break;
 	}
 }

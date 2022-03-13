@@ -7,7 +7,7 @@
 enum class formula
 {
 	testing, standard, lambda, tricorn, spider, ship, mix, sqtwice_a, sqtwice_b, celtic, magnet_a,
-	facing, facing_b, rings, e90_mix
+		facing, facing_b, rings, e90_mix, tails
 };
 
 extern const formula formula_table[];
@@ -50,7 +50,7 @@ inline int n_formula_extra_doubles (formula, bool /* dem */, bool incolor = fals
 
 inline int formula_scratch_space (formula f, int nwords)
 {
-	if (f == formula::magnet_a || f == formula::facing || f == formula::facing_b || f == formula::rings)
+	if (f == formula::magnet_a || f == formula::facing || f == formula::facing_b || f == formula::rings || f == formula::tails)
 		return nwords * 4 + 4;
 	return 0;
 }

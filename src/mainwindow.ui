@@ -155,6 +155,7 @@
       <addaction name="action_FormulaFacing"/>
       <addaction name="action_FormulaFacingB"/>
       <addaction name="action_FormulaRings"/>
+      <addaction name="action_FormulaTails"/>
      </widget>
      <widget class="QMenu" name="menuNon_analytic">
       <property name="title">
@@ -2390,6 +2391,17 @@
    </property>
    <property name="toolTip">
     <string>Rings</string>
+   </property>
+  </action>
+  <action name="action_FormulaTails">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Family z ↦ ½(zⁿ+c+1/(zⁿ+c))+q (&quot;Tails Mandelbrot&quot;)</string>
+   </property>
+   <property name="toolTip">
+    <string>Tails</string>
    </property>
   </action>
   <action name="action_Coordinates">

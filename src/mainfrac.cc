@@ -48,7 +48,7 @@ const formula formula_table[] = {
 	formula::standard, formula::lambda, formula::spider, formula::tricorn,
 	formula::ship, formula::mix, formula::sqtwice_a, formula::sqtwice_b,
 	formula::celtic, formula::magnet_a, formula::facing, formula::facing_b,
-	formula::rings, formula::e90_mix, formula::testing
+	formula::rings, formula::e90_mix, formula::tails, formula::testing
 };
 
 constexpr int default_power = 2;
@@ -1378,6 +1378,14 @@ void MainWindow::reset_coords (frac_desc &fd)
 		}
 		fd.width[max_nwords - 1] = fd.bounds_h;
 	}
+	else if (m_formula == formula::tails) {
+		if (!fd.julia) {
+			fd.bounds_h = 10;
+			fd.bounds_w = 10;
+			fd.center_x[max_nwords - 1] = fd.param_q[max_nwords - 1] - 1;
+		}
+		fd.width[max_nwords - 1] = fd.bounds_h;
+	}
 	if (m_formula == formula::standard && !fd.julia && power == 4) {
 		fd.center_x[max_nwords - 2] = 0xd0000000;
 		fd.center_x[max_nwords - 1] = 0xffffffff;
@@ -1441,7 +1449,7 @@ void MainWindow::init_formula (formula f)
 	}
 	if (f == formula::mix)
 		set_q (2, 0);
-	else if (f == formula::e90_mix)
+	else if (f == formula::e90_mix || f == formula::tails)
 		set_q (1, 0);
 }
 
@@ -1471,6 +1479,7 @@ void MainWindow::enable_interface_for_formula (formula f)
 		       : f == formula::facing ? ui->action_FormulaFacing
 		       : f == formula::facing_b ? ui->action_FormulaFacingB
 		       : f == formula::rings ? ui->action_FormulaRings
+		       : f == formula::tails ? ui->action_FormulaTails
 		       : ui->action_FormulaStandard);
 	fa->setChecked (true);
 
@@ -1493,15 +1502,16 @@ void MainWindow::enable_interface_for_formula (formula f)
 	ui->powerSpinBox->setEnabled (f == formula::standard || f== formula::lambda || f == formula::tricorn
 				      || f == formula::ship
 				      || f == formula::celtic || f == formula::facing || f == formula::facing_b
-				      || f == formula::rings || f == formula::e90_mix || f == formula::testing);
+				      || f == formula::rings || f == formula::e90_mix || f == formula::tails
+				      || f == formula::testing);
 	ui->menuHybrid->setEnabled (formula_supports_hybrid (f));
 	ui->action_HybridOff->setChecked (true);
 
-	ui->action_q_m1->setEnabled (f == formula::mix);
+	ui->action_q_m1->setEnabled (f == formula::mix || f == formula::tails);
 	ui->action_q_0->setEnabled (f == formula::mix || f == formula::e90_mix);
-	ui->action_q_1->setEnabled (f == formula::mix || f == formula::e90_mix);
+	ui->action_q_1->setEnabled (f == formula::mix || f == formula::e90_mix || f == formula::tails);
 	ui->action_q_2->setEnabled (f == formula::mix);
-	ui->action_q_enter->setEnabled (f == formula::mix || f == formula::e90_mix);
+	ui->action_q_enter->setEnabled (f == formula::mix || f == formula::e90_mix || f == formula::tails || f == formula::testing);
 }
 
 void MainWindow::formula_chosen (formula f, int power, int off)
@@ -2475,6 +2485,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	m_formula_group->addAction (ui->action_FormulaFacing);
 	m_formula_group->addAction (ui->action_FormulaFacingB);
 	m_formula_group->addAction (ui->action_FormulaRings);
+	m_formula_group->addAction (ui->action_FormulaTails);
 	m_formula_group->addAction (ui->action_FormulaTest);
 
 	ui->action_FD2->setChecked (true);
@@ -2646,6 +2657,8 @@ MainWindow::MainWindow (QDataStream *init_file)
 		 [this] (bool) { formula_chosen (formula::facing_b, 2, 1); });
 	connect (ui->action_FormulaRings, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::rings, 2, 1); });
+	connect (ui->action_FormulaTails, &QAction::triggered,
+		 [this] (bool) { formula_chosen (formula::tails, 2, 1); });
 	connect (ui->action_FormulaTest, &QAction::triggered,
 		 [this] (bool) { formula_chosen (formula::testing, 2, 1); });
 
