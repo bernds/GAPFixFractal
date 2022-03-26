@@ -108,6 +108,7 @@
     </property>
     <addaction name="action_SaveImageAs"/>
     <addaction name="action_BatchRender"/>
+    <addaction name="action_BatchTiled"/>
     <addaction name="separator"/>
     <addaction name="action_SaveParams"/>
     <addaction name="action_LoadParams"/>
@@ -2568,6 +2569,14 @@
    </property>
    <property name="toolTip">
     <string>q=0</string>
+   </property>
+  </action>
+  <action name="action_BatchTiled">
+   <property name="text">
+    <string>Batch export, tiled render...</string>
+   </property>
+   <property name="toolTip">
+    <string>Batch export from stored params with a tiled render</string>
    </property>
   </action>
  </widget>

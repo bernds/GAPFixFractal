@@ -15,7 +15,7 @@ class BatchRenderDialog : public QDialog
 	void choose_file ();
 
 public:
-	BatchRenderDialog (QWidget *);
+	BatchRenderDialog (QWidget *, bool tiled);
 	~BatchRenderDialog ();
 
 	void accept () override;

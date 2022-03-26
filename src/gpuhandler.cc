@@ -94,7 +94,7 @@ int GPU_handler::batch_setup (frac_desc *fd)
 	for (int y = y0; y < h; y++) {
 		for (int x = x0; x < w; x++) {
 			fd->pixels_started.set_bit (y * w + x);
-			fd->host_coords[idx] = encode_coord (x, y + fd->yoff, w, fd->full_height);
+			fd->host_coords[idx] = encode_coord (x + fd->xoff, y + fd->yoff, w, fd->full_height);
 			if (++idx == fd->n_threads)
 				return idx;
 		}
@@ -322,7 +322,7 @@ void GPU_handler::slot_start_kernel (frac_desc *fd, int generation, int max_nwor
 			hcx += w / 2;
 			hcy += full_h / 2;
 			uint32_t result = fd->host_result[i];
-			int idx = (hcy - fd->yoff) * w + hcx;
+			int idx = (hcy - fd->yoff) * w + hcx - fd->xoff;
 			if (result != 0) {
 				j += compact (j);
 				fd->pic_result[idx] += result;

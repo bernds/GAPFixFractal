@@ -6,16 +6,17 @@
 
 #include "ui_batchrender.h"
 
-BatchRenderDialog::BatchRenderDialog (QWidget *parent)
+BatchRenderDialog::BatchRenderDialog (QWidget *parent, bool tiled)
 	: QDialog (parent), ui (new Ui::BatchRenderDialog)
 {
 	ui->setupUi (this);
 
-	ui->widthEdit->setValidator (new QIntValidator (100, 8191, this));
-	ui->heightEdit->setValidator (new QIntValidator (100, 8191, this));
+	ui->widthEdit->setValidator (new QIntValidator (100, tiled ? 99999 : 8191, this));
+	ui->heightEdit->setValidator (new QIntValidator (100, tiled ? 99999 : 8191, this));
 	ui->widthEdit->setText ("2048");
 	ui->heightEdit->setText ("2048");
 	ui->maxiterEdit->setEnabled (ui->maxiterCheckBox->isChecked ());
+	ui->tileLabel->setVisible (tiled);
 
 	connect (ui->widthEdit, &QLineEdit::textChanged, [this] () { inputs_changed (); });
 	connect (ui->heightEdit, &QLineEdit::textChanged, [this] () { inputs_changed (); });

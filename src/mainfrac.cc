@@ -205,6 +205,7 @@ void MainWindow::layout_stored_params ()
 	QGraphicsView *view = ui->storedView;
 	if (m_stored.size () == 0) {
 		ui->action_BatchRender->setEnabled (false);
+		ui->action_BatchTiled->setEnabled (false);
 		return;
 	}
 	if (!view->isVisible ())
@@ -1978,6 +1979,7 @@ void MainWindow::store_params (bool preview)
 	m_stored.emplace_back (newsp, thumbnail);
 	if (m_stored.size () == 1) {
 		ui->action_BatchRender->setEnabled (true);
+		ui->action_BatchTiled->setEnabled (true);
 		ui->storedDock->show ();
 	}
 	layout_stored_params ();
@@ -2101,13 +2103,13 @@ void MainWindow::gradient_edit (bool)
 	restart_computation ();
 }
 
-void MainWindow::slot_batchrender (bool)
+void MainWindow::slot_batchrender (bool tiled)
 {
 	bool old_paused = m_paused;
 	m_paused = true;
 	abort_computation ();
 
-	BatchRenderDialog dlg (this);
+	BatchRenderDialog dlg (this, tiled);
 	if (!dlg.exec ())
 		return;
 
@@ -2130,10 +2132,6 @@ void MainWindow::slot_batchrender (bool)
 		QString v_str = QString::number (count++);
 		while (v_str.length () < 4)
 			v_str = "0" + v_str;
-		QString filename = pattern;
-		filename.replace (QRegExp ("%n"), v_str);
-		QString label = tr ("Working on file: ") + filename;
-		pdlg.setLabelText (label);
 
 		frac_params &fp = st.params.fp;
 		render_params &rp = st.params.rp;
@@ -2166,71 +2164,100 @@ void MainWindow::slot_batchrender (bool)
 			close ();
 			return;
 		}
-		QFile f (filename);
-		if (f.exists () && !dlg.get_overwrite ()) {
-			QMessageBox::StandardButton choice;
-			choice = QMessageBox::warning (this, tr ("File exists"),
-						       tr ("A filename matching the pattern and current number already exists.  Overwrite?"),
-						       QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
-			if (choice == QMessageBox::No)
-				break;
-		}
-
-		frac_desc temp_fd;
-		temp_fd.set (fp);
-		temp_fd.generation = 0;
-		int spixels = 1 << samples;
-		double d = (double)w * spixels * spixels * n_prev;
-		int batch_size = std::max (20.0, 1000000.0 / d);
-		int steps = (h + batch_size - 1) / batch_size;
-		batch_size = h / steps;
-
-		Renderer renderer;
-		renderer.queued = true;
-		renderer.next_rp = rp;
-		renderer.render_width = w;
 		bool alpha = settings.value ("render/alpha").toBool ();
-		renderer.result_image = QImage (w, h, alpha ? QImage::Format_ARGB32 : QImage::Format_RGB32);
-		int maxiter = m_cur_maxiter;
-		int dlg_maxiter = dlg.get_maxiter ();
-		int prev_maxiter = fp.maxiter_found;
-		if (dlg_maxiter != 0)
-			maxiter = std::min (maxiter, m_cur_maxiter);
-		if (prev_maxiter_factor != 0)
-			maxiter = std::min (maxiter, (int)(prev_maxiter / 100.0 * prev_maxiter_factor));
-		printf ("maxiter is %d (%d %d %d)\n", maxiter, m_cur_maxiter, dlg_maxiter, prev_maxiter);
-		for (int y0 = 0; y0 < h; y0 += batch_size) {
-			double totalProgress = progress + pro_step * ((double)y0 / h);
-			pdlg.setValue (totalProgress);
-			QString progressText = QString(tr("%1% batch | %2% %3")).arg(totalProgress, 0, 'f', 2).arg((100. * (double)y0 / h), 0, 'f', 2).arg(filename);
-			pdlg.setWindowTitle(progressText);
-			setWindowTitle(QString(PACKAGE) + " - " + progressText);
-
-			temp_fd.yoff = y0 * (1 << samples);
-			int this_h = std::min (h - y0, batch_size);
-			compute_fractal (temp_fd, temp_fd.nwords, n_prev, w, this_h, h, maxiter,
-					 samples, rp.dem || rp.dem_shade, rp.ic_atom || rp.oc_atom, false, true);
-			gpu_handler->done_sem.acquire ();
-			if (pdlg.wasCanceled ())
-				break;
-			renderer.render_height = this_h;
-			renderer.set_minimum (rp.minimum, temp_fd.generation);
-			renderer.do_render (rp, w, this_h, y0, &temp_fd, nullptr, temp_fd.generation);
-			if (pdlg.wasCanceled ())
-				break;
+		int xbatch_size = w;
+		int spixels = 1 << samples;
+		if (tiled && xbatch_size * spixels >= 4096) {
+			xbatch_size = 4000 >> samples;
+			int steps = (w + xbatch_size - 1) / xbatch_size;
+			xbatch_size = w / steps;
 		}
 
-		discard_fd_data (temp_fd);
+		for (int x0 = 0; x0 < w; x0 += xbatch_size) {
+			QString filename = pattern;
+			QString h_str = "";
+			if (w != xbatch_size)
+				h_str = "_" + QString::number (x0 / xbatch_size);
+			filename.replace (QRegExp ("%n"), v_str + h_str);
+			QString label = tr ("Working on file: ") + filename;
+			pdlg.setLabelText (label);
+			QFile f (filename);
+			if (f.exists () && !dlg.get_overwrite ()) {
+				QMessageBox::StandardButton choice;
+				choice = QMessageBox::warning (this, tr ("File exists"),
+							       tr ("A filename matching the pattern and current number already exists.  Overwrite?"),
+							       QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+				if (choice == QMessageBox::No)
+					break;
+			}
 
-		if (pdlg.wasCanceled ())
-			break;
+			frac_desc temp_fd;
+			temp_fd.set (fp);
+			temp_fd.generation = 0;
+			double d = (double)xbatch_size * spixels * spixels * n_prev;
+			int batch_size = std::max (20.0, 1000000.0 / d);
+			int steps = (h + batch_size - 1) / batch_size;
+			batch_size = h / steps;
+			if (batch_size * spixels >= 65536)
+				batch_size = 64000 >> samples;
 
-		if (!renderer.result_image.save (&f)) {
-			QMessageBox::warning (this, tr ("Error while saving"),
-					      tr ("One of the files could not be saved.\nPlease verify the filename pattern is correct."));
-			break;
+			Renderer renderer;
+			renderer.queued = true;
+			renderer.next_rp = rp;
+			int this_w = xbatch_size;
+			if (x0 + xbatch_size > w)
+				this_w = w - x0;
+			renderer.render_width = this_w;
+			renderer.result_image = QImage (renderer.render_width, h, alpha ? QImage::Format_ARGB32 : QImage::Format_RGB32);
+
+			int maxiter = m_cur_maxiter;
+			int dlg_maxiter = dlg.get_maxiter ();
+			int prev_maxiter = fp.maxiter_found;
+			if (dlg_maxiter != 0)
+				maxiter = std::min (maxiter, m_cur_maxiter);
+			if (prev_maxiter_factor != 0)
+				maxiter = std::min (maxiter, (int)(prev_maxiter / 100.0 * prev_maxiter_factor));
+			printf ("maxiter is %d (%d %d %d)\n", maxiter, m_cur_maxiter, dlg_maxiter, prev_maxiter);
+			for (int y0 = 0; y0 < h; y0 += batch_size) {
+				double x_progress = (double) x0 / w;
+				double y_progress = (double) y0 / h * this_w / w;
+				double this_progress = x_progress + y_progress;
+				double totalProgress = progress + pro_step * this_progress;
+				pdlg.setValue (totalProgress);
+				QString progressText;
+				if (xbatch_size != w)
+					progressText = tr("%1% batch | %2% %3").arg(totalProgress, 0, 'f', 2).arg(100. * this_progress, 0, 'f', 2).arg(filename);
+				else
+					progressText = tr("%1% batch | %2% %3").arg(totalProgress, 0, 'f', 2).arg(100. * this_progress, 0, 'f', 2).arg(filename);
+				pdlg.setWindowTitle(progressText);
+				setWindowTitle(QString(PACKAGE) + " - " + progressText);
+
+				temp_fd.yoff = y0 * spixels;
+				temp_fd.xoff = x0 * spixels;
+				int this_h = std::min (h - y0, batch_size);
+				compute_fractal (temp_fd, temp_fd.nwords, n_prev, w, this_h, h, maxiter,
+						 samples, rp.dem || rp.dem_shade, rp.ic_atom || rp.oc_atom, false, true);
+				gpu_handler->done_sem.acquire ();
+				if (pdlg.wasCanceled ())
+					break;
+				renderer.render_height = this_h;
+				renderer.set_minimum (rp.minimum, temp_fd.generation);
+				renderer.do_render (rp, this_w, this_h, y0, &temp_fd, nullptr, temp_fd.generation);
+				if (pdlg.wasCanceled ())
+					break;
+			}
+			discard_fd_data (temp_fd);
+			if (pdlg.wasCanceled ())
+				break;
+
+			if (!renderer.result_image.save (&f)) {
+				QMessageBox::warning (this, tr ("Error while saving"),
+						      tr ("One of the files could not be saved.\nPlease verify the filename pattern is correct."));
+				break;
+			}
+			f.close ();
 		}
-		f.close ();
+
 		progress += pro_step;
 	}
 
@@ -2380,6 +2407,7 @@ MainWindow::MainWindow (QDataStream *init_file)
 	ui->storedDock->hide ();
 	ui->extraDock->hide ();
 	ui->action_BatchRender->setEnabled (false);
+	ui->action_BatchTiled->setEnabled (false);
 	ui->menuHybrid->setEnabled (false);
 	ui->stripesWidget->setEnabled (false);
 	ui->tiaWidget->setEnabled (false);
@@ -2672,7 +2700,8 @@ MainWindow::MainWindow (QDataStream *init_file)
 	connect (ui->action_SavePalette, &QAction::triggered, [this] (bool) { slot_save_palette (); restart_computation (); });
 	connect (ui->action_LoadPalette, &QAction::triggered, [this] (bool) { slot_load_palette (); restart_computation (); });
 	connect (ui->action_GradEditor, &QAction::triggered, this, &MainWindow::gradient_edit);
-	connect (ui->action_BatchRender, &QAction::triggered, this, &MainWindow::slot_batchrender);
+	connect (ui->action_BatchRender, &QAction::triggered, [this] (bool) { slot_batchrender (false); });
+	connect (ui->action_BatchTiled, &QAction::triggered, [this] (bool) { slot_batchrender (true); });
 
 	connect (ui->action_Prefs, &QAction::triggered,
 		 [this] (bool) {
